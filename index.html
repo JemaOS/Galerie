@@ -1,0 +1,491 @@
+<!--
+  Copyright (C) 2025 Jema Technology
+
+  This program is free software: you can redistribute it and/or modify
+  it under the terms of the GNU Affero General Public License as
+  published by the Free Software Foundation, either version 3 of the
+  License, or (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU Affero General Public License for more details.
+
+  You should have received a copy of the GNU Affero General Public License
+  along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galerie JemaOS</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#202124">
+    <meta name="description" content="Une galerie de JemaOS pour visualiser des images, des vidéos et des fichiers audio">
+    
+    <!-- Favicon and Icons -->
+    <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.svg">
+    
+    <!-- Preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Google Fonts - Roboto for JemaOS feel -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- Material Icons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/grid.css">
+    <link rel="stylesheet" href="styles/fullscreen.css">
+    <link rel="stylesheet" href="styles/pdf-viewer.css">
+    <link rel="stylesheet" href="styles/audio-player.css">
+    <link rel="stylesheet" href="styles/video-player.css">
+    <link rel="stylesheet" href="styles/annotation.css">
+    <link rel="stylesheet" href="styles/responsive.css">
+    
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    <!-- PDF-Lib -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-spinner"></div>
+        <p>Chargement de la galerie...</p>
+    </div>
+
+    <!-- Main Application -->
+    <div id="app" class="app hidden">
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Drop Zone -->
+            <div id="drop-zone" class="drop-zone hidden">
+                <div class="drop-message">
+                    <i class="material-icons">cloud_upload</i>
+                    <p>Déposez des fichiers ici pour les ajouter à la galerie</p>
+                </div>
+            </div>
+
+            <!-- File Grid -->
+            <div id="file-grid" class="file-grid">
+                <!-- Files will be populated here -->
+            </div>
+
+            <!-- Empty State / Landing Page -->
+            <div id="empty-state" class="empty-state hidden">
+                <div class="landing-top-bar">
+                    <button id="landing-open-btn" class="primary-btn">Ouvrir un fichier</button>
+                    <button class="icon-btn"><i class="material-icons">more_vert</i></button>
+                </div>
+                
+                <div class="landing-header">
+                    <h2>Afficher et modifier vos fichiers</h2>
+                </div>
+
+                <div class="landing-grid">
+                    <!-- Images Card -->
+                    <div class="landing-card" id="card-images">
+                        <div class="card-icon image-icon">
+                            <i class="material-icons">image</i>
+                        </div>
+                        <h3>Modifier des images</h3>
+                        <p>Redimensionnez, recadrez et faites pivoter vos images, ou ajustez l'éclairage et le contraste.</p>
+                        <button class="card-link">Ouvrir une image</button>
+                    </div>
+
+                    <!-- PDF Card -->
+                    <div class="landing-card" id="card-pdf">
+                        <div class="card-icon pdf-icon">
+                            <i class="material-icons">picture_as_pdf</i>
+                        </div>
+                        <h3>Remplir des PDF</h3>
+                        <p>Complétez des formulaires, ajoutez du texte et signez des documents.</p>
+                        <button class="card-link">Ouvrir un PDF</button>
+                    </div>
+
+                    <!-- Video Card -->
+                    <div class="landing-card" id="card-video">
+                        <div class="card-icon video-icon">
+                            <i class="material-icons">videocam</i>
+                        </div>
+                        <h3>Regarder des vidéos</h3>
+                        <p>Regardez-les dans une fenêtre redimensionnable ou en plein écran.</p>
+                        <button class="card-link">Ouvrir une vidéo</button>
+                    </div>
+
+                    <!-- Audio Card -->
+                    <div class="landing-card" id="card-audio">
+                        <div class="card-icon audio-icon">
+                            <i class="material-icons">audiotrack</i>
+                        </div>
+                        <h3>Écouter des fichiers audio</h3>
+                        <p>Lisez de la musique et d'autres fichiers audio.</p>
+                        <button class="card-link">Ouvrir un fichier audio</button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- File Input -->
+        <input type="file" id="file-input" multiple accept="image/*,video/*,audio/*" style="display: none;">
+
+        <!-- Toast Notifications -->
+        <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <!-- Fullscreen Viewer -->
+    <div id="fullscreen-viewer" class="fullscreen-viewer hidden">
+        <!-- Default Toolbar -->
+        <div class="viewer-toolbar" id="viewer-default-toolbar">
+            <div class="viewer-top-left">
+                <span id="viewer-filename" class="viewer-filename"></span>
+                <div class="viewer-divider"></div>
+                <button id="viewer-info" class="viewer-btn" title="Infos">
+                    <i class="material-icons">info_outline</i>
+                </button>
+                <button id="viewer-print" class="viewer-btn" title="Imprimer">
+                    <i class="material-icons">print</i>
+                </button>
+            </div>
+            
+            <div class="viewer-top-center">
+                <button id="viewer-zoom-out" class="viewer-btn" title="Zoom arrière">
+                    <i class="material-icons">zoom_out</i>
+                </button>
+                <button id="viewer-zoom-in" class="viewer-btn" title="Zoom avant">
+                    <i class="material-icons">zoom_in</i>
+                </button>
+            </div>
+            
+            <div class="viewer-top-right">
+                <button id="viewer-rotate" class="viewer-btn" title="Pivoter">
+                    <i class="material-icons">rotate_right</i>
+                </button>
+                <div class="viewer-divider"></div>
+                
+                <!-- Toolbar Split Button -->
+                <div class="split-btn-container" style="width: auto; margin-bottom: 0; margin-right: 8px;">
+                    <button id="viewer-toolbar-save-split" class="split-btn-main" style="border-radius: 4px 0 0 4px; padding: 0 12px;">
+                        <i class="material-icons">save</i>
+                    </button>
+                    <button id="viewer-toolbar-save-options" class="split-btn-arrow" style="border-radius: 0 4px 4px 0; width: 28px;">
+                        <i class="material-icons">arrow_drop_down</i>
+                    </button>
+                    <div id="viewer-toolbar-save-dropdown" class="split-btn-dropdown">
+                        <button id="viewer-toolbar-save-as-split" class="split-btn-item">
+                            <i class="material-icons">save_as</i> Enregistrer sous
+                        </button>
+                    </div>
+                </div>
+
+                <button id="viewer-edit-mode" class="viewer-btn" title="Modifier / Annoter">
+                    <i class="material-icons">edit</i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Edit Toolbar (Hidden by default) -->
+        <div class="viewer-toolbar hidden" id="viewer-edit-toolbar" style="background-color: #202124;">
+             <div class="viewer-top-left">
+                <button id="viewer-exit-edit" class="viewer-btn" title="Terminer">
+                    <i class="material-icons">arrow_back</i>
+                </button>
+                <span class="viewer-filename">Mode Édition</span>
+             </div>
+             <div class="viewer-top-center">
+                <button class="viewer-btn tool-btn" data-tool="adjust" title="Ajuster"><i class="material-icons">wb_sunny</i></button>
+                <div class="viewer-divider"></div>
+                <button class="viewer-btn tool-btn" data-tool="pen" title="Stylo"><i class="material-icons">edit</i></button>
+                <button class="viewer-btn tool-btn" data-tool="marker" title="Surligneur"><i class="material-icons">brush</i></button>
+                <button class="viewer-btn tool-btn" data-tool="eraser" title="Gomme"><i class="material-icons">auto_fix_normal</i></button>
+                <button class="viewer-btn tool-btn" data-tool="text" title="Texte"><i class="material-icons">text_fields</i></button>
+             </div>
+             <div class="viewer-top-right">
+                <button id="viewer-undo-edit" class="viewer-btn" title="Annuler"><i class="material-icons">undo</i></button>
+                <button id="viewer-redo-edit" class="viewer-btn" title="Rétablir"><i class="material-icons">redo</i></button>
+             </div>
+        </div>
+        
+        <div class="viewer-main-area" style="display: flex; flex: 1; overflow: hidden; position: relative;">
+            <div class="viewer-content" style="flex: 1;">
+                <div id="viewer-media" class="viewer-media">
+                    <!-- Media content will be inserted here -->
+                </div>
+            </div>
+            
+            <!-- Properties Sidebar -->
+            <div id="viewer-properties-sidebar" class="properties-sidebar hidden">
+                <!-- Split Button -->
+                <div class="split-btn-container">
+                    <button id="viewer-save-split" class="split-btn-main">
+                        <i class="material-icons">save</i> Enregistrer
+                    </button>
+                    <button id="viewer-save-options" class="split-btn-arrow">
+                        <i class="material-icons">arrow_drop_down</i>
+                    </button>
+                    <div id="viewer-save-dropdown" class="split-btn-dropdown">
+                        <button id="viewer-save-as-split" class="split-btn-item">
+                            <i class="material-icons">save_as</i> Enregistrer sous
+                        </button>
+                    </div>
+                </div>
+                <!-- Properties Container -->
+                <div id="viewer-properties-container"></div>
+            </div>
+        </div>
+
+        
+    </div>
+
+
+    <!-- PDF Viewer -->
+    <div id="pdf-viewer" class="pdf-viewer hidden">
+        <!-- Default Toolbar -->
+        <div class="pdf-toolbar" id="pdf-default-toolbar">
+            <div class="pdf-toolbar-left">
+                <button id="pdf-sidebar-toggle" class="pdf-btn" title="Afficher/Masquer la barre latérale">
+                    <i class="material-icons">chevron_right</i>
+                </button>
+                <span id="pdf-filename" class="pdf-filename">Document.pdf</span>
+                <div class="pdf-divider"></div>
+                <button id="pdf-info" class="pdf-btn" title="Infos du fichier">
+                    <i class="material-icons">info_outline</i>
+                </button>
+                <button id="pdf-print" class="pdf-btn" title="Imprimer">
+                    <i class="material-icons">print</i>
+                </button>
+                <button id="pdf-layout" class="pdf-btn" title="Mise en page">
+                    <i class="material-icons">grid_view</i>
+                </button>
+            </div>
+            
+            <div class="pdf-toolbar-center">
+                <div class="pdf-page-nav">
+                    <input type="number" id="pdf-page-num" value="1" min="1">
+                    <span>/</span>
+                    <span id="pdf-page-count">1</span>
+                </div>
+                <div class="pdf-divider"></div>
+                <button id="pdf-zoom-out" class="pdf-btn" title="Zoom arrière">
+                    <i class="material-icons">remove</i>
+                </button>
+                <span id="pdf-zoom-level" class="pdf-zoom-level">100%</span>
+                <button id="pdf-zoom-in" class="pdf-btn" title="Zoom avant">
+                    <i class="material-icons">add</i>
+                </button>
+            </div>
+            
+            <div class="pdf-toolbar-right">
+                <button id="pdf-rotate" class="pdf-btn" title="Pivoter">
+                    <i class="material-icons">rotate_right</i>
+                </button>
+                <div class="pdf-divider"></div>
+                
+                <!-- Toolbar Split Button -->
+                <div class="split-btn-container" style="width: auto; margin-bottom: 0; margin-right: 8px;">
+                    <button id="pdf-toolbar-save-split" class="split-btn-main" style="border-radius: 4px 0 0 4px; padding: 0 12px;">
+                        <i class="material-icons">save</i>
+                    </button>
+                    <button id="pdf-toolbar-save-options" class="split-btn-arrow" style="border-radius: 0 4px 4px 0; width: 28px;">
+                        <i class="material-icons">arrow_drop_down</i>
+                    </button>
+                    <div id="pdf-toolbar-save-dropdown" class="split-btn-dropdown">
+                        <button id="pdf-toolbar-save-as-split" class="split-btn-item">
+                            <i class="material-icons">save_as</i> Enregistrer sous
+                        </button>
+                    </div>
+                </div>
+
+                <button id="pdf-edit-mode" class="pdf-btn" title="Modifier / Annoter">
+                    <i class="material-icons">edit</i>
+                </button>
+                <div class="pdf-divider"></div>
+            </div>
+        </div>
+
+        <!-- Edit Toolbar (Hidden by default) -->
+        <div class="pdf-toolbar hidden" id="pdf-edit-toolbar" style="background-color: #202124;">
+             <div class="pdf-toolbar-left">
+                <button id="pdf-exit-edit" class="pdf-btn" title="Terminer">
+                    <i class="material-icons">arrow_back</i>
+                </button>
+                <span class="pdf-filename">Mode Édition</span>
+             </div>
+             <div class="pdf-toolbar-center">
+                <button class="pdf-btn tool-btn" data-tool="pen" title="Stylo"><i class="material-icons">edit</i></button>
+                <button class="pdf-btn tool-btn" data-tool="marker" title="Surligneur"><i class="material-icons">brush</i></button>
+                <button class="pdf-btn tool-btn" data-tool="eraser" title="Gomme"><i class="material-icons">auto_fix_normal</i></button>
+                <button class="pdf-btn tool-btn" data-tool="text" title="Texte"><i class="material-icons">text_fields</i></button>
+             </div>
+             <div class="pdf-toolbar-right">
+                <button id="pdf-undo-edit" class="pdf-btn" title="Annuler"><i class="material-icons">undo</i></button>
+                <button id="pdf-redo-edit" class="pdf-btn" title="Rétablir"><i class="material-icons">redo</i></button>
+             </div>
+        </div>
+        
+        <div class="pdf-container">
+            <div id="pdf-sidebar" class="pdf-sidebar hidden">
+                <!-- Thumbnails will go here -->
+            </div>
+            <div id="pdf-main" class="pdf-main">
+                <div id="pdf-canvas-container" class="pdf-canvas-container">
+                    <!-- Canvas will be injected here -->
+                </div>
+            </div>
+            <!-- Properties Sidebar -->
+            <div id="pdf-properties-sidebar" class="properties-sidebar hidden">
+                <!-- Split Button -->
+                <div class="split-btn-container">
+                    <button id="pdf-save-split" class="split-btn-main">
+                        <i class="material-icons">save</i> Enregistrer
+                    </button>
+                    <button id="pdf-save-options" class="split-btn-arrow">
+                        <i class="material-icons">arrow_drop_down</i>
+                    </button>
+                    <div id="pdf-save-dropdown" class="split-btn-dropdown">
+                        <button id="pdf-save-as-split" class="split-btn-item">
+                            <i class="material-icons">save_as</i> Enregistrer sous
+                        </button>
+                    </div>
+                </div>
+                <!-- Properties Container -->
+                <div id="pdf-properties-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio Player -->
+    <div id="audio-player" class="hidden">
+        <!-- Sidebar -->
+        <div class="audio-sidebar">
+            <div class="audio-header">
+                <button id="audio-back-btn" class="audio-back-btn">
+                    <i class="material-icons">arrow_back</i>
+                </button>
+                <h2>Lecture en cours</h2>
+            </div>
+            <div id="audio-playlist-items" class="audio-playlist">
+                <!-- Playlist items injected here -->
+            </div>
+        </div>
+
+        <!-- Main Area -->
+        <div class="audio-main">
+            <div class="album-art-container">
+                <i id="album-art-placeholder" class="material-icons album-art-placeholder">music_note</i>
+            </div>
+            
+            <div class="current-track-info">
+                <div id="audio-track-title" class="current-track-title">Titre de la piste</div>
+                <div id="audio-track-artist" class="current-track-artist">Nom de l'artiste</div>
+            </div>
+
+            <div class="player-controls">
+                <!-- Progress -->
+                <div class="progress-container">
+                    <span id="audio-current-time" class="time-display">0:00</span>
+                    <div id="audio-progress-bar" class="progress-bar-wrapper">
+                        <div class="progress-bar-bg">
+                            <div id="audio-progress-fill" class="progress-bar-fill"></div>
+                        </div>
+                    </div>
+                    <span id="audio-total-time" class="time-display">0:00</span>
+                </div>
+
+                <!-- Main Controls Row -->
+                <div class="audio-controls-row">
+                    <!-- Left: Volume -->
+                    <div class="volume-container">
+                        <i class="material-icons" style="font-size: 18px; color: var(--on-surface-variant);">volume_up</i>
+                        <input type="range" id="audio-volume" class="volume-slider" min="0" max="1" step="0.1" value="1">
+                    </div>
+
+                    <!-- Center: Playback -->
+                    <div class="center-controls">
+                        <button id="audio-prev" class="control-btn" title="Précédent">
+                            <i class="material-icons">skip_previous</i>
+                        </button>
+                        <button id="audio-play-pause" class="control-btn large" title="Lecture/Pause">
+                            <i class="material-icons">play_arrow</i>
+                        </button>
+                        <button id="audio-next" class="control-btn" title="Suivant">
+                            <i class="material-icons">skip_next</i>
+                        </button>
+                    </div>
+
+                    <!-- Right: Shuffle/Repeat -->
+                    <div class="right-controls">
+                        <button id="audio-info" class="control-btn" title="Infos">
+                            <i class="material-icons">info_outline</i>
+                        </button>
+                        <button id="audio-shuffle" class="control-btn" title="Aléatoire">
+                            <i class="material-icons">shuffle</i>
+                        </button>
+                        <button id="audio-repeat" class="control-btn" title="Répéter">
+                            <i class="material-icons">repeat</i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Modal -->
+    <div id="info-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Informations du fichier</h3>
+                <button id="modal-close-btn" class="icon-btn"><i class="material-icons">close</i></button>
+            </div>
+            <div class="modal-body">
+                <div class="info-row">
+                    <span class="info-label">Nom :</span>
+                    <span id="modal-filename" class="info-value"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Type :</span>
+                    <span id="modal-filetype" class="info-value"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Taille :</span>
+                    <span id="modal-filesize" class="info-value"></span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Date :</span>
+                    <span id="modal-filedate" class="info-value"></span>
+                </div>
+                <div class="info-row" id="modal-dimensions-row" style="display: none;">
+                    <span class="info-label">Dimensions :</span>
+                    <span id="modal-dimensions" class="info-value"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="modal-close-action" class="primary-btn">Fermer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="scripts/utils.js"></script>
+    <script src="scripts/file-handler.js"></script>
+    <script src="scripts/ui-controller.js"></script>
+    <script src="scripts/annotation-manager.js"></script>
+    <script src="scripts/fullscreen-viewer.js"></script>
+    <script src="scripts/pdf-viewer.js"></script>
+    <script src="scripts/audio-player.js"></script>
+    <script src="scripts/video-player.js"></script>
+    <script src="scripts/main.js"></script>
+    
+    <!-- PWA Service Worker -->
+    <script src="sw.js"></script>
+</body>
+</html>

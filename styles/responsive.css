@@ -1,0 +1,567 @@
+/*
+ * Copyright (C) 2025 Jema Technology
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/* JemaOS Gallery - Responsive Styles */
+
+/* Large Desktop (1200px+) */
+@media (min-width: 1200px) {
+  .file-grid.grid-large {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-xl);
+  }
+  
+  .file-grid.grid-medium {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+  
+  .file-grid.grid-small {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+  
+  .header-center {
+    max-width: 500px;
+  }
+  
+  .viewer-toolbar {
+    padding: var(--space-lg) var(--space-2xl);
+  }
+  
+  .viewer-thumbnails {
+    padding: var(--space-lg);
+    max-height: 140px;
+  }
+  
+  .thumbnail-item {
+    width: 100px;
+    height: 75px;
+  }
+}
+
+/* Desktop (992px - 1199px) */
+@media (max-width: 1199px) and (min-width: 992px) {
+  .file-grid.grid-large {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+  
+  .file-grid.grid-medium {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
+  
+  .file-grid.grid-small {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+  
+  .header-center {
+    max-width: 400px;
+  }
+  
+  .side-panel {
+    width: 300px;
+  }
+}
+
+/* Tablet Landscape (768px - 991px) */
+@media (max-width: 991px) and (min-width: 768px) {
+  /* Header and Filter Bar removed */
+  
+  .file-grid {
+    padding: var(--space-sm);
+    gap: var(--space-sm);
+  }
+  
+  .file-grid.grid-large {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+  
+  .file-grid.grid-medium {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+  
+  .file-grid.grid-small {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+  
+  .side-panel {
+    width: 280px;
+  }
+  
+  .viewer-toolbar {
+    padding: var(--space-md) var(--space-lg);
+  }
+  
+  .viewer-filename {
+    font-size: var(--font-size-base);
+  }
+  
+  .viewer-thumbnails {
+    max-height: 100px;
+  }
+  
+  .thumbnail-item {
+    width: 80px;
+    height: 60px;
+  }
+}
+
+/* Tablet Portrait (576px - 767px) */
+@media (max-width: 767px) and (min-width: 576px) {
+  /* Header and Filter Bar removed */
+  
+  .view-controls {
+    justify-content: center;
+  }
+  
+  .view-btn {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .view-btn .material-icons {
+    font-size: 16px;
+  }
+  
+  .file-grid {
+    padding: var(--space-xs);
+    gap: var(--space-xs);
+  }
+  
+  .file-grid.grid-large {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+  
+  .file-grid.grid-medium {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+  
+  .file-grid.grid-small {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
+  
+  .file-grid.list-view .file-item {
+    height: 56px;
+    padding: var(--space-xs);
+  }
+  
+  .file-grid.list-view .file-thumbnail {
+    width: 40px;
+    height: 40px;
+    margin-right: var(--space-sm);
+  }
+  
+  .file-grid.list-view .file-name {
+    font-size: var(--font-size-xs);
+  }
+  
+  .file-grid.list-view .file-details {
+    font-size: 10px;
+  }
+  
+  /* Selection Toolbar removed */
+  
+  .side-panel {
+    width: 100vw;
+    right: -100vw;
+  }
+  
+  .panel-header {
+    padding: var(--space-sm);
+  }
+  
+  .panel-content {
+    padding: var(--space-sm);
+  }
+  
+  .viewer-toolbar {
+    padding: var(--space-sm);
+    flex-wrap: wrap;
+  }
+  
+  .viewer-info {
+    order: 3;
+    flex-basis: 100%;
+    margin: 0;
+    max-width: none;
+  }
+  
+  .viewer-filename {
+    font-size: var(--font-size-sm);
+  }
+  
+  .viewer-position {
+    font-size: 10px;
+  }
+  
+  .viewer-actions {
+    order: 2;
+  }
+  
+  .viewer-btn {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .viewer-btn .material-icons {
+    font-size: 18px;
+  }
+  
+  .nav-arrow {
+    width: 48px;
+    height: 48px;
+  }
+  
+  .nav-arrow .material-icons {
+    font-size: 24px;
+  }
+  
+  .nav-arrow.prev {
+    left: var(--space-sm);
+  }
+  
+  .nav-arrow.next {
+    right: var(--space-sm);
+  }
+  
+  .thumbnail-item {
+    width: 60px;
+    height: 45px;
+  }
+  
+  .thumbnail-strip {
+    gap: 4px;
+  }
+}
+
+/* Mobile Large (480px - 575px) */
+@media (max-width: 575px) and (min-width: 480px) {
+  /* Header and Filter Bar removed */
+  
+  .view-btn {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .view-btn .material-icons {
+    font-size: 14px;
+  }
+  
+  .file-grid.grid-large {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  }
+  
+  .file-grid.grid-medium {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+  
+  .file-grid.grid-small {
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  }
+  
+  .file-name {
+    font-size: 10px;
+  }
+  
+  .file-details {
+    font-size: 9px;
+  }
+  
+  .video-duration {
+    font-size: 9px;
+    padding: 1px 4px;
+  }
+  
+  /* Selection Toolbar removed */
+  
+  .viewer-toolbar {
+    padding: var(--space-xs);
+  }
+  
+  .viewer-btn {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .viewer-btn .material-icons {
+    font-size: 16px;
+  }
+  
+  .nav-arrow {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .nav-arrow .material-icons {
+    font-size: 20px;
+  }
+  
+  .thumbnail-item {
+    width: 50px;
+    height: 38px;
+  }
+  
+  .toast {
+    min-width: 250px;
+    padding: var(--space-sm);
+  }
+}
+
+/* Mobile Small (320px - 479px) */
+@media (max-width: 479px) {
+  /* Header and Filter Bar removed */
+  
+  .view-btn {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .view-btn .material-icons {
+    font-size: 12px;
+  }
+  
+  .file-grid {
+    padding: 2px;
+    gap: 2px;
+  }
+  
+  .file-grid.grid-large {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+  
+  .file-grid.grid-medium {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
+  
+  .file-grid.grid-small {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  }
+  
+  .file-name {
+    font-size: 9px;
+  }
+  
+  .file-details {
+    font-size: 8px;
+  }
+  
+  .video-duration {
+    font-size: 8px;
+    padding: 1px 3px;
+  }
+  
+  .play-overlay {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .play-overlay .material-icons {
+    font-size: 16px;
+  }
+  
+  /* Selection Toolbar removed */
+  
+  .side-panel {
+    width: 100vw;
+    right: -100vw;
+  }
+  
+  .panel-header h3 {
+    font-size: var(--font-size-base);
+  }
+  
+  .panel-content {
+    padding: var(--space-xs);
+  }
+  
+  .option-group {
+    margin-bottom: var(--space-sm);
+  }
+  
+  .option-group label {
+    font-size: 10px;
+  }
+  
+  .select-input {
+    font-size: 10px;
+    padding: var(--space-xs) var(--space-sm);
+  }
+  
+  .size-btn,
+  .order-btn {
+    font-size: 9px;
+    padding: var(--space-xs);
+  }
+  
+  .viewer-toolbar {
+    padding: var(--space-xs);
+  }
+  
+  .viewer-info {
+    order: 3;
+    flex-basis: 100%;
+  }
+  
+  .viewer-filename {
+    font-size: var(--font-size-xs);
+  }
+  
+  .viewer-position {
+    font-size: 9px;
+  }
+  
+  .viewer-actions {
+    order: 2;
+    gap: 2px;
+  }
+  
+  .viewer-btn {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .viewer-btn .material-icons {
+    font-size: 14px;
+  }
+  
+  .nav-arrow {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .nav-arrow .material-icons {
+    font-size: 18px;
+  }
+  
+  .nav-arrow.prev {
+    left: var(--space-xs);
+  }
+  
+  .nav-arrow.next {
+    right: var(--space-xs);
+  }
+  
+  .thumbnail-item {
+    width: 44px;
+    height: 33px;
+  }
+  
+  .thumbnail-duration {
+    font-size: 8px;
+    padding: 1px 2px;
+  }
+  
+  .zoom-controls {
+    top: var(--space-xs);
+    right: var(--space-xs);
+  }
+  
+  .zoom-btn {
+    width: 32px;
+    height: 32px;
+  }
+  
+  .zoom-btn .material-icons {
+    font-size: 14px;
+  }
+  
+  .zoom-level {
+    top: 42px;
+    right: var(--space-xs);
+    font-size: 9px;
+  }
+  
+  .toast {
+    min-width: 200px;
+    padding: var(--space-xs);
+    font-size: 10px;
+  }
+  
+  .toast .material-icons {
+    font-size: 14px;
+  }
+  
+  .keyboard-hint {
+    top: var(--space-xs);
+    left: var(--space-xs);
+    font-size: 9px;
+    padding: var(--space-xs);
+  }
+  
+  .keyboard-hint li {
+    gap: var(--space-xs);
+  }
+}
+
+/* Landscape Mobile Adjustments */
+@media (max-height: 500px) and (orientation: landscape) {
+  /* Header and Filter Bar removed */
+  
+  .file-grid {
+    padding-top: var(--space-xs);
+  }
+  
+  .viewer-toolbar {
+    padding: var(--space-xs) var(--space-md);
+  }
+  
+  .viewer-thumbnails {
+    display: none;
+  }
+  
+  .nav-arrow {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .nav-arrow .material-icons {
+    font-size: 20px;
+  }
+}
+
+/* High DPI Displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .file-thumbnail {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .file-item:hover {
+    transform: none;
+  }
+  
+  .nav-arrow:hover {
+    transform: none;
+  }
+  
+  .viewer-btn:hover {
+    transform: none;
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  /* Already using dark theme by default */
+}
+
+/* Light Mode Support is now handled in main.css */
