@@ -24,16 +24,27 @@ const urlsToCache = [
   './styles/grid.css',
   './styles/fullscreen.css',
   './styles/responsive.css',
+  './styles/pdf-viewer.css',
+  './styles/audio-player.css',
+  './styles/video-player.css',
+  './styles/annotation.css',
   './scripts/main.js',
   './scripts/utils.js',
   './scripts/file-handler.js',
   './scripts/ui-controller.js',
   './scripts/fullscreen-viewer.js',
+  './scripts/pdf-viewer.js',
+  './scripts/audio-player.js',
+  './scripts/video-player.js',
+  './scripts/annotation-manager.js',
   './icons/icon.svg',
   './icons/icon-192x192.svg',
   './icons/icon-512x512.svg',
   'https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap',
-  'https://fonts.googleapis.com/icon?family=Material+Icons'
+  'https://fonts.googleapis.com/icon?family=Material+Icons',
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
+  'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js'
 ];
 
 // Install event - cache resources

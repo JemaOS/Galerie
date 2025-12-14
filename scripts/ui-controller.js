@@ -314,6 +314,20 @@ class UIController {
     // Home page and grid are disabled as per request
     this.elements.emptyState.classList.add('hidden');
     this.elements.fileGrid.style.display = 'none';
+    
+    // If we have files but no viewer is open, open the first file immediately
+    // This prevents showing a blank screen or the hidden home page
+    if (this.fileHandler.files.length > 0 &&
+        (!window.fullscreenViewer || !window.fullscreenViewer.isViewerOpen()) &&
+        (!window.pdfViewer || !window.pdfViewer.isOpen) &&
+        (!window.audioPlayer || !window.audioPlayer.elements.container || window.audioPlayer.elements.container.classList.contains('hidden'))) {
+        
+        // Use requestAnimationFrame to ensure this runs after the current call stack
+        // but before the next repaint, making it feel instant
+        requestAnimationFrame(() => {
+            this.openInFullscreen(this.fileHandler.files[0]);
+        });
+    }
   }
 
   /**
@@ -364,13 +378,7 @@ class UIController {
       // Don't trigger if clicking checkbox
       if (e.target === checkbox) return;
 
-      if ((file.type === 'video' || file.type === 'image' || file.type === 'audio') && window.fullscreenViewer) {
-        window.fullscreenViewer.open(file, index);
-      } else if (file.type === 'pdf' && window.pdfViewer) {
-        window.pdfViewer.open(file);
-      } else if (window.fullscreenViewer) {
-        window.fullscreenViewer.open(file, index);
-      }
+      this.openInFullscreen(file);
     });
     
     // Right-click context menu
@@ -620,7 +628,7 @@ class UIController {
    * Open file in fullscreen, audio player, or PDF viewer
    * @param {Object} file - File object
    */
-  openInFullscreen(file) {
+  async openInFullscreen(file) {
     console.log('[UIController] openInFullscreen called with file:', file.name, 'URL:', file.url);
     
     // Close any existing viewers first to ensure only one is active
@@ -629,16 +637,53 @@ class UIController {
 
     console.log('[UIController] After closeAllViewers, file URL is:', file.url);
 
-    if (file.type === 'audio' && window.audioPlayer) {
-      const files = this.fileHandler.getFilteredFiles();
-      const index = files.findIndex(f => f.id === file.id);
-      window.audioPlayer.open(files, index);
+    if (file.type === 'audio') {
+      if (!window.audioPlayer) {
+        this.showLoading(true);
+        try {
+          await window.loadScript('scripts/audio-player.js');
+          if (window.audioPlayer) {
+            window.audioPlayer.init();
+          }
+        } catch (error) {
+          console.error('Failed to load audio player:', error);
+          this.showToast('Erreur lors du chargement du lecteur audio', 'error');
+          this.showLoading(false);
+          return;
+        }
+        this.showLoading(false);
+      }
+      
+      if (window.audioPlayer) {
+        const files = this.fileHandler.getFilteredFiles();
+        const index = files.findIndex(f => f.id === file.id);
+        window.audioPlayer.open(files, index);
+      }
+    } else if (file.type === 'pdf') {
+      if (!window.pdfViewer) {
+        this.showLoading(true);
+        try {
+          await window.loadScript('scripts/pdf-viewer.js');
+          if (!window.pdfViewer) {
+             window.pdfViewer = new PdfViewer(this.fileHandler, this);
+             window.pdfViewer.init();
+          }
+        } catch (error) {
+          console.error('Failed to load PDF viewer:', error);
+          this.showToast('Erreur lors du chargement du lecteur PDF', 'error');
+          this.showLoading(false);
+          return;
+        }
+        this.showLoading(false);
+      }
+
+      if (window.pdfViewer) {
+        window.pdfViewer.open(file);
+      }
     } else if ((file.type === 'video' || file.type === 'image') && window.fullscreenViewer) {
       const files = this.fileHandler.getFilteredFiles();
       const index = files.findIndex(f => f.id === file.id);
       window.fullscreenViewer.open(file, index);
-    } else if (file.type === 'pdf' && window.pdfViewer) {
-      window.pdfViewer.open(file);
     } else if (window.fullscreenViewer) {
       // Fallback for other types handled by fullscreen viewer
       const files = this.fileHandler.getFilteredFiles();
@@ -854,3 +899,7 @@ class UIController {
 
 // Export for use in other modules
 window.UIController = UIController;
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = UIController;
+}

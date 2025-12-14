@@ -19,7 +19,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Galerie JemaOS</title>
+    <title>Galerie</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#202124">
     <meta name="description" content="Une galerie de JemaOS pour visualiser des images, des vidéos et des fichiers audio">
@@ -80,7 +80,7 @@
             </div>
 
             <!-- Empty State / Landing Page -->
-            <div id="empty-state" class="empty-state hidden">
+            <div id="empty-state" class="empty-state hidden" style="display: none;">
                 <div class="landing-top-bar">
                     <button id="landing-open-btn" class="primary-btn">Ouvrir un fichier</button>
                     <button class="icon-btn"><i class="material-icons">more_vert</i></button>
@@ -194,7 +194,7 @@
         </div>
 
         <!-- Edit Toolbar (Hidden by default) -->
-        <div class="viewer-toolbar hidden" id="viewer-edit-toolbar" style="background-color: #202124;">
+        <div class="viewer-toolbar edit-mode-toolbar hidden" id="viewer-edit-toolbar">
              <div class="viewer-top-left">
                 <button id="viewer-exit-edit" class="viewer-btn" title="Terminer">
                     <i class="material-icons">arrow_back</i>
@@ -313,7 +313,7 @@
         </div>
 
         <!-- Edit Toolbar (Hidden by default) -->
-        <div class="pdf-toolbar hidden" id="pdf-edit-toolbar" style="background-color: #202124;">
+        <div class="pdf-toolbar hidden" id="pdf-edit-toolbar">
              <div class="pdf-toolbar-left">
                 <button id="pdf-exit-edit" class="pdf-btn" title="Terminer">
                     <i class="material-icons">arrow_back</i>
@@ -475,15 +475,12 @@
     </div>
 
     <!-- Scripts -->
-    <script src="scripts/utils.js"></script>
-    <script src="scripts/file-handler.js"></script>
-    <script src="scripts/ui-controller.js"></script>
-    <script src="scripts/annotation-manager.js"></script>
-    <script src="scripts/fullscreen-viewer.js"></script>
-    <script src="scripts/pdf-viewer.js"></script>
-    <script src="scripts/audio-player.js"></script>
-    <script src="scripts/video-player.js"></script>
-    <script src="scripts/main.js"></script>
+    <script src="scripts/loader.js" defer></script>
+    <script src="scripts/utils.js" defer></script>
+    <script src="scripts/file-handler.js" defer></script>
+    <script src="scripts/ui-controller.js" defer></script>
+    <script src="scripts/fullscreen-viewer.js" defer></script>
+    <script src="scripts/main.js" defer></script>
     
     <!-- PWA Service Worker -->
     <script src="sw.js"></script>

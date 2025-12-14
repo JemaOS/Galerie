@@ -4,7 +4,6 @@
   "description": "Une galerie de JemaOS pour visualiser des images, des vidéos et des fichiers audio",
   "start_url": "./",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "minimal-ui"],
   "background_color": "#202124",
   "theme_color": "#202124",
   "icons": [
@@ -29,9 +28,28 @@
     {
       "action": "./",
       "accept": {
-        "image/*": [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg"],
-        "video/*": [".mp4", ".webm", ".mkv", ".avi", ".mov"],
-        "audio/*": [".mp3", ".wav", ".ogg", ".flac"],
+        "image/jpeg": [".jpg", ".jpeg"],
+        "image/png": [".png"],
+        "image/gif": [".gif"],
+        "image/webp": [".webp"],
+        "image/svg+xml": [".svg"],
+        "image/bmp": [".bmp"],
+        "image/tiff": [".tiff", ".tif"],
+        "image/x-icon": [".ico"],
+        "video/mp4": [".mp4", ".m4v"],
+        "video/webm": [".webm"],
+        "video/x-matroska": [".mkv"],
+        "video/x-msvideo": [".avi"],
+        "video/quicktime": [".mov"],
+        "video/3gpp": [".3gp"],
+        "video/mpeg": [".mpeg", ".mpg"],
+        "video/ogg": [".ogv"],
+        "audio/mpeg": [".mp3"],
+        "audio/wav": [".wav"],
+        "audio/ogg": [".ogg"],
+        "audio/flac": [".flac"],
+        "audio/aac": [".aac"],
+        "audio/webm": [".weba"],
         "application/pdf": [".pdf"]
       }
     }

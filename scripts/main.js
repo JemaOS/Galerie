@@ -67,8 +67,28 @@ class JemaOSGallery {
       
       console.log('✅ JemaOS Gallery initialized successfully');
       
-      // Show welcome message
-      this.showWelcomeMessage();
+      // Show welcome message only if no files are loaded initially
+      // This prevents the welcome toast from appearing when opening a file directly
+      if (this.fileHandler.files.length === 0) {
+        this.showWelcomeMessage();
+        // Show empty state if no files
+        const emptyState = document.getElementById('empty-state');
+        if (emptyState) {
+            emptyState.classList.remove('hidden');
+            const topBar = emptyState.querySelector('.landing-top-bar');
+            const header = emptyState.querySelector('.landing-header');
+            const grid = emptyState.querySelector('.landing-grid');
+            if (topBar) topBar.style.display = '';
+            if (header) header.style.display = '';
+            if (grid) grid.style.display = '';
+        }
+      } else {
+        // If files are loaded, ensure empty state is hidden
+        const emptyState = document.getElementById('empty-state');
+        if (emptyState) {
+            emptyState.classList.add('hidden');
+        }
+      }
       
     } catch (error) {
       console.error('❌ Failed to initialize JemaOS Gallery:', error);
@@ -88,24 +108,18 @@ class JemaOSGallery {
     this.fullscreenViewer = new FullscreenViewer(this.fileHandler, null);
     this.fullscreenViewer.init();
     
-    // Initialize PDF viewer
-    this.pdfViewer = new PdfViewer(this.fileHandler, null);
-    this.pdfViewer.init();
-    
     // Initialize UI controller
     this.uiController = new UIController(this.fileHandler);
     await this.uiController.init();
     
     // Connect components
     this.fullscreenViewer.uiController = this.uiController;
-    this.pdfViewer.uiController = this.uiController;
     
     // Make components globally available
     window.galleryApp = this;
     window.galleryFileHandler = this.fileHandler;
     window.galleryUI = this.uiController;
     window.fullscreenViewer = this.fullscreenViewer;
-    window.pdfViewer = this.pdfViewer;
   }
 
   /**
@@ -184,6 +198,8 @@ class JemaOSGallery {
 
           // Auto-open first file
           if (loadedFiles.length > 0) {
+            // Directly open the viewer without rendering the grid first
+            // This avoids the "flash" of the home page
             this.uiController.openInFullscreen(loadedFiles[0]);
           }
         }
@@ -222,6 +238,8 @@ class JemaOSGallery {
 
           // Auto-open first file
           if (loadedFiles.length > 0) {
+            // Directly open the viewer without rendering the grid first
+            // This avoids the "flash" of the home page
             this.uiController.openInFullscreen(loadedFiles[0]);
           }
         }

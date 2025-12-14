@@ -54,6 +54,10 @@
   pointer-events: auto;
 }
 
+.viewer-toolbar.edit-mode-toolbar {
+  background: var(--surface-color);
+}
+
 .viewer-top-left {
   display: flex;
   align-items: center;

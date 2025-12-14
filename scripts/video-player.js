@@ -29,6 +29,7 @@ class VideoPlayer {
         this.duration = 0;
         this.currentTime = 0;
         this.volume = 1;
+        this.isDragging = false;
         this.controlsTimeout = null;
         this.elements = {};
         
@@ -175,6 +176,7 @@ class VideoPlayer {
         rightSection.className = 'top-bar-right';
         
         const infoBtn = this.createButton('info', 'Infos', () => this.showInfo());
+        infoBtn.classList.add('video-info-btn');
         
         rightSection.appendChild(infoBtn);
         
@@ -283,6 +285,7 @@ class VideoPlayer {
         // Seek Slider
         this.elements.seekSlider.addEventListener('input', (e) => {
             e.stopPropagation();
+            this.isDragging = true;
             const seekTime = (e.target.value / 100) * this.duration;
             this.elements.currentTime.textContent = this.formatTime(seekTime);
             this.elements.progressFill.style.width = `${e.target.value}%`;
@@ -290,6 +293,7 @@ class VideoPlayer {
 
         this.elements.seekSlider.addEventListener('change', (e) => {
             e.stopPropagation();
+            this.isDragging = false;
             const seekTime = (e.target.value / 100) * this.duration;
             this.video.currentTime = seekTime;
         });
@@ -367,6 +371,7 @@ class VideoPlayer {
     }
 
     updateProgress() {
+        if (this.isDragging) return;
         const percent = (this.currentTime / this.duration) * 100;
         this.elements.seekSlider.value = percent;
         this.elements.progressFill.style.width = `${percent}%`;
@@ -413,3 +418,7 @@ class VideoPlayer {
 }
 
 window.VideoPlayer = VideoPlayer;
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = VideoPlayer;
+}

@@ -40,7 +40,7 @@ class PdfViewer {
     
     this.elements = {};
     
-    this.annotationManager = new AnnotationManager(this.uiController);
+    this.annotationManager = null;
   }
 
   /**
@@ -141,10 +141,12 @@ class PdfViewer {
         this.onNextPage();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
           e.preventDefault();
-          if (e.shiftKey) {
-              this.annotationManager.redo();
-          } else {
-              this.annotationManager.undo();
+          if (this.annotationManager) {
+              if (e.shiftKey) {
+                  this.annotationManager.redo();
+              } else {
+                  this.annotationManager.undo();
+              }
           }
       }
     });
@@ -158,8 +160,8 @@ class PdfViewer {
         this.elements.exitEditBtn.addEventListener('click', () => this.toggleEditMode(false));
     }
 
-    if (this.elements.undoEditBtn) this.elements.undoEditBtn.addEventListener('click', () => this.annotationManager.undo());
-    if (this.elements.redoEditBtn) this.elements.redoEditBtn.addEventListener('click', () => this.annotationManager.redo());
+    if (this.elements.undoEditBtn) this.elements.undoEditBtn.addEventListener('click', () => this.annotationManager && this.annotationManager.undo());
+    if (this.elements.redoEditBtn) this.elements.redoEditBtn.addEventListener('click', () => this.annotationManager && this.annotationManager.redo());
 
     // Tool Buttons
     const toolBtns = this.elements.editToolbar.querySelectorAll('.tool-btn');
@@ -263,10 +265,26 @@ class PdfViewer {
   /**
    * Toggle Edit Mode
    */
-  toggleEditMode(active) {
+  async toggleEditMode(active) {
       this.isEditMode = active;
 
       if (active) {
+          // Load AnnotationManager if needed
+          if (!this.annotationManager) {
+              this.uiController.showLoading(true);
+              try {
+                  await window.loadScript('scripts/annotation-manager.js');
+                  this.annotationManager = new AnnotationManager(this.uiController);
+              } catch (e) {
+                  console.error('Failed to load annotation manager', e);
+                  this.uiController.showToast('Erreur de chargement des outils d\'édition', 'error');
+                  this.uiController.showLoading(false);
+                  this.isEditMode = false;
+                  return;
+              }
+              this.uiController.showLoading(false);
+          }
+
           this.elements.defaultToolbar.classList.add('hidden');
           this.elements.editToolbar.classList.remove('hidden');
           this.elements.propertiesSidebar.classList.remove('hidden');
@@ -309,12 +327,12 @@ class PdfViewer {
           this.elements.editToolbar.classList.add('hidden');
           this.elements.propertiesSidebar.classList.add('hidden');
           
-          this.annotationManager.stop();
+          if (this.annotationManager) this.annotationManager.stop();
       }
   }
 
   setTool(toolId) {
-      this.annotationManager.setTool(toolId);
+      if (this.annotationManager) this.annotationManager.setTool(toolId);
       
       // Update UI in Edit Toolbar
       const toolBtns = this.elements.editToolbar.querySelectorAll('.tool-btn');
@@ -390,7 +408,7 @@ class PdfViewer {
    */
   async close() {
     // Auto-save on close if there are changes
-    if (this.annotationManager.hasChanges() || this.rotation !== 0) {
+    if ((this.annotationManager && this.annotationManager.hasChanges()) || this.rotation !== 0) {
         await this.save();
     }
 
@@ -449,11 +467,11 @@ class PdfViewer {
       
       // Apply annotations
       // Note: We need to ensure any active text input is finalized before saving
-      if (this.annotationManager.activeInput) {
+      if (this.annotationManager && this.annotationManager.activeInput) {
           this.annotationManager.finalizeTextInput();
       }
 
-      if (this.annotationManager.hasChanges()) {
+      if (this.annotationManager && this.annotationManager.hasChanges()) {
           for (let i = 0; i < pages.length; i++) {
               const pageNum = i + 1;
               const wrapper = this.pageWrappers[pageNum];
@@ -504,7 +522,7 @@ class PdfViewer {
         if (success) {
             this.uiController.showToast('PDF enregistré', 'success');
             this.rotation = 0;
-            this.annotationManager.clear();
+            if (this.annotationManager) this.annotationManager.clear();
             
             // Reload the PDF to show the saved version
             // We need to close and reopen or just re-render
@@ -838,3 +856,7 @@ class PdfViewer {
 }
 
 window.PdfViewer = PdfViewer;
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = PdfViewer;
+}

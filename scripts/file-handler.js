@@ -30,7 +30,7 @@ class FileHandler {
     this.currentSort = { field: 'name', order: 'asc' };
     this.searchQuery = '';
     this.thumbnails = new Map(); // Cache for thumbnails
-    this.maxFileSize = 100 * 1024 * 1024; // 100MB limit
+    this.maxFileSize = 2 * 1024 * 1024 * 1024; // 2GB limit
     this.supportedTypes = new Set([
       // Images
       'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 
@@ -1013,3 +1013,7 @@ class FileHandler {
 
 // Export for use in other modules
 window.FileHandler = FileHandler;
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = FileHandler;
+}

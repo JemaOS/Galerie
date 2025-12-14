@@ -182,7 +182,7 @@
 .progress-bar-container {
     flex: 1;
     position: relative;
-    height: 4px;
+    height: 20px;
     display: flex;
     align-items: center;
     cursor: pointer;
@@ -195,6 +195,8 @@
     border-radius: 2px;
     overflow: hidden;
     position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
 }
 
 .progress-fill {
@@ -288,4 +290,9 @@
     .volume-slider {
         display: none; /* Hide volume slider on mobile to save space */
     }
+}
+
+/* Hide info button in fullscreen */
+.video-player-container:fullscreen .video-info-btn {
+    display: none;
 }

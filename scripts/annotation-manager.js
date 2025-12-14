@@ -429,7 +429,7 @@ class AnnotationManager {
         '#000000', '#3c4043', '#9aa0a6', '#dadce0', '#ffffff',
         '#ff8a80', '#ffff8d', '#ccff90', '#a7ffeb', '#d7ccc8',
         '#f44336', '#fdd835', '#4caf50', '#6569d0', '#795548',
-        '#b71c1c', '#ff9800', '#1b5e20', '#6569d0', '#3e2723'
+        '#b71c1c', '#ff9800', '#1b5e20', '#1976d2', '#3e2723'
     ];
     
     colors.forEach(color => {
@@ -461,7 +461,7 @@ class AnnotationManager {
         '#000000', '#5f6368', '#bdc1c6', '#ffffff',
         '#ff8a80', '#ffff8d', '#ccff90', '#a7ffeb',
         '#f44336', '#fdd835', '#4caf50', '#6569d0',
-        '#d32f2f', '#f57c00', '#388e3c', '#6569d0',
+        '#d32f2f', '#f57c00', '#388e3c', '#1976d2',
         '#c2185b', '#7b1fa2', '#512da8', '#3e2723'
     ];
     
@@ -1548,12 +1548,14 @@ class AnnotationManager {
     if (this.currentTool === 'text') {
         if (textOptionsGroup) textOptionsGroup.classList.remove('hidden');
     } else if (this.currentTool === 'eraser') {
-        if (eraserOptionsGroup) eraserOptionsGroup.classList.remove('hidden');
-        // Update slider value if needed
-        const slider = eraserOptionsGroup.querySelector('.range-slider');
-        const valueDisplay = eraserOptionsGroup.querySelector('.slider-value');
-        if (slider) slider.value = this.currentSize;
-        if (valueDisplay) valueDisplay.textContent = this.currentSize;
+        if (eraserOptionsGroup) {
+            eraserOptionsGroup.classList.remove('hidden');
+            // Update slider value if needed
+            const slider = eraserOptionsGroup.querySelector('.range-slider');
+            const valueDisplay = eraserOptionsGroup.querySelector('.slider-value');
+            if (slider) slider.value = this.currentSize;
+            if (valueDisplay) valueDisplay.textContent = this.currentSize;
+        }
     } else {
         if (sizeGroup) sizeGroup.classList.remove('hidden');
         if (colorGroup) colorGroup.classList.remove('hidden');
@@ -1652,3 +1654,7 @@ class AnnotationManager {
 }
 
 window.AnnotationManager = AnnotationManager;
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = AnnotationManager;
+}

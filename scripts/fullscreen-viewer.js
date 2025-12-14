@@ -44,7 +44,7 @@ class FullscreenViewer {
     this.touchStartY = 0;
     this.swipeThreshold = 50;
     
-    this.annotationManager = new AnnotationManager(this.uiController);
+    this.annotationManager = null;
     this.transform = { x: 0, y: 0, scale: 1 };
     this.rotation = 0;
     this.isEditMode = false;
@@ -399,7 +399,7 @@ class FullscreenViewer {
   /**
    * Toggle Edit Mode
    */
-  toggleEditMode(active) {
+  async toggleEditMode(active) {
       if (this.currentFile?.type !== 'image') {
           this.uiController.showToast('L\'édition n\'est disponible que pour les images', 'info');
           return;
@@ -408,6 +408,22 @@ class FullscreenViewer {
       this.isEditMode = active;
 
       if (active) {
+          // Load AnnotationManager if needed
+          if (!this.annotationManager) {
+              this.uiController.showLoading(true);
+              try {
+                  await window.loadScript('scripts/annotation-manager.js');
+                  this.annotationManager = new AnnotationManager(this.uiController);
+              } catch (e) {
+                  console.error('Failed to load annotation manager', e);
+                  this.uiController.showToast('Erreur de chargement des outils d\'édition', 'error');
+                  this.uiController.showLoading(false);
+                  this.isEditMode = false;
+                  return;
+              }
+              this.uiController.showLoading(false);
+          }
+
           this.elements.defaultToolbar.classList.add('hidden');
           this.elements.editToolbar.classList.remove('hidden');
           this.elements.sidebar.classList.remove('hidden');
@@ -424,7 +440,9 @@ class FullscreenViewer {
           this.elements.editToolbar.classList.add('hidden');
           this.elements.sidebar.classList.add('hidden');
           
-          this.annotationManager.stop();
+          if (this.annotationManager) {
+              this.annotationManager.stop();
+          }
           this.history = [];
           this.historyStep = -1;
           this.updateUndoRedoButtons();
@@ -455,16 +473,18 @@ class FullscreenViewer {
       });
 
       if (toolId === 'adjust') {
-          this.annotationManager.pause();
+          if (this.annotationManager) this.annotationManager.pause();
           this.renderAdjustmentUI();
       } else {
           // Drawing tools
           const img = this.elements.media.querySelector('img');
-          if (img) {
+          if (img && this.annotationManager) {
               // If switching from Adjust, we need to ensure AnnotationManager starts
               if (!this.annotationManager.isActive) {
                   if (this.annotationManager.hasCanvas()) {
                       this.annotationManager.resume();
+                      // Restore properties UI if it was overwritten (e.g. by Adjust tool)
+                      this.annotationManager.renderProperties(this.elements.propertiesContainer);
                   } else {
                       this.annotationManager.start(this.elements.media, img, {
                           propertiesContainer: this.elements.propertiesContainer,
@@ -664,7 +684,7 @@ class FullscreenViewer {
       if (!img) return null;
 
       // Finalize any active text input
-      if (this.annotationManager.activeInput) {
+      if (this.annotationManager && this.annotationManager.activeInput) {
           this.annotationManager.finalizeTextInput();
       }
 
@@ -725,10 +745,12 @@ class FullscreenViewer {
       }
       
       // Draw text objects
-      ctx.save();
-      ctx.translate(-originalWidth / 2, -originalHeight / 2);
-      this.annotationManager.drawTextObjects(ctx);
-      ctx.restore();
+      if (this.annotationManager) {
+          ctx.save();
+          ctx.translate(-originalWidth / 2, -originalHeight / 2);
+          this.annotationManager.drawTextObjects(ctx);
+          ctx.restore();
+      }
       
       ctx.restore();
       
@@ -758,7 +780,7 @@ class FullscreenViewer {
             this.uiController.showToast('Modifications enregistrées', 'success');
             // Reset state
             this.rotation = 0;
-            this.annotationManager.clear(); // Clear history after save
+            if (this.annotationManager) this.annotationManager.clear(); // Clear history after save
             this.history = [];
             this.historyStep = -1;
             this.updateUndoRedoButtons();
@@ -794,16 +816,18 @@ class FullscreenViewer {
                     newImg.addEventListener('load', () => {
                         if (this.isEditMode) {
                             // Re-initialize annotation manager
-                            this.annotationManager.start(this.elements.media, newImg, {
-                                propertiesContainer: this.elements.propertiesContainer,
-                                onAction: () => {
-                                    this.addToHistory({
-                                        type: 'annotation',
-                                        undo: () => this.annotationManager.undo(),
-                                        redo: () => this.annotationManager.redo()
-                                    });
-                                }
-                            });
+                            if (this.annotationManager) {
+                                this.annotationManager.start(this.elements.media, newImg, {
+                                    propertiesContainer: this.elements.propertiesContainer,
+                                    onAction: () => {
+                                        this.addToHistory({
+                                            type: 'annotation',
+                                            undo: () => this.annotationManager.undo(),
+                                            redo: () => this.annotationManager.redo()
+                                        });
+                                    }
+                                });
+                            }
                             // Restore tool
                             const activeToolBtn = this.elements.editToolbar.querySelector('.tool-btn.active');
                             if (activeToolBtn) {
@@ -975,6 +999,9 @@ class FullscreenViewer {
         // Show edit button
         if (this.elements.editModeBtn) this.elements.editModeBtn.style.display = '';
       } else if (file.type === 'video') {
+        if (!window.VideoPlayer) {
+             await window.loadScript('scripts/video-player.js');
+        }
         this.videoPlayer = new VideoPlayer(this.elements.media, file, this.uiController);
         // Hide default toolbar as VideoPlayer has its own custom UI
         this.elements.defaultToolbar.style.display = 'none';
@@ -1025,7 +1052,7 @@ class FullscreenViewer {
     // Mouse events for dragging
     // We attach to media container to capture events even if clicking on canvas
     this.elements.media.addEventListener('mousedown', (e) => {
-      if (this.zoomLevel > 1 && !this.annotationManager.isActive) {
+      if (this.zoomLevel > 1 && (!this.annotationManager || !this.annotationManager.isActive)) {
         isDragging = true;
         dragStart = { x: e.clientX - this.transform.x, y: e.clientY - this.transform.y };
         img.style.cursor = 'grabbing';
@@ -1043,7 +1070,7 @@ class FullscreenViewer {
     
     document.addEventListener('mouseup', () => {
       isDragging = false;
-      if (this.zoomLevel > 1 && !this.annotationManager.isActive) {
+      if (this.zoomLevel > 1 && (!this.annotationManager || !this.annotationManager.isActive)) {
           img.style.cursor = 'grab';
       }
     });
@@ -1349,7 +1376,7 @@ class FullscreenViewer {
       
       if (img) {
           img.style.transform = transform;
-          img.style.cursor = this.transform.scale > 1 && !this.annotationManager.isActive ? 'grab' : 'default';
+          img.style.cursor = this.transform.scale > 1 && (!this.annotationManager || !this.annotationManager.isActive) ? 'grab' : 'default';
           
           // Apply filters to the image element for live preview
           const brightness = 100 + this.adjustments.brightness + this.adjustments.exposure;
@@ -1502,3 +1529,7 @@ class FullscreenViewer {
 
 // Export for use in other modules
 window.FullscreenViewer = FullscreenViewer;
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = FullscreenViewer;
+}

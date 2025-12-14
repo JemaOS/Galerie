@@ -186,6 +186,7 @@ class GalleryUtils {
   static sanitizeFilename(filename) {
     return filename
       .replace(/[<>:"/\\|?*]/g, '_')
+      .replace(/\.\.+/g, '_')
       .replace(/\s+/g, ' ')
       .trim();
   }
@@ -594,3 +595,7 @@ class GalleryUtils {
 
 // Export for use in other modules
 window.GalleryUtils = GalleryUtils;
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = GalleryUtils;
+}

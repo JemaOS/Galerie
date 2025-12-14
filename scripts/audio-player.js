@@ -409,3 +409,7 @@ class AudioPlayer {
 
 // Initialize
 window.audioPlayer = new AudioPlayer();
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = AudioPlayer;
+}
