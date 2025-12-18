@@ -1,0 +1,88 @@
+/* PDF Text Editor Styles */
+
+.pdf-text-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    line-height: 1.0;
+    pointer-events: none; /* Allow clicks to pass through to canvas unless on text */
+    z-index: 10;
+}
+
+.pdf-text-item {
+    position: absolute;
+    transform-origin: 0% 0%;
+    white-space: pre;
+    cursor: text;
+    pointer-events: auto;
+    color: transparent; /* Hide text initially, show on hover/edit */
+    border: 1px solid transparent;
+    box-sizing: border-box;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.pdf-text-item:hover {
+    background-color: rgba(101, 105, 208, 0.1);
+    border-color: rgba(101, 105, 208, 0.3);
+}
+
+.pdf-text-item.editing {
+    color: black; /* Or original color */
+    background-color: white;
+    border: 1px solid #6569d0;
+    outline: none;
+    z-index: 20;
+    min-width: 10px;
+    overflow: visible;
+}
+
+/* Ensure the text editor indicator is visible */
+.pdf-edit-mode-indicator {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    font-size: 14px;
+    pointer-events: none;
+}
+
+.pdf-edit-mode-indicator i {
+    font-size: 18px;
+}
+
+/* Language selector in properties sidebar */
+.text-editor-properties {
+    padding: 16px;
+}
+
+.text-editor-prop-group {
+    margin-bottom: 16px;
+}
+
+.text-editor-prop-label {
+    display: block;
+    font-size: 12px;
+    color: var(--on-surface-variant);
+    margin-bottom: 8px;
+}
+
+.text-editor-select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid var(--outline);
+    background-color: var(--surface);
+    color: var(--on-surface);
+}

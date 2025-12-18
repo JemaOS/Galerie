@@ -1640,6 +1640,86 @@ class AnnotationManager {
   hasChanges() {
       return this.historyStep > -1 || this.textWrappers.length > 0;
   }
+
+  /**
+   * Snapshot current state (drawings and text)
+   */
+  snapshot() {
+      const state = {
+          drawings: [],
+          textWrappers: []
+      };
+
+      // Snapshot drawings
+      this.canvases.forEach((canvas, index) => {
+          // Create a temporary canvas to store the image
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = canvas.width;
+          tempCanvas.height = canvas.height;
+          const ctx = tempCanvas.getContext('2d');
+          ctx.drawImage(canvas, 0, 0);
+          
+          state.drawings.push({
+              index: index,
+              image: tempCanvas
+          });
+      });
+
+      // Snapshot text
+      this.textWrappers.forEach(wrapper => {
+          state.textWrappers.push(this.serializeTextWrapper(wrapper));
+      });
+
+      return state;
+  }
+
+  /**
+   * Restore state
+   */
+  restore(state) {
+      if (!state) return;
+
+      // Restore drawings
+      state.drawings.forEach(item => {
+          if (item.index < this.canvases.length) {
+              const targetCanvas = this.canvases[item.index];
+              const ctx = targetCanvas.getContext('2d');
+              
+              // Draw the old image scaled to the new canvas
+              // This bakes the previous state
+              ctx.drawImage(item.image, 0, 0, targetCanvas.width, targetCanvas.height);
+          }
+      });
+
+      // Restore text
+      // We need to adjust coordinates for the new scale
+      // We can infer scale from the first canvas change
+      if (state.drawings.length > 0 && this.canvases.length > 0) {
+          const oldWidth = state.drawings[0].image.width;
+          const newWidth = this.canvases[0].width;
+          
+          // Avoid division by zero
+          const scaleFactor = oldWidth > 0 ? newWidth / oldWidth : 1;
+
+          state.textWrappers.forEach(textState => {
+              // Adjust state for new scale
+              const newState = { ...textState };
+              newState.x *= scaleFactor;
+              newState.y *= scaleFactor;
+              newState.width *= scaleFactor;
+              newState.height *= scaleFactor;
+              
+              // Font size is in styles, need to parse?
+              // serializeTextWrapper stores styles.fontSize as string "14px"
+              if (newState.styles && newState.styles.fontSize) {
+                  const oldSize = parseFloat(newState.styles.fontSize);
+                  newState.styles.fontSize = `${oldSize * scaleFactor}px`;
+              }
+              
+              this.restoreTextWrapper(newState);
+          });
+      }
+  }
   
   clear() {
       this.canvases.forEach(canvas => {

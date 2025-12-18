@@ -42,6 +42,7 @@
     <link rel="stylesheet" href="styles/grid.css">
     <link rel="stylesheet" href="styles/fullscreen.css">
     <link rel="stylesheet" href="styles/pdf-viewer.css">
+    <link rel="stylesheet" href="styles/pdf-text-editor.css">
     <link rel="stylesheet" href="styles/audio-player.css">
     <link rel="stylesheet" href="styles/video-player.css">
     <link rel="stylesheet" href="styles/annotation.css">
@@ -282,6 +283,12 @@
                 <button id="pdf-zoom-in" class="pdf-btn" title="Zoom avant">
                     <i class="material-icons">add</i>
                 </button>
+                <button id="pdf-fit-width" class="pdf-btn" title="Adapter à la largeur">
+                    <i class="material-icons">swap_horiz</i>
+                </button>
+                <button id="pdf-fit-page" class="pdf-btn" title="Adapter à la page">
+                    <i class="material-icons">fit_screen</i>
+                </button>
             </div>
             
             <div class="pdf-toolbar-right">
@@ -321,10 +328,20 @@
                 <span class="pdf-filename">Mode Édition</span>
              </div>
              <div class="pdf-toolbar-center">
+                <button class="pdf-btn tool-btn" data-tool="text-edit" title="Éditer le texte (OCR)"><i class="material-icons">edit_note</i></button>
+                <div class="pdf-divider"></div>
                 <button class="pdf-btn tool-btn" data-tool="pen" title="Stylo"><i class="material-icons">edit</i></button>
                 <button class="pdf-btn tool-btn" data-tool="marker" title="Surligneur"><i class="material-icons">brush</i></button>
                 <button class="pdf-btn tool-btn" data-tool="eraser" title="Gomme"><i class="material-icons">auto_fix_normal</i></button>
                 <button class="pdf-btn tool-btn" data-tool="text" title="Texte"><i class="material-icons">text_fields</i></button>
+                <div class="pdf-divider"></div>
+                <button id="pdf-edit-zoom-out" class="pdf-btn" title="Zoom arrière">
+                    <i class="material-icons">remove</i>
+                </button>
+                <span id="pdf-edit-zoom-level" class="pdf-zoom-level">100%</span>
+                <button id="pdf-edit-zoom-in" class="pdf-btn" title="Zoom avant">
+                    <i class="material-icons">add</i>
+                </button>
              </div>
              <div class="pdf-toolbar-right">
                 <button id="pdf-undo-edit" class="pdf-btn" title="Annuler"><i class="material-icons">undo</i></button>
