@@ -121,6 +121,7 @@ class FullscreenViewer {
       zoomIn: document.getElementById('viewer-zoom-in'),
       rotate: document.getElementById('viewer-rotate'),
       editModeBtn: document.getElementById('viewer-edit-mode'),
+      fullscreenBtn: document.getElementById('viewer-fullscreen'),
       
       // Edit Toolbar Buttons
       exitEditBtn: document.getElementById('viewer-exit-edit'),
@@ -198,6 +199,10 @@ class FullscreenViewer {
 
     if (this.elements.editModeBtn) {
         this.elements.editModeBtn.addEventListener('click', () => this.toggleEditMode(true));
+    }
+
+    if (this.elements.fullscreenBtn) {
+        this.elements.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
     }
 
     // Edit Toolbar
@@ -1034,7 +1039,8 @@ class FullscreenViewer {
     const img = GalleryUtils.createElement('img', {
       src: file.url,
       alt: file.name,
-      className: 'viewer-image'
+      className: 'viewer-image',
+      draggable: 'false'
     });
     
     // Setup zoom functionality
@@ -1169,7 +1175,7 @@ class FullscreenViewer {
     if (this.isFullscreen) {
       await GalleryUtils.exitFullscreen();
     } else {
-      await GalleryUtils.enterFullscreen(this.elements.viewer);
+      await GalleryUtils.enterFullscreen(document.documentElement);
     }
   }
 
@@ -1317,6 +1323,14 @@ class FullscreenViewer {
    */
   updateFullscreenButton() {
     const icon = this.isFullscreen ? 'fullscreen_exit' : 'fullscreen';
+    
+    // Update default toolbar button
+    if (this.elements.fullscreenBtn) {
+        const iconEl = this.elements.fullscreenBtn.querySelector('i');
+        if (iconEl) iconEl.textContent = icon;
+        this.elements.fullscreenBtn.title = this.isFullscreen ? 'Quitter plein écran' : 'Plein écran';
+    }
+
     // Update dynamic video controls
     const videoFullscreenBtn = this.elements.media.querySelector('.fullscreen-btn i');
     if (videoFullscreenBtn) {

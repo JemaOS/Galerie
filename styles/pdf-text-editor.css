@@ -2,6 +2,7 @@
 
 .pdf-text-layer {
     position: absolute;
+    background: transparent;
     top: 0;
     left: 0;
     right: 0;

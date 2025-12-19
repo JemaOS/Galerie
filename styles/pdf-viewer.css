@@ -195,7 +195,7 @@
 }
 
 .pdf-thumbnail canvas {
-    width: 100%;
+    max-width: 100%;
     height: auto;
     border: 1px solid var(--border-color);
     box-shadow: var(--shadow-sm);
@@ -248,9 +248,17 @@
     width: fit-content;
 }
 
-.pdf-page-wrapper canvas {
+.pdf-page-wrapper .pdf-page-canvas {
     display: block;
     max-width: none;
+    /* Ensure crisp text rendering when downscaling super-sampled canvas */
+    image-rendering: auto;
+    /* Prevent any browser-level smoothing that could blur text */
+    -webkit-font-smoothing: antialiased;
+}
+
+.pdf-page-wrapper .annotation-canvas {
+    background-color: transparent;
 }
 
 .pdf-page-wrapper .pdf-text-layer {
@@ -259,6 +267,12 @@
     top: 0;
     left: 0;
     z-index: 2;
+    color: transparent;
+    line-height: 1.0;
+}
+
+.pdf-page-wrapper .pdf-text-layer ::selection {
+    background: rgba(101, 105, 208, 0.3);
 }
 
 /* Scrollbars */

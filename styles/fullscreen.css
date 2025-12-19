@@ -39,6 +39,10 @@
 
 /* Viewer Toolbar */
 .viewer-toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -55,6 +59,7 @@
 }
 
 .viewer-toolbar.edit-mode-toolbar {
+  position: relative;
   background: var(--surface-color);
 }
 

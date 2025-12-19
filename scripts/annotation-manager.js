@@ -29,7 +29,15 @@ class AnnotationManager {
     // State
     this.currentTool = 'pen'; // pen, marker, eraser, text
     this.currentColor = '#ef5350'; // Default red
-    this.currentSize = 4;
+    
+    // Tool specific sizes
+    this.toolSizes = {
+        pen: 4,
+        marker: 10,
+        eraser: 30
+    };
+    this.currentSize = this.toolSizes['pen'];
+    
     this.currentFont = 'Roboto';
     this.currentFontSize = 14;
     this.isBold = false;
@@ -87,7 +95,13 @@ class AnnotationManager {
     });
 
     if (this.options.propertiesContainer) {
-        this.renderProperties(this.options.propertiesContainer);
+        // Only render if not already rendered or if container changed
+        if (this.propertiesContainer !== this.options.propertiesContainer) {
+            this.renderProperties(this.options.propertiesContainer);
+        } else {
+            // Ensure visibility matches current tool
+            this.updatePropertiesVisibility();
+        }
     }
 
     this.createCursor();
@@ -127,7 +141,7 @@ class AnnotationManager {
   /**
    * Stop annotation mode
    */
-  stop() {
+  stop(keepUI = false) {
     if (!this.isActive && this.canvases.length === 0) return;
     
     this.isActive = false;
@@ -139,7 +153,7 @@ class AnnotationManager {
     this.removeEventListeners();
     
     // Clear properties container
-    if (this.propertiesContainer) {
+    if (!keepUI && this.propertiesContainer) {
         this.propertiesContainer.innerHTML = '';
         this.propertiesContainer = null;
     }
@@ -272,8 +286,8 @@ class AnnotationManager {
     const sizeOptions = document.createElement('div');
     sizeOptions.className = 'size-options';
     
-    // 4 preset sizes matching screenshot
-    const sizes = [2, 4, 8, 16];
+    // Preset sizes (added 1px for fine signatures)
+    const sizes = [1, 2, 4, 8, 16];
     sizes.forEach(size => {
         const btn = document.createElement('button');
         btn.className = `size-btn ${this.currentSize === size ? 'active' : ''}`;
@@ -1498,6 +1512,15 @@ class AnnotationManager {
 
   setTool(toolId) {
     this.currentTool = toolId;
+    
+    // Restore size for the tool
+    if (this.toolSizes[toolId] !== undefined) {
+        // We use setSize to ensure UI updates (buttons etc)
+        // But we don't want to overwrite the saved size with the OLD currentSize
+        // So we pass the saved size
+        this.setSize(this.toolSizes[toolId]);
+    }
+
     this.updatePropertiesVisibility();
     
     // Update cursor
@@ -1607,6 +1630,11 @@ class AnnotationManager {
 
   setSize(size) {
     this.currentSize = size;
+    
+    // Save size for current tool
+    if (this.toolSizes[this.currentTool] !== undefined) {
+        this.toolSizes[this.currentTool] = size;
+    }
     
     // Update UI
     if (this.propertiesContainer) {
