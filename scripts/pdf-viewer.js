@@ -46,6 +46,7 @@ class PdfViewer {
     this.isOpen = false;
     this.isEditMode = false;
     this.isTextEditMode = false;
+    this.isZooming = false; // Track zoom state to prevent page superposition
     
     this.elements = {};
     
@@ -340,17 +341,19 @@ class PdfViewer {
           
           // Collect all page wrappers and canvases
           const targets = [];
-          this.pageWrappers.forEach(wrapper => {
-            if (wrapper) {
-              const canvas = wrapper.querySelector('canvas');
-              if (canvas) {
-                targets.push({
-                  container: wrapper,
-                  target: canvas
-                });
+          if (this.pageWrappers) {
+            Object.values(this.pageWrappers).forEach(wrapper => {
+              if (wrapper) {
+                const canvas = wrapper.querySelector('canvas');
+                if (canvas) {
+                  targets.push({
+                    container: wrapper,
+                    target: canvas
+                  });
+                }
               }
-            }
-          });
+            });
+          }
 
           if (targets.length > 0) {
             this.annotationManager.start(targets, null, {
@@ -983,17 +986,13 @@ class PdfViewer {
     this.defaultPageHeight = defaultViewport.height;
     this.defaultPageWidth = defaultViewport.width;
 
-    // Reset CSS transform (it was used for smooth zoom feedback)
-    // Use requestAnimationFrame to ensure smooth transition
-    this.elements.container.style.transition = 'none';
+    // Reset any CSS transform that might have been applied
     this.elements.container.style.transform = 'none';
-    this.elements.container.style.transformOrigin = 'top center';
-    this.elements.container.style.willChange = 'auto';
 
-    // Update Container Height
+    // Update Container Height - use exact height to prevent extra white space
     const totalHeight = this.pdfDoc.numPages * this.defaultPageHeight;
-    this.elements.container.style.height = 'auto';
-    this.elements.container.style.minHeight = `${totalHeight}px`;
+    this.elements.container.style.height = `${totalHeight}px`;
+    this.elements.container.style.minHeight = '';
     this.elements.container.style.position = 'relative';
 
     // Restore Scroll Position (Anchored)
@@ -1025,22 +1024,24 @@ class PdfViewer {
                 delete wrapper.dataset.renderId;
                 delete wrapper.dataset.rendering;
                 
-                // Update dimensions and position
+                // Update wrapper dimensions and position
                 wrapper.style.width = `${this.defaultPageWidth}px`;
                 wrapper.style.height = `${this.defaultPageHeight}px`;
                 wrapper.style.top = `${(pageNum - 1) * this.defaultPageHeight}px`;
+                // Centering is handled by CSS, just ensure position is absolute
+                wrapper.style.position = 'absolute';
                 wrapper.style.left = '50%';
                 wrapper.style.transform = 'translateX(-50%)';
                 
                 // Mark as not loaded so it re-renders
                 wrapper.dataset.loaded = 'false';
                 
-                // Keep the old canvas visible (scaled via CSS) until new render completes
-                // This prevents the "blank flash" during zoom
-                const canvas = wrapper.querySelector('canvas:not(.pdf-canvas-rendering)');
-                if (canvas) {
-                    canvas.style.width = `${this.defaultPageWidth}px`;
-                    canvas.style.height = `${this.defaultPageHeight}px`;
+                // Stretch the old canvas to fill the new wrapper size
+                // This prevents the white background from showing during zoom (the "white block" issue)
+                const oldCanvas = wrapper.querySelector('canvas:not(.pdf-canvas-rendering)');
+                if (oldCanvas) {
+                    oldCanvas.style.width = '100%';
+                    oldCanvas.style.height = '100%';
                 }
                 
                 // Remove any canvases that were mid-render (they're now stale)
@@ -1067,6 +1068,9 @@ class PdfViewer {
     
     // Initial render of visible pages
     this.updateVisiblePages();
+    
+    // Reset zoom flag
+    this.isZooming = false;
     
     if (this.renderPending) {
       this.renderPending = false;
@@ -1206,23 +1210,38 @@ class PdfViewer {
               return;
           }
           
-          // ATOMIC SWAP: Remove old canvases FIRST, then show new one
-          const oldCanvases = wrapper.querySelectorAll('canvas:not(.pdf-canvas-rendering)');
-          oldCanvases.forEach(oldCanvas => {
-              oldCanvas.remove();
+          // ATOMIC SWAP: Use requestAnimationFrame to ensure single-frame update
+          // This prevents any visual glitch between removing old and showing new
+          requestAnimationFrame(() => {
+              // Double-check validity again in case of race condition
+              if (wrapper.dataset.renderId != renderId) {
+                  canvas.remove();
+                  return;
+              }
+              
+              // Remove old canvases
+              const oldCanvases = wrapper.querySelectorAll('canvas:not(.pdf-canvas-rendering)');
+              oldCanvases.forEach(oldCanvas => {
+                  // Clear canvas memory before removal
+                  oldCanvas.width = 0;
+                  oldCanvas.height = 0;
+                  oldCanvas.remove();
+              });
+              
+              // Reveal the new canvas immediately (no transition)
+              canvas.classList.remove('pdf-canvas-rendering');
+              canvas.style.opacity = '1';
+              canvas.style.position = '';
+              canvas.style.top = '';
+              canvas.style.left = '';
+              
+              // Mark as loaded inside RAF to ensure proper sequencing
+              wrapper.dataset.loaded = 'true';
+              delete wrapper.dataset.rendering;
+              delete wrapper.dataset.renderId;
           });
-          
-          // Now reveal the new canvas
-          canvas.classList.remove('pdf-canvas-rendering');
-          canvas.style.opacity = '1';
-          canvas.style.position = '';
-          canvas.style.top = '';
-          canvas.style.left = '';
 
           this.activeRenderTasks.delete(num);
-          wrapper.dataset.loaded = 'true';
-          delete wrapper.dataset.rendering;
-          delete wrapper.dataset.renderId;
           
       } catch (error) {
           // Ignore cancellation errors
@@ -1353,8 +1372,7 @@ class PdfViewer {
               wrapper.style.width = `${this.defaultPageWidth}px`;
               wrapper.style.height = `${this.defaultPageHeight}px`;
               
-              // We use absolute positioning for virtual list to avoid complex padding logic with mixed content
-              // Actually, absolute is easier here.
+              // Use absolute positioning with transform for centering
               wrapper.style.position = 'absolute';
               wrapper.style.top = `${(i - 1) * this.defaultPageHeight}px`;
               wrapper.style.left = '50%';
@@ -1498,8 +1516,8 @@ class PdfViewer {
   }
 
   /**
-   * Apply smooth zoom with CSS transform and debounce render
-   * Uses CSS transform for INSTANT visual feedback while rendering in background
+   * Apply zoom without CSS transform to avoid glitches
+   * Simply debounce and re-render at new scale
    */
   applySmoothZoom() {
       // Update UI immediately
@@ -1510,44 +1528,15 @@ class PdfViewer {
           this.elements.editZoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
       }
 
-      const main = document.getElementById('pdf-main');
-      if (!main) return;
-
-      // Calculate the center point BEFORE applying transform
-      const scrollTop = main.scrollTop;
-      const clientHeight = main.clientHeight;
-      const style = window.getComputedStyle(main);
-      const paddingTop = parseFloat(style.paddingTop) || 0;
+      // Mark that we're in a zoom operation
+      this.isZooming = true;
       
-      // Store the center position relative to content
-      const centerY = scrollTop + (clientHeight / 2) - paddingTop;
-      
-      // Calculate CSS scale ratio
-      const cssScale = this.scale / this.renderedScale;
-      
-      // Apply CSS transform for INSTANT visual feedback
-      // Use GPU-accelerated transform for smooth scaling
-      this.elements.container.style.willChange = 'transform';
-      this.elements.container.style.transition = 'transform 0.1s ease-out';
-      this.elements.container.style.transform = `scale(${cssScale})`;
-      
-      // Set transform origin to the current center of the viewport
-      // This ensures the zoom expands from the center of what the user is looking at
-      this.elements.container.style.transformOrigin = `50% ${centerY}px`;
-      
-      // Adjust scroll position to compensate for the transform
-      // When we scale from a point, the scroll needs to adjust to keep that point centered
-      const newScrollTop = (centerY * cssScale) + paddingTop - (clientHeight / 2);
-      main.scrollTop = Math.max(0, newScrollTop);
-      
-      // Debounce the actual render - reduced from 300ms to 150ms for snappier feel
-      // The CSS transform provides instant feedback, so we can afford a shorter debounce
+      // Debounce the actual render to avoid too many re-renders during rapid zoom
       if (this.zoomTimeout) clearTimeout(this.zoomTimeout);
       this.zoomTimeout = setTimeout(() => {
-          // Remove transition before render to avoid conflicts
-          this.elements.container.style.transition = 'none';
+          // Queue render - old canvases stay visible until new ones are ready
           this.queueRender();
-      }, 150);
+      }, 100);
   }
 
   /**

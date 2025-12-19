@@ -229,9 +229,6 @@
 }
 
 .pdf-canvas-container {
-    /* GPU-accelerated transform for smooth zoom */
-    will-change: auto;
-    transform-origin: top center;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -239,12 +236,6 @@
     min-width: fit-content;
     /* Prevent layout thrashing during zoom */
     contain: layout style;
-}
-
-/* Smooth zoom transition - applied via JS when zooming */
-.pdf-canvas-container.zooming {
-    will-change: transform;
-    transition: transform 0.1s ease-out;
 }
 
 .pdf-page-wrapper {
@@ -267,14 +258,16 @@
     image-rendering: auto;
     /* Prevent any browser-level smoothing that could blur text */
     -webkit-font-smoothing: antialiased;
-    /* Smooth opacity transition for canvas swap */
-    transition: opacity 0.15s ease-out;
+    /* No transition on canvas - instant swap to prevent ghosting */
 }
 
 /* Canvas being rendered (hidden until complete) */
 .pdf-page-wrapper .pdf-canvas-rendering {
-    opacity: 0;
+    opacity: 0 !important;
     pointer-events: none;
+    position: absolute;
+    top: 0;
+    left: 0;
 }
 
 .pdf-page-wrapper .annotation-canvas {
