@@ -984,8 +984,11 @@ class PdfViewer {
     this.defaultPageWidth = defaultViewport.width;
 
     // Reset CSS transform (it was used for smooth zoom feedback)
+    // Use requestAnimationFrame to ensure smooth transition
+    this.elements.container.style.transition = 'none';
     this.elements.container.style.transform = 'none';
     this.elements.container.style.transformOrigin = 'top center';
+    this.elements.container.style.willChange = 'auto';
 
     // Update Container Height
     const totalHeight = this.pdfDoc.numPages * this.defaultPageHeight;
@@ -1000,14 +1003,27 @@ class PdfViewer {
         const newCenterY = anchorRatio * newContentHeight;
         const targetScrollTop = newCenterY + paddingTop - (main.clientHeight / 2);
         
-        main.scrollTop = targetScrollTop;
+        main.scrollTop = Math.max(0, targetScrollTop);
     }
 
     // Update Existing Wrappers (to avoid blank screen flash)
-    if (this.pageWrappers && this.pageWrappers.length > 0) {
-        this.pageWrappers.forEach(wrapper => {
+    if (this.pageWrappers && Object.keys(this.pageWrappers).length > 0) {
+        Object.keys(this.pageWrappers).forEach(key => {
+            const wrapper = this.pageWrappers[key];
             if (wrapper) {
                 const pageNum = parseInt(wrapper.dataset.pageNumber);
+                
+                // Cancel any pending render for this page
+                if (this.activeRenderTasks.has(pageNum)) {
+                    try {
+                        this.activeRenderTasks.get(pageNum).cancel();
+                    } catch(e) { /* ignore */ }
+                    this.activeRenderTasks.delete(pageNum);
+                }
+                
+                // Invalidate render ID to prevent stale renders from completing
+                delete wrapper.dataset.renderId;
+                delete wrapper.dataset.rendering;
                 
                 // Update dimensions and position
                 wrapper.style.width = `${this.defaultPageWidth}px`;
@@ -1019,17 +1035,22 @@ class PdfViewer {
                 // Mark as not loaded so it re-renders
                 wrapper.dataset.loaded = 'false';
                 
-                // Resize existing canvas to new size (avoid 100% to prevent blur)
-                const canvas = wrapper.querySelector('canvas');
+                // Keep the old canvas visible (scaled via CSS) until new render completes
+                // This prevents the "blank flash" during zoom
+                const canvas = wrapper.querySelector('canvas:not(.pdf-canvas-rendering)');
                 if (canvas) {
                     canvas.style.width = `${this.defaultPageWidth}px`;
                     canvas.style.height = `${this.defaultPageHeight}px`;
                 }
+                
+                // Remove any canvases that were mid-render (they're now stale)
+                const renderingCanvases = wrapper.querySelectorAll('.pdf-canvas-rendering');
+                renderingCanvases.forEach(c => c.remove());
             }
         });
     } else {
         // First load or full reset
-        this.pageWrappers = [];
+        this.pageWrappers = {};
         this.elements.container.innerHTML = '';
     }
 
@@ -1098,7 +1119,7 @@ class PdfViewer {
 
       if (wrapper.dataset.loaded === 'true') return;
 
-      // Strict cancellation: If a task exists, cancel it.
+      // Strict cancellation: If a task exists, cancel it and wait for cleanup
       if (this.activeRenderTasks.has(num)) {
           try {
               this.activeRenderTasks.get(num).cancel();
@@ -1108,12 +1129,16 @@ class PdfViewer {
           this.activeRenderTasks.delete(num);
       }
       
+      // Generate a unique render ID to track this specific render attempt
+      const renderId = Date.now() + Math.random();
+      wrapper.dataset.renderId = renderId;
       wrapper.dataset.rendering = 'true';
 
       try {
           const page = await this.pdfDoc.getPage(num);
           
-          // Check if we're still rendering this page (it might have been unloaded while getting the page)
+          // Check if this render is still valid (not superseded by another render)
+          if (wrapper.dataset.renderId != renderId) return;
           if (wrapper.dataset.rendering !== 'true') return;
 
           const dpr = window.devicePixelRatio || 1;
@@ -1136,8 +1161,9 @@ class PdfViewer {
           wrapper.style.width = `${cssWidth}px`;
           wrapper.style.height = `${cssHeight}px`;
 
+          // Create new canvas but DON'T append yet - render offscreen first
           const canvas = document.createElement('canvas');
-          canvas.className = 'pdf-page-canvas';
+          canvas.className = 'pdf-page-canvas pdf-canvas-rendering';
           
           // Set canvas dimensions to super-sampled pixels
           canvas.width = physicalWidth;
@@ -1150,10 +1176,17 @@ class PdfViewer {
           // Use crisp-edges for pixel-perfect downscaling
           canvas.style.imageRendering = 'auto';
           
+          // Position absolutely to overlay during transition
+          canvas.style.position = 'absolute';
+          canvas.style.top = '0';
+          canvas.style.left = '0';
+          canvas.style.opacity = '0'; // Hidden until render complete
+          
           const ctx = canvas.getContext('2d', { alpha: false });
           // Disable image smoothing to preserve sharp text edges during rendering
           ctx.imageSmoothingEnabled = false;
           
+          // Append canvas (hidden) so it can render
           wrapper.appendChild(canvas);
           
           const renderTask = page.render({
@@ -1167,27 +1200,42 @@ class PdfViewer {
 
           await renderTask.promise;
           
-          // Remove old canvases (from previous zoom level)
-          const oldCanvases = wrapper.querySelectorAll('canvas');
+          // Verify this render is still valid before swapping
+          if (wrapper.dataset.renderId != renderId) {
+              canvas.remove();
+              return;
+          }
+          
+          // ATOMIC SWAP: Remove old canvases FIRST, then show new one
+          const oldCanvases = wrapper.querySelectorAll('canvas:not(.pdf-canvas-rendering)');
           oldCanvases.forEach(oldCanvas => {
-              if (oldCanvas !== canvas) {
-                  oldCanvas.remove();
-              }
+              oldCanvas.remove();
           });
+          
+          // Now reveal the new canvas
+          canvas.classList.remove('pdf-canvas-rendering');
+          canvas.style.opacity = '1';
+          canvas.style.position = '';
+          canvas.style.top = '';
+          canvas.style.left = '';
 
           this.activeRenderTasks.delete(num);
           wrapper.dataset.loaded = 'true';
           delete wrapper.dataset.rendering;
+          delete wrapper.dataset.renderId;
           
       } catch (error) {
           // Ignore cancellation errors
           if (error.name === 'RenderingCancelledException') {
-              // console.log(`Rendering cancelled for page ${num}`);
+              // Clean up any partially rendered canvas
+              const renderingCanvas = wrapper.querySelector('.pdf-canvas-rendering');
+              if (renderingCanvas) renderingCanvas.remove();
           } else {
               console.error(`Error rendering page ${num}:`, error);
           }
           this.activeRenderTasks.delete(num);
           delete wrapper.dataset.rendering;
+          delete wrapper.dataset.renderId;
       }
   }
 
@@ -1205,22 +1253,21 @@ class PdfViewer {
           this.activeRenderTasks.delete(num);
       }
       
+      // Invalidate any pending render by clearing the render ID
       delete wrapper.dataset.rendering;
+      delete wrapper.dataset.renderId;
 
-      if (wrapper.dataset.loaded === 'true') {
-          // Cleanup PDF page resources if possible
-          // Note: pdf.js page objects don't always have explicit cleanup exposed easily
-          // without managing the page proxy lifecycle, but destroying the canvas helps.
-          const canvas = wrapper.querySelector('canvas');
-          if (canvas) {
-              canvas.width = 0;
-              canvas.height = 0;
-              canvas.remove();
-          }
-          
-          wrapper.innerHTML = ''; // Remove canvas
-          wrapper.dataset.loaded = 'false';
-      }
+      // Remove ALL canvases (including any being rendered)
+      const allCanvases = wrapper.querySelectorAll('canvas');
+      allCanvases.forEach(canvas => {
+          // Clear canvas memory
+          canvas.width = 0;
+          canvas.height = 0;
+          canvas.remove();
+      });
+      
+      wrapper.innerHTML = ''; // Remove all content
+      wrapper.dataset.loaded = 'false';
   }
 
   /**
@@ -1452,6 +1499,7 @@ class PdfViewer {
 
   /**
    * Apply smooth zoom with CSS transform and debounce render
+   * Uses CSS transform for INSTANT visual feedback while rendering in background
    */
   applySmoothZoom() {
       // Update UI immediately
@@ -1462,33 +1510,44 @@ class PdfViewer {
           this.elements.editZoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
       }
 
-      // Visual feedback
+      const main = document.getElementById('pdf-main');
+      if (!main) return;
+
+      // Calculate the center point BEFORE applying transform
+      const scrollTop = main.scrollTop;
+      const clientHeight = main.clientHeight;
+      const style = window.getComputedStyle(main);
+      const paddingTop = parseFloat(style.paddingTop) || 0;
+      
+      // Store the center position relative to content
+      const centerY = scrollTop + (clientHeight / 2) - paddingTop;
+      
+      // Calculate CSS scale ratio
       const cssScale = this.scale / this.renderedScale;
+      
+      // Apply CSS transform for INSTANT visual feedback
+      // Use GPU-accelerated transform for smooth scaling
       this.elements.container.style.willChange = 'transform';
+      this.elements.container.style.transition = 'transform 0.1s ease-out';
       this.elements.container.style.transform = `scale(${cssScale})`;
       
       // Set transform origin to the current center of the viewport
       // This ensures the zoom expands from the center of what the user is looking at
-      const main = document.getElementById('pdf-main');
-      if (main) {
-          const scrollTop = main.scrollTop;
-          const clientHeight = main.clientHeight;
-          
-          // Account for padding
-          const style = window.getComputedStyle(main);
-          const paddingTop = parseFloat(style.paddingTop) || 0;
-          
-          const centerY = scrollTop + (clientHeight / 2) - paddingTop;
-          this.elements.container.style.transformOrigin = `50% ${centerY}px`;
-      } else {
-          this.elements.container.style.transformOrigin = 'top center';
-      }
+      this.elements.container.style.transformOrigin = `50% ${centerY}px`;
       
-      // Debounce render
+      // Adjust scroll position to compensate for the transform
+      // When we scale from a point, the scroll needs to adjust to keep that point centered
+      const newScrollTop = (centerY * cssScale) + paddingTop - (clientHeight / 2);
+      main.scrollTop = Math.max(0, newScrollTop);
+      
+      // Debounce the actual render - reduced from 300ms to 150ms for snappier feel
+      // The CSS transform provides instant feedback, so we can afford a shorter debounce
       if (this.zoomTimeout) clearTimeout(this.zoomTimeout);
       this.zoomTimeout = setTimeout(() => {
+          // Remove transition before render to avoid conflicts
+          this.elements.container.style.transition = 'none';
           this.queueRender();
-      }, 300);
+      }, 150);
   }
 
   /**
