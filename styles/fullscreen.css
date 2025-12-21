@@ -369,53 +369,6 @@
   50% { transform: scaleY(1); }
 }
 
-/* Navigation Arrows */
-.nav-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 60px;
-  height: 60px;
-  background: rgba(0, 0, 0, 0.5);
-  border: none;
-  border-radius: var(--radius-full);
-  color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition-fast);
-  z-index: var(--z-modal);
-  backdrop-filter: blur(10px);
-}
-
-.nav-arrow:hover {
-  background: rgba(0, 0, 0, 0.7);
-  transform: translateY(-50%) scale(1.1);
-}
-
-.nav-arrow.prev {
-  left: var(--space-lg);
-}
-
-.nav-arrow.next {
-  right: var(--space-lg);
-}
-
-.nav-arrow .material-icons {
-  font-size: 32px;
-}
-
-.nav-arrow:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-  transform: translateY(-50%);
-}
-
-.nav-arrow:disabled:hover {
-  background: rgba(0, 0, 0, 0.5);
-  transform: translateY(-50%) scale(1);
-}
 
 
 /* Loading States */
@@ -582,22 +535,6 @@
     order: 2;
   }
   
-  .nav-arrow {
-    width: 48px;
-    height: 48px;
-  }
-  
-  .nav-arrow.prev {
-    left: var(--space-md);
-  }
-  
-  .nav-arrow.next {
-    right: var(--space-md);
-  }
-  
-  .nav-arrow .material-icons {
-    font-size: 24px;
-  }
   
   .zoom-controls {
     top: var(--space-md);
@@ -620,18 +557,6 @@
     height: 36px;
   }
   
-  .nav-arrow {
-    width: 40px;
-    height: 40px;
-  }
-  
-  .nav-arrow.prev {
-    left: var(--space-sm);
-  }
-  
-  .nav-arrow.next {
-    right: var(--space-sm);
-  }
   
   .video-controls-container {
     padding: var(--space-sm);
@@ -738,16 +663,6 @@
     background-color: #000000;
   }
 
-  .nav-arrow {
-    background: rgba(255, 255, 255, 0.8);
-    color: #202124;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  }
-
-  .nav-arrow:hover {
-    background: #ffffff;
-    color: #000000;
-  }
 
   .keyboard-hint {
     background: rgba(255, 255, 255, 0.9);

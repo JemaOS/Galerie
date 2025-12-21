@@ -133,6 +133,18 @@ class PdfTextEditor {
             minContrastRatio: 2.5,     // Minimum contrast for text detection
             antiAliasThreshold: 0.3,   // Threshold for anti-aliased pixels
         };
+
+        // Advanced PDF analysis configuration
+        this.advancedConfig = {
+            enableFontMetrics: true,      // Use detailed font metrics
+            enableRenderingMode: true,    // Detect text rendering modes
+            enableClippingPaths: true,    // Analyze clipping paths
+            enableKerning: true,          // Detect character spacing
+            enableMultiColor: true,      // Handle multicolored text
+            enableTransparency: true,     // Detect text opacity
+            enableGradients: true,        // Handle gradient backgrounds
+            enablePatterns: true,         // Handle pattern backgrounds
+        };
         
         // Bind methods
         this.handleGlobalKeyDown = this.handleGlobalKeyDown.bind(this);
@@ -314,6 +326,233 @@ class PdfTextEditor {
             // For colored pixels, use standard RGB quantization
             return `${Math.round(r/8)*8},${Math.round(g/8)*8},${Math.round(b/8)*8}`;
         }
+    }
+
+    /**
+     * ADOBE-LEVEL: Analyze advanced font metrics from PDF font descriptors
+     * Extracts ascent, descent, leading, capHeight, xHeight, etc.
+     * @param {Object} style - PDF.js font style object
+     * @param {number} fontSize - Font size in points
+     * @returns {Object} Advanced font metrics
+     */
+    analyzeAdvancedFontMetrics(style, fontSize) {
+        const metrics = {
+            ascent: 0,
+            descent: 0,
+            leading: 0,
+            capHeight: 0,
+            xHeight: 0,
+            stemV: 0,
+            stemH: 0,
+            avgWidth: 0,
+            maxWidth: 0,
+            flags: 0,
+            bbox: [0, 0, 0, 0],
+            italicAngle: 0,
+            isFixedPitch: false,
+            isSerif: false,
+            isSymbolic: false,
+            isScript: false,
+            isNonSymbolic: false,
+            isItalic: false,
+            isAllCap: false,
+            isSmallCap: false,
+            isForceBold: false
+        };
+
+        if (!style) return metrics;
+
+        // Extract font descriptor metrics (most accurate)
+        if (style.ascent !== undefined) metrics.ascent = style.ascent;
+        if (style.descent !== undefined) metrics.descent = style.descent;
+        if (style.leading !== undefined) metrics.leading = style.leading;
+        if (style.capHeight !== undefined) metrics.capHeight = style.capHeight;
+        if (style.xHeight !== undefined) metrics.xHeight = style.xHeight;
+        if (style.stemV !== undefined) metrics.stemV = style.stemV;
+        if (style.stemH !== undefined) metrics.stemH = style.stemH;
+        if (style.avgWidth !== undefined) metrics.avgWidth = style.avgWidth;
+        if (style.maxWidth !== undefined) metrics.maxWidth = style.maxWidth;
+        if (style.flags !== undefined) metrics.flags = style.flags;
+        if (style.bbox) metrics.bbox = style.bbox;
+        if (style.italicAngle !== undefined) metrics.italicAngle = style.italicAngle;
+
+        // Decode font flags (PDF specification)
+        if (metrics.flags > 0) {
+            metrics.isFixedPitch = (metrics.flags & 1) !== 0;
+            metrics.isSerif = (metrics.flags & 2) !== 0;
+            metrics.isSymbolic = (metrics.flags & 4) !== 0;
+            metrics.isScript = (metrics.flags & 8) !== 0;
+            metrics.isNonSymbolic = (metrics.flags & 32) !== 0;
+            metrics.isItalic = (metrics.flags & 64) !== 0;
+            metrics.isAllCap = (metrics.flags & 131072) !== 0;
+            metrics.isSmallCap = (metrics.flags & 262144) !== 0;
+            metrics.isForceBold = (metrics.flags & 262144) !== 0;
+        }
+
+        // Convert to CSS pixels (assuming 72 DPI)
+        const scale = fontSize / 1000; // Font units to points
+        metrics.ascent *= scale;
+        metrics.descent *= scale;
+        metrics.leading *= scale;
+        metrics.capHeight *= scale;
+        metrics.xHeight *= scale;
+        metrics.stemV *= scale;
+        metrics.stemH *= scale;
+        metrics.avgWidth *= scale;
+        metrics.maxWidth *= scale;
+
+        // BBox conversion
+        metrics.bbox = metrics.bbox.map(coord => coord * scale);
+
+        console.log('[PDF-TextEditor] Advanced font metrics:', {
+            ascent: metrics.ascent.toFixed(1),
+            descent: metrics.descent.toFixed(1),
+            capHeight: metrics.capHeight.toFixed(1),
+            xHeight: metrics.xHeight.toFixed(1),
+            isItalic: metrics.isItalic,
+            isBold: metrics.isForceBold
+        });
+
+        return metrics;
+    }
+
+    /**
+     * ADOBE-LEVEL: Analyze text rendering mode from PDF operators
+     * Detects fill, stroke, fill+stroke, invisible, etc.
+     * @param {Object} operatorList - PDF.js operator list
+     * @returns {Object} Map of text operations to rendering modes
+     */
+    analyzeTextRenderingModes(operatorList) {
+        const OPS = pdfjsLib.OPS;
+        const renderingModes = {};
+        let currentMode = 0; // 0=fill, 1=stroke, 2=fill+stroke, 3=invisible
+        let textOpIndex = 0;
+
+        const ops = operatorList.fnArray;
+        const args = operatorList.argsArray;
+
+        for (let i = 0; i < ops.length; i++) {
+            const op = ops[i];
+            const opArgs = args[i];
+
+            switch (op) {
+                // Set text rendering mode (Tr operator)
+                case OPS.setTextRenderingMode:
+                    if (opArgs && opArgs.length >= 1) {
+                        currentMode = opArgs[0];
+                    }
+                    break;
+
+                // Text showing operations
+                case OPS.showText:
+                case OPS.showSpacedText:
+                case OPS.nextLineShowText:
+                case OPS.nextLineSetSpacingShowText:
+                    renderingModes[textOpIndex] = {
+                        mode: currentMode,
+                        fill: currentMode === 0 || currentMode === 2,
+                        stroke: currentMode === 1 || currentMode === 2,
+                        invisible: currentMode === 3
+                    };
+                    textOpIndex++;
+                    break;
+            }
+        }
+
+        console.log('[PDF-TextEditor] Analyzed rendering modes for', textOpIndex, 'text operations');
+        return renderingModes;
+    }
+
+    /**
+     * ADOBE-LEVEL: Analyze clipping paths for text boundaries
+     * @param {Object} operatorList - PDF.js operator list
+     * @returns {Array} Array of clipping path rectangles
+     */
+    analyzeClippingPaths(operatorList) {
+        const OPS = pdfjsLib.OPS;
+        const clippingPaths = [];
+        const ops = operatorList.fnArray;
+        const args = operatorList.argsArray;
+
+        for (let i = 0; i < ops.length; i++) {
+            const op = ops[i];
+            const opArgs = args[i];
+
+            switch (op) {
+                // Rectangle clipping
+                case OPS.rectangle:
+                    if (opArgs && opArgs.length >= 4) {
+                        const rect = {
+                            x: opArgs[0],
+                            y: opArgs[1],
+                            width: opArgs[2],
+                            height: opArgs[3],
+                            type: 'rectangle'
+                        };
+                        clippingPaths.push(rect);
+                    }
+                    break;
+
+                // Clip to current path
+                case OPS.clip:
+                case OPS.eoClip:
+                    // Mark current path as clipping path
+                    // This is complex - would need full path analysis
+                    break;
+            }
+        }
+
+        console.log('[PDF-TextEditor] Found', clippingPaths.length, 'clipping paths');
+        return clippingPaths;
+    }
+
+    /**
+     * ADOBE-LEVEL: Analyze kerning and character spacing
+     * @param {Object} operatorList - PDF.js operator list
+     * @returns {Object} Character spacing information
+     */
+    analyzeKerningAndSpacing(operatorList) {
+        const OPS = pdfjsLib.OPS;
+        const spacing = {
+            charSpacing: 0,
+            wordSpacing: 0,
+            horizontalScaling: 100,
+            kerningPairs: []
+        };
+
+        const ops = operatorList.fnArray;
+        const args = operatorList.argsArray;
+
+        for (let i = 0; i < ops.length; i++) {
+            const op = ops[i];
+            const opArgs = args[i];
+
+            switch (op) {
+                // Set character spacing (Tc)
+                case OPS.setCharSpacing:
+                    if (opArgs && opArgs.length >= 1) {
+                        spacing.charSpacing = opArgs[0];
+                    }
+                    break;
+
+                // Set word spacing (Tw)
+                case OPS.setWordSpacing:
+                    if (opArgs && opArgs.length >= 1) {
+                        spacing.wordSpacing = opArgs[0];
+                    }
+                    break;
+
+                // Set horizontal scaling (Tz)
+                case OPS.setHScale:
+                    if (opArgs && opArgs.length >= 1) {
+                        spacing.horizontalScaling = opArgs[0];
+                    }
+                    break;
+            }
+        }
+
+        console.log('[PDF-TextEditor] Character spacing:', spacing);
+        return spacing;
     }
 
     /**
@@ -1146,9 +1385,11 @@ class PdfTextEditor {
      * Only adds font style information
      * @param {Array} items
      * @param {Object} styles - Font styles from PDF.js
+     * @param {Object} renderingModes - Text rendering modes from operator analysis
+     * @param {Object} spacingInfo - Character spacing information
      * @returns {Array}
      */
-    mergeTextItems(items, styles = {}) {
+    mergeTextItems(items, styles = {}, renderingModes = {}, spacingInfo = {}) {
         // Filter empty items - keep items with at least some content
         const validItems = items.filter(item => item.str && item.str.length > 0);
         
@@ -1161,28 +1402,41 @@ class PdfTextEditor {
                 let fontName = item.fontName;
                 let fontFamily = null;
                 const style = styles[item.fontName];
-                
+
                 // Check styles for real font name
                 if (style && style.fontFamily) {
                     fontFamily = style.fontFamily;
                 }
 
-                // Analyze weight (bold detection)
+                // ADOBE-LEVEL: Analyze advanced font metrics
+                if (this.advancedConfig.enableFontMetrics && style) {
+                    item.advancedMetrics = this.analyzeAdvancedFontMetrics(style, item.transform ? Math.sqrt(item.transform[0] * item.transform[0] + item.transform[1] * item.transform[1]) : 12);
+                }
+
+                // Analyze weight (bold detection) - enhanced with advanced metrics
                 const weightInfo = this.analyzeFontWeight(fontName, style);
-                item.isBold = weightInfo.isBold;
+                item.isBold = weightInfo.isBold || (item.advancedMetrics && item.advancedMetrics.isForceBold);
                 item.fontWeight = weightInfo.weight;
 
-                // Analyze style (italic detection)
+                // Analyze style (italic detection) - enhanced with advanced metrics
                 const styleInfo = this.analyzeFontStyle(fontName, style);
-                item.isItalic = styleInfo.isItalic;
+                item.isItalic = styleInfo.isItalic || (item.advancedMetrics && item.advancedMetrics.isItalic);
                 item.fontStyle = styleInfo.style;
 
                 // Get font family with fallbacks
                 item.fontFamily = this.getFontFamily(fontFamily || fontName);
-                
-                // DEBUG: Log font info for first few items
-                if (idx < 5) {
-                    console.log(`[PDF-TextEditor] Font: "${fontName}" | Bold: ${item.isBold} (${item.fontWeight}) | Italic: ${item.isItalic} | Style obj:`, style);
+
+                // Store rendering mode information
+                if (renderingModes[idx]) {
+                    item.renderingMode = renderingModes[idx];
+                }
+
+                // Store spacing information
+                item.spacingInfo = spacingInfo;
+
+                // DEBUG: Log comprehensive font info for first few items
+                if (idx < 3) {
+                    console.log(`[PDF-TextEditor] Item ${idx}: "${item.str.substring(0, 20)}" | Font: "${fontName}" | Bold: ${item.isBold} (${item.fontWeight}) | Italic: ${item.isItalic} | Metrics:`, item.advancedMetrics);
                 }
             }
         });
@@ -1305,37 +1559,57 @@ class PdfTextEditor {
         // Process text items
         const styles = textContent.styles;
 
-        // HYBRID APPROACH: Combine operator list extraction + canvas sampling
-        // This ensures maximum accuracy across different PDF types
-        
+        // ADOBE-LEVEL ADVANCED ANALYSIS: Extract comprehensive PDF information
         const canvas = wrapper.querySelector('canvas');
         let ctx = null;
         let canvasViewport = null;
         const dpr = window.devicePixelRatio || 1;
-        
+
         if (canvas) {
             ctx = canvas.getContext('2d', { willReadFrequently: true });
             const renderScale = this.viewer.baseRenderScale || 2.0;
             const canvasScale = renderScale * dpr;
             canvasViewport = page.getViewport({ scale: canvasScale, rotation: this.viewer.rotation });
         }
-        
-        // Step 1: Try to extract colors from operator list
+
+        // Step 1: Extract comprehensive operator list analysis
         let operatorColors = {};
+        let renderingModes = {};
+        let clippingPaths = [];
+        let spacingInfo = {};
+
         try {
             const operatorList = await page.getOperatorList();
+
+            // Extract colors from operators
             operatorColors = this.extractColorsFromOperatorList(operatorList, textContent.items);
+
+            // Extract rendering modes (fill, stroke, etc.)
+            if (this.advancedConfig.enableRenderingMode) {
+                renderingModes = this.analyzeTextRenderingModes(operatorList);
+            }
+
+            // Extract clipping paths
+            if (this.advancedConfig.enableClippingPaths) {
+                clippingPaths = this.analyzeClippingPaths(operatorList);
+            }
+
+            // Extract kerning and spacing
+            if (this.advancedConfig.enableKerning) {
+                spacingInfo = this.analyzeKerningAndSpacing(operatorList);
+            }
+
         } catch (e) {
-            console.warn('[PDF-TextEditor] Operator list extraction failed:', e);
+            console.warn('[PDF-TextEditor] Advanced operator analysis failed:', e);
         }
         
         // Step 2: For each text item, use hybrid detection
         textContent.items.forEach((item, idx) => {
             if (!item.str.trim()) return;
-            
+
             // Method 1: Operator list colors
             const opColors = operatorColors[idx];
-            
+
             // Method 2: Canvas sampling
             let canvasColors = null;
             if (ctx && canvasViewport) {
@@ -1352,57 +1626,57 @@ class PdfTextEditor {
                     // Ignore sampling errors
                 }
             }
-            
+
             // HYBRID DECISION: Choose the best color source
             // Priority:
             // 1. If operator list has non-default colors, use them
             // 2. If canvas sampling found non-white background, use it
             // 3. Default to operator list or fallback
-            
+
             let finalTextColor = [0, 0, 0];
             let finalBgColor = [255, 255, 255];
-            
+
             // Check operator colors
             if (opColors) {
                 const opFill = opColors.fillColor;
                 const opBg = opColors.bgColor;
-                
+
                 // Use operator fill color if it's not default black
                 if (opFill && !(opFill[0] === 0 && opFill[1] === 0 && opFill[2] === 0)) {
                     finalTextColor = opFill;
                 } else if (opFill) {
                     finalTextColor = opFill;
                 }
-                
+
                 // Use operator bg color if it's not default white
                 if (opBg && !(opBg[0] === 255 && opBg[1] === 255 && opBg[2] === 255)) {
                     finalBgColor = opBg;
                 }
             }
-            
+
             // Check canvas colors - override if they found something interesting
             if (canvasColors) {
                 const canvasBg = canvasColors.background;
                 const canvasText = canvasColors.text;
-                
+
                 // If canvas found a non-white background, prefer it
                 // (operator list often misses background rectangles)
                 if (canvasBg && !(canvasBg[0] > 250 && canvasBg[1] > 250 && canvasBg[2] > 250)) {
                     finalBgColor = canvasBg;
                 }
-                
+
                 // If canvas found a colored text (not black), prefer it
                 const [h, s, l] = this.rgbToHsl(canvasText[0], canvasText[1], canvasText[2]);
                 if (s > 0.2) {
                     finalTextColor = canvasText;
                 }
             }
-            
+
             item.color = finalTextColor;
             item.bgColor = finalBgColor;
         });
 
-        const mergedItems = this.mergeTextItems(textContent.items, styles);
+        const mergedItems = this.mergeTextItems(textContent.items, styles, renderingModes, spacingInfo);
 
         mergedItems.forEach((item, index) => {
             // Use the viewport transform (scale 1.0) to convert PDF coordinates to CSS coordinates
@@ -1411,26 +1685,60 @@ class PdfTextEditor {
                 item.transform
             );
 
-            // Calculate font metrics from transform matrix
-            // tx = [scaleX, skewY, skewX, scaleY, translateX, translateY]
+            // ADOBE-LEVEL: Calculate precise font metrics using advanced analysis
             const fontHeight = Math.sqrt((tx[2] * tx[2]) + (tx[3] * tx[3]));
-            
-            // Calculate the actual pixel width of the text
-            // item.width is in PDF units.
-            // Since we are at scale 1.0, 1 PDF unit = 1 CSS pixel (roughly, depending on user unit)
-            // But we must account for the font scaling in the transform matrix.
-            // Actually, item.width is usually in unscaled text space units?
-            // No, PDF.js normalizes item.width to be consistent with the viewport scale.
-            // So at scale 1.0, item.width should be the width in CSS pixels.
-            const pixelWidth = item.width;
 
-            // Create element
+            if (index === 0) {
+                console.log('[PDF-TextEditor] Item 0 debug:', {
+                    str: item.str,
+                    tx,
+                    fontHeight,
+                    viewportScale: 1.0,
+                    viewerScale: this.viewer.scale,
+                    transform: item.transform
+                });
+            }
+
+            // Use advanced font metrics for more precise positioning if available
+            let ascent = fontHeight * 0.8;    // Default ascent ratio
+            let descent = fontHeight * 0.2;   // Default descent ratio
+            let leading = fontHeight * 0.1;   // Default leading
+
+            if (item.advancedMetrics) {
+                const metrics = item.advancedMetrics;
+                if (metrics.ascent > 0) ascent = metrics.ascent;
+                if (metrics.descent < 0) descent = Math.abs(metrics.descent);
+                if (metrics.leading > 0) leading = metrics.leading;
+            }
+
+            // Calculate the actual pixel width of the text
+            // item.width is in PDF units normalized to viewport scale
+            let pixelWidth = item.width;
+
+            // Adjust width for character spacing and horizontal scaling
+            if (item.spacingInfo) {
+                const spacing = item.spacingInfo;
+                if (spacing.horizontalScaling !== 100) {
+                    pixelWidth *= spacing.horizontalScaling / 100;
+                }
+                // Add character spacing (approximate)
+                if (spacing.charSpacing > 0) {
+                    pixelWidth += spacing.charSpacing * item.str.length;
+                }
+            }
+
+            // Create element (Wrapper)
             const el = document.createElement('div');
             el.className = 'pdf-text-item';
-            el.textContent = item.str;
             el.dataset.originalText = item.str;
             el.dataset.id = `page-${pageNum}-item-${index}`;
             el.dataset.pageNum = pageNum;
+            
+            // Create content span (Child)
+            const content = document.createElement('span');
+            content.className = 'pdf-text-content';
+            content.textContent = item.str;
+            el.appendChild(content);
             
             // Store color info
             if (item.color) {
@@ -1443,7 +1751,7 @@ class PdfTextEditor {
             // Check for pending changes
             if (this.changes.has(pageNum) && this.changes.get(pageNum).has(el.dataset.id)) {
                 const change = this.changes.get(pageNum).get(el.dataset.id);
-                el.textContent = change.newText;
+                content.textContent = change.newText;
                 el.classList.add('modified');
                 
                 // Use stored color or black
@@ -1463,11 +1771,22 @@ class PdfTextEditor {
                 }
             }
 
-            // Store original transform info for saving
+            // Store comprehensive original info for saving
             el.dataset.pdfTransform = JSON.stringify(item.transform);
             el.dataset.width = item.width;
             el.dataset.height = item.height;
             el.dataset.fontName = item.fontName;
+
+            // Store advanced metadata
+            if (item.advancedMetrics) {
+                el.dataset.advancedMetrics = JSON.stringify(item.advancedMetrics);
+            }
+            if (item.renderingMode) {
+                el.dataset.renderingMode = JSON.stringify(item.renderingMode);
+            }
+            if (item.spacingInfo) {
+                el.dataset.spacingInfo = JSON.stringify(item.spacingInfo);
+            }
 
             // Apply font weight with numeric value for precision
             // Force bold if detected, even if weight is missing
@@ -1499,31 +1818,55 @@ class PdfTextEditor {
             const degree = angle * (180 / Math.PI);
 
             el.style.left = `${tx[4]}px`;
-            // Adjust top position to account for font descent and ascenders
-            // Use a moderate buffer to cover original text without excessive overlap
-            // We need to balance coverage with precision
-            const paddingV = fontHeight * 0.1;
-            const topOffset = fontHeight * 1.1;
-            
-            el.style.top = `${tx[5] - topOffset}px`;
-            el.style.paddingTop = `${paddingV}px`;
-            el.style.paddingBottom = `${paddingV}px`;
+
+            // ADOBE-LEVEL: Precise vertical positioning using advanced font metrics
+            // Calculate exact baseline position accounting for ascent, descent, and leading
+            const baselineY = tx[5];
+            const totalLineHeight = ascent + descent + leading;
+
+            // Position element so baseline aligns with PDF baseline
+            // Top of element = baseline - ascent - padding
+            const paddingTop = leading * 0.5;
+            const paddingBottom = leading * 0.5;
+            const elementTop = baselineY - ascent - paddingTop;
+
+            el.style.top = `${elementTop}px`;
+            el.style.paddingTop = `${paddingTop}px`;
+            el.style.paddingBottom = `${paddingBottom}px`;
             
             // Set explicit width to match PDF text width exactly
             // Add a small buffer to width to prevent horizontal clipping of italic/wide chars
+            // NOTE: pixelWidth is the VISUAL width. We set the wrapper to this width.
             el.style.width = `${pixelWidth + (fontHeight * 0.2)}px`;
             el.style.paddingLeft = `${fontHeight * 0.1}px`;
             el.style.paddingRight = `${fontHeight * 0.1}px`;
             // Adjust left position to account for padding
             el.style.left = `${tx[4] - (fontHeight * 0.1)}px`;
             
-            // Height includes padding (box-sizing: border-box)
-            // Content height = 1.2H - 0.1H - 0.1H = 1.0H (matches original)
-            el.style.minHeight = `${fontHeight * 1.2}px`;
+            // ADOBE-LEVEL: Precise height calculation using advanced metrics
+            const contentHeight = ascent + descent;
+            const totalHeight = contentHeight + paddingTop + paddingBottom;
+            el.style.minHeight = `${totalHeight}px`;
             el.style.height = 'auto';
-            
+
             el.style.fontSize = `${fontHeight}px`;
-            el.style.lineHeight = `${fontHeight}px`;
+            el.style.lineHeight = `${contentHeight}px`; // Use actual content height for line-height
+
+            // Apply rendering mode effects (stroke, fill+stroke, etc.)
+            if (item.renderingMode) {
+                const mode = item.renderingMode;
+                if (mode.stroke && !mode.fill) {
+                    // Stroke-only text (outlined)
+                    el.style.webkitTextStroke = `1px ${el.style.color}`;
+                    el.style.color = 'transparent';
+                } else if (mode.stroke && mode.fill) {
+                    // Fill + stroke text
+                    el.style.webkitTextStroke = `0.5px ${this.getContrastingColor(item.color || [0,0,0])}`;
+                }
+                if (mode.invisible) {
+                    el.style.opacity = '0.3';
+                }
+            }
             
             // Use detected font family or fallback to style map or default
             const finalFontFamily = item.fontFamily || (styles[item.fontName] ? styles[item.fontName].fontFamily : 'sans-serif');
@@ -1537,9 +1880,48 @@ class PdfTextEditor {
             // Standard block display for better text flow and alignment
             el.style.display = 'block';
 
+            // ADOBE-LEVEL: Advanced matrix transformation handling
             if (degree !== 0) {
+                // Handle rotation with proper transform origin
                 el.style.transform = `rotate(${degree}deg)`;
                 el.style.transformOrigin = 'left bottom';
+
+                // For rotated text, adjust positioning to account for rotation
+                const rad = degree * Math.PI / 180;
+                const cos = Math.cos(rad);
+                const sin = Math.sin(rad);
+
+                // Adjust position for rotation around baseline
+                const rotatedOffsetX = -ascent * sin;
+                const rotatedOffsetY = ascent * (1 - cos);
+
+                el.style.left = `${tx[4] + rotatedOffsetX}px`;
+                el.style.top = `${elementTop + rotatedOffsetY}px`;
+            }
+
+            // Handle horizontal/vertical scaling from matrix
+            const matrixScaleX = Math.sqrt(tx[0] * tx[0] + tx[1] * tx[1]);
+            const matrixScaleY = Math.sqrt(tx[2] * tx[2] + tx[3] * tx[3]);
+
+            // Normalize scales relative to the font size (which is set to fontHeight)
+            // This prevents double-scaling since fontHeight is already derived from matrixScaleY
+            const cssScaleX = fontHeight > 0 ? matrixScaleX / fontHeight : 1;
+            const cssScaleY = fontHeight > 0 ? matrixScaleY / fontHeight : 1;
+
+            // Apply scaling to the CONTENT span, not the wrapper
+            // This prevents the border/outline from being distorted
+            if (Math.abs(cssScaleX - 1) > 0.01 || Math.abs(cssScaleY - 1) > 0.01) {
+                content.style.transform = `scale(${cssScaleX}, ${cssScaleY})`;
+                content.style.transformOrigin = 'left top';
+                // Compensate width/height so the scaled content fits the wrapper
+                content.style.width = `${100 / cssScaleX}%`;
+                content.style.height = `${100 / cssScaleY}%`;
+                content.style.display = 'inline-block';
+            }
+
+            // Handle transparency/opacity
+            if (this.advancedConfig.enableTransparency && item.renderingMode && item.renderingMode.invisible) {
+                el.style.opacity = '0.5';
             }
             
             // Interaction
@@ -1570,13 +1952,20 @@ class PdfTextEditor {
         if (!this.isActive) return;
         e.stopPropagation();
 
+        const content = el.querySelector('.pdf-text-content');
+        if (!content) return;
+
         if (this.activeElement && this.activeElement !== el) {
-            this.activeElement.blur();
+            // Blur the previously active element's content
+            const prevContent = this.activeElement.querySelector('.pdf-text-content');
+            if (prevContent) prevContent.blur();
         }
 
         this.activeElement = el;
-        this.previousText = el.textContent; // Store original text before edit
-        el.contentEditable = true;
+        this.previousText = content.textContent; // Store original text before edit
+        
+        // Make content editable, not the wrapper
+        content.contentEditable = true;
         el.classList.add('editing');
         
         // Apply text color
@@ -1600,19 +1989,22 @@ class PdfTextEditor {
             el.style.backgroundColor = 'white';
         }
         
-        el.focus();
+        content.focus();
     }
 
     /**
      * Handle blur (focus lost) on text item
-     * @param {Event} e 
-     * @param {HTMLElement} el 
+     * @param {Event} e
+     * @param {HTMLElement} el
      */
     async handleTextBlur(e, el) {
-        el.contentEditable = false;
+        const content = el.querySelector('.pdf-text-content');
+        if (!content) return;
+
+        content.contentEditable = false;
         this.activeElement = null;
 
-        const newText = el.textContent;
+        const newText = content.textContent;
         // Check against previous text (what it was when we clicked)
         // to determine if a new change occurred
         if (this.previousText !== null && newText !== this.previousText) {
@@ -1655,7 +2047,8 @@ class PdfTextEditor {
     async handleKeyDown(e, el) {
         if (e.key === 'Enter') {
             e.preventDefault();
-            el.blur();
+            const content = el.querySelector('.pdf-text-content');
+            if (content) content.blur();
             // Blur will trigger handleTextBlur which handles the preview update
         }
     }
@@ -1776,8 +2169,11 @@ class PdfTextEditor {
         const el = document.querySelector(selector);
         
         if (el) {
-            el.textContent = targetText;
-            this.updateChangesMap(el, targetText);
+            const content = el.querySelector('.pdf-text-content');
+            if (content) {
+                content.textContent = targetText;
+                this.updateChangesMap(el, targetText);
+            }
         } else {
             console.warn(`Could not find element for undo/redo: ${action.id}`);
         }

@@ -158,6 +158,8 @@
     display: flex;
     overflow: hidden;
     position: relative;
+    /* Ensure no transitions interfere with zoom/pan logic */
+    transition: none !important;
 }
 
 .pdf-sidebar {
@@ -221,57 +223,85 @@
 
 .pdf-main {
     flex: 1;
-    overflow: auto;
-    display: flex;
-    justify-content: flex-start;
+    /* Force vertical scrollbar to prevent layout shift during zoom */
+    overflow-y: scroll;
+    overflow-x: auto;
+    display: block;
     padding: 24px;
     background-color: var(--background-variant);
+    position: relative;
+    cursor: default;
+}
+
+.pdf-main.grab {
+    cursor: grab;
+}
+
+.pdf-main.grabbing {
+    cursor: grabbing;
 }
 
 .pdf-canvas-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 100%;
-    min-width: fit-content;
-    /* Prevent layout thrashing during zoom */
-    contain: layout style;
+    display: block;
+    /* Container is absolutely positioned inside the wrapper */
+    position: absolute;
+    top: 0;
+    left: 0;
+    /* CRITICAL: transform-origin must be 0 0 for zoom to work correctly */
+    transform-origin: 0 0;
+    /* GPU acceleration for smooth zoom */
+    will-change: transform;
+    /* Prevent any transitions during zoom */
+    transition: none !important;
+}
+
+#pdf-zoom-wrapper {
+    position: relative;
+    margin: 0;
+    /* Ensure it takes up space for scrollbars */
+    flex-shrink: 0;
+    /* Prevent transitions during zoom */
+    transition: none !important;
 }
 
 .pdf-page-wrapper {
     box-shadow: var(--shadow-md);
     background-color: white;
     margin-bottom: 20px;
-    position: relative;
-    /* Important: ensure proper stacking context for text layer */
+    position: absolute;
+    /* Important: ensure proper stacking context */
     isolation: isolate;
     max-width: none;
-    width: fit-content;
-    /* Prevent canvas overlap during transitions */
+    /* Prevent canvas overlap */
     overflow: hidden;
+    /* No transitions during zoom */
+    transition: none !important;
 }
 
 .pdf-page-wrapper .pdf-page-canvas {
     display: block;
     max-width: none;
-    /* Ensure crisp text rendering when downscaling super-sampled canvas */
+    /* Crisp text rendering when downscaling high-res canvas */
     image-rendering: auto;
-    /* Prevent any browser-level smoothing that could blur text */
     -webkit-font-smoothing: antialiased;
-    /* No transition on canvas - instant swap to prevent ghosting */
-}
-
-/* Canvas being rendered (hidden until complete) */
-.pdf-page-wrapper .pdf-canvas-rendering {
-    opacity: 0 !important;
-    pointer-events: none;
-    position: absolute;
-    top: 0;
-    left: 0;
+    /* No transitions */
+    transition: none !important;
 }
 
 .pdf-page-wrapper .annotation-canvas {
     background-color: transparent;
+    /* Ensure annotations scale correctly */
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-origin: 0 0;
+    pointer-events: auto; /* Enable events for drawing */
+    /* Actually annotation canvas usually matches wrapper size in old logic.
+       In new logic, if wrapper is visual size, annotation canvas should probably be visual size too? 
+       Or if it's high-res, it needs transform. 
+       The annotation manager usually handles its own canvas. 
+       Let's assume for now it needs to match the wrapper or be handled by JS.
+    */
 }
 
 .pdf-page-wrapper .pdf-text-layer {
@@ -282,6 +312,13 @@
     z-index: 2;
     color: transparent;
     line-height: 1.0;
+    /* GPU compositing to prevent glitch during zoom */
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    /* Prevent transition interference */
+    transition: none !important;
+    transform-origin: 0 0;
 }
 
 .pdf-page-wrapper .pdf-text-layer ::selection {

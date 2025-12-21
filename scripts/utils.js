@@ -94,9 +94,9 @@ class GalleryUtils {
     const ext = filename.split('.').pop()?.toLowerCase() || '';
     const mime = mimeType.toLowerCase();
     
-    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff', 'ico', 'raw', 'cr2', 'nef', 'arw', 'dng', 'heic', 'heif'];
-    const videoExtensions = ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'm4v', '3gp', 'ogv', 'mts', 'm2ts', 'ts', 'vob', 'divx', 'xvid', 'hevc', 'h264', 'h265'];
-    const audioExtensions = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a', 'opus', 'm4b'];
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff', 'ico', 'raw', 'cr2', 'nef', 'arw', 'dng', 'heic', 'heif', 'avif', 'jfif', 'pjpeg', 'pjp', 'apng', 'cur'];
+    const videoExtensions = ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'm4v', '3gp', '3g2', 'ogv', 'mts', 'm2ts', 'ts', 'vob', 'divx', 'xvid', 'hevc', 'h264', 'h265'];
+    const audioExtensions = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a', 'opus', 'm4b', 'mid', 'midi', 'kar'];
     const pdfExtensions = ['pdf'];
     
     if (imageExtensions.includes(ext) || mime.startsWith('image/')) {
@@ -356,15 +356,20 @@ class GalleryUtils {
   static isSupportedFile(file) {
     const supportedTypes = [
       // Images
-      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
       'image/bmp', 'image/svg+xml', 'image/tiff', 'image/x-icon',
+      'image/heic', 'image/heif', 'image/avif', 'image/apng', 'image/pjpeg',
       // Videos
       'video/mp4', 'video/avi', 'video/quicktime', 'video/x-msvideo',
       'video/webm', 'video/ogg', 'video/x-matroska', 'video/3gpp',
       'video/mpeg', 'video/x-m4v', 'video/3gpp2', 'video/mp2t', 'video/x-f4v',
+      'video/h264', 'video/h265', 'video/hevc', 'video/x-flv', 'video/x-divx', 'video/divx', 'video/vnd.avi',
+      'video/quicktime', 'video/x-ms-wmv', 'video/x-ms-asf', 'video/x-matroska',
+      'video/x-ms-vob',
       // Audio
       'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/wave', 'audio/x-wav',
-      'audio/flac', 'audio/aac', 'audio/ogg', 'audio/webm', 'audio/x-m4a',
+      'audio/flac', 'audio/aac', 'audio/ogg', 'audio/webm', 'audio/x-m4a', 'audio/mp4',
+      'audio/opus', 'audio/midi', 'audio/x-midi', 'audio/x-ms-wma',
       // PDF
       'application/pdf'
     ];

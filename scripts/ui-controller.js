@@ -271,7 +271,14 @@ class UIController {
     
     ['dragenter', 'dragover'].forEach(eventName => {
       document.addEventListener(eventName, () => {
-        dropZone.classList.remove('hidden');
+        // Check if any viewer is open
+        const isViewerOpen = (window.fullscreenViewer && window.fullscreenViewer.isViewerOpen()) ||
+                             (window.pdfViewer && window.pdfViewer.isOpen) ||
+                             (window.audioPlayer && window.audioPlayer.elements && window.audioPlayer.elements.container && !window.audioPlayer.elements.container.classList.contains('hidden'));
+
+        if (!isViewerOpen) {
+          dropZone.classList.remove('hidden');
+        }
       }, false);
     });
     
@@ -282,6 +289,16 @@ class UIController {
     });
     
     document.addEventListener('drop', async (e) => {
+      // Check if any viewer is open
+      const isViewerOpen = (window.fullscreenViewer && window.fullscreenViewer.isViewerOpen()) ||
+                           (window.pdfViewer && window.pdfViewer.isOpen) ||
+                           (window.audioPlayer && window.audioPlayer.elements && window.audioPlayer.elements.container && !window.audioPlayer.elements.container.classList.contains('hidden'));
+
+      if (isViewerOpen) {
+        console.log('Drop blocked because viewer is open');
+        return;
+      }
+
       const files = Array.from(e.dataTransfer.files);
       if (files.length > 0) {
         this.showLoading(true);
@@ -374,7 +391,6 @@ class UIController {
     
     // Click handler for opening in fullscreen
     fileItem.addEventListener('click', (e) => {
-      console.log('File item clicked:', file.name);
       // Don't trigger if clicking checkbox
       if (e.target === checkbox) return;
 
@@ -591,6 +607,67 @@ class UIController {
   }
 
   /**
+   * Prompt user for folder access to enable navigation
+   * @param {Object} currentFile - The currently open file
+   * @param {string} direction - 'next' or 'previous'
+   */
+  async promptForFolderAccess(currentFile, direction) {
+    try {
+      const dirHandle = await window.showDirectoryPicker({
+        id: 'gallery-folder-access',
+        mode: 'read'
+      });
+      
+      if (!dirHandle) return;
+      
+      this.showLoading(true);
+      
+      // Load files from directory
+      const newFiles = await this.fileHandler.loadFromDirectory(dirHandle);
+      
+      this.showLoading(false);
+      
+      if (newFiles.length === 0) {
+        this.showToast('Aucun fichier compatible trouvé dans ce dossier', 'warning');
+        return;
+      }
+      
+      // Find current file in new list
+      let newIndex = newFiles.findIndex(f => f.name === currentFile.name);
+      
+      // If not found (maybe name mismatch or different file), default to 0
+      if (newIndex === -1) {
+        console.warn('Current file not found in selected folder, defaulting to start');
+        newIndex = 0;
+      }
+      
+      // Update viewer
+      if (window.fullscreenViewer) {
+        window.fullscreenViewer.files = newFiles;
+        window.fullscreenViewer.currentIndex = newIndex;
+        window.fullscreenViewer.currentFile = newFiles[newIndex];
+        window.fullscreenViewer.updateNavigation();
+        
+        // Proceed with navigation
+        if (direction === 'next') {
+          window.fullscreenViewer.showNext();
+        } else if (direction === 'previous') {
+          window.fullscreenViewer.showPrevious();
+        }
+      }
+      
+      this.renderFiles();
+      
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Error requesting folder access:', error);
+        this.showToast('Erreur d\'accès au dossier', 'error');
+      }
+      this.showLoading(false);
+    }
+  }
+
+  /**
    * Open settings (placeholder)
    */
   openSettings() {
@@ -629,13 +706,9 @@ class UIController {
    * @param {Object} file - File object
    */
   async openInFullscreen(file) {
-    console.log('[UIController] openInFullscreen called with file:', file.name, 'URL:', file.url);
-    
     // Close any existing viewers first to ensure only one is active
     // Pass false to NOT remove files when switching between viewers
     this.closeAllViewers(false);
-
-    console.log('[UIController] After closeAllViewers, file URL is:', file.url);
 
     if (file.type === 'audio') {
       if (!window.audioPlayer) {
@@ -681,14 +754,19 @@ class UIController {
         window.pdfViewer.open(file);
       }
     } else if ((file.type === 'video' || file.type === 'image') && window.fullscreenViewer) {
-      const files = this.fileHandler.getFilteredFiles();
+      // Use filtered files if a filter is active, otherwise use all files
+      const hasActiveFilter = this.fileHandler.currentFilter !== 'all' || this.fileHandler.searchQuery !== '';
+      const files = hasActiveFilter ? this.fileHandler.getFilteredFiles() : this.fileHandler.files;
+      
       const index = files.findIndex(f => f.id === file.id);
-      window.fullscreenViewer.open(file, index);
+      window.fullscreenViewer.open(file, index, files);
     } else if (window.fullscreenViewer) {
       // Fallback for other types handled by fullscreen viewer
-      const files = this.fileHandler.getFilteredFiles();
+      const hasActiveFilter = this.fileHandler.currentFilter !== 'all' || this.fileHandler.searchQuery !== '';
+      const files = hasActiveFilter ? this.fileHandler.getFilteredFiles() : this.fileHandler.files;
+      
       const index = files.findIndex(f => f.id === file.id);
-      window.fullscreenViewer.open(file, index);
+      window.fullscreenViewer.open(file, index, files);
     }
   }
 

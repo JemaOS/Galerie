@@ -17,14 +17,14 @@ function loadScript(url) {
     return Promise.resolve();
   }
 
+  if (loadingScripts.has(url)) {
+    return loadingScripts.get(url);
+  }
+
   // Check if script is already in DOM (e.g. loaded via HTML)
   if (document.querySelector(`script[src="${url}"]`)) {
       loadedScripts.add(url);
       return Promise.resolve();
-  }
-
-  if (loadingScripts.has(url)) {
-    return loadingScripts.get(url);
   }
 
   const promise = new Promise((resolve, reject) => {

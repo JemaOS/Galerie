@@ -64,6 +64,8 @@ class AnnotationManager {
     this.handlePointerEnter = this.handlePointerEnter.bind(this);
     this.handlePointerLeave = this.handlePointerLeave.bind(this);
     this.handleResize = this.handleResize.bind(this);
+    this.handleKeyDown = this.handleKeyDown.bind(this);
+    this.handleDocumentMouseDown = this.handleDocumentMouseDown.bind(this);
     this.renderLoop = this.renderLoop.bind(this);
   }
 
@@ -571,6 +573,8 @@ class AnnotationManager {
     });
     
     window.addEventListener('resize', this.handleResize);
+    document.addEventListener('keydown', this.handleKeyDown);
+    document.addEventListener('mousedown', this.handleDocumentMouseDown);
   }
 
   removeEventListeners() {
@@ -584,6 +588,48 @@ class AnnotationManager {
     });
     
     window.removeEventListener('resize', this.handleResize);
+    document.removeEventListener('keydown', this.handleKeyDown);
+    document.removeEventListener('mousedown', this.handleDocumentMouseDown);
+  }
+
+  handleDocumentMouseDown(e) {
+      if (!this.isActive) return;
+      
+      // If clicking inside a text wrapper, ignore
+      if (e.target.closest('.text-input-wrapper')) return;
+      
+      // If clicking on a canvas, ignore (handled by canvas listener)
+      if (e.target.classList.contains('annotation-canvas')) return;
+      
+      // If clicking inside properties container, ignore
+      if (this.propertiesContainer && this.propertiesContainer.contains(e.target)) return;
+      
+      // If clicking on toolbar, ignore
+      if (e.target.closest('.pdf-toolbar') || e.target.closest('.viewer-toolbar')) return;
+      
+      // If clicking on context menu, ignore
+      if (e.target.closest('.context-menu')) return;
+
+      // Deselect active wrapper
+      if (this.activeWrapper) {
+          this.deselectText(this.activeWrapper);
+      }
+  }
+
+  handleKeyDown(e) {
+      if (!this.isActive) return;
+      
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (this.activeWrapper && this.activeWrapper.classList.contains('selected')) {
+              // If typing in the textarea, don't delete the wrapper
+              if (document.activeElement === this.activeInput) {
+                  return;
+              }
+              
+              e.preventDefault();
+              this.cancelTextInput();
+          }
+      }
   }
 
   handleResize() {
@@ -779,12 +825,9 @@ class AnnotationManager {
             this.selectionBox.remove();
             this.selectionBox = null;
             
-            // Only create if size is significant, otherwise treat as click (default size)
+            // Only create if size is significant (dragged)
             if (width > 10 && height > 10) {
                 this.createTextInput(left, top, width, height);
-            } else {
-                // Click behavior: default size
-                this.createTextInput(left, top, 200, 100);
             }
         }
         return;
@@ -972,7 +1015,7 @@ class AnnotationManager {
       wrapper.style.width = `${width}px`;
       wrapper.style.height = `${height}px`;
       wrapper.style.zIndex = '1000';
-      wrapper.style.border = '1px solid #6569d0';
+      // Border is handled by CSS (.selected class)
       wrapper.dataset.rotation = '0';
       wrapper.isNew = true; // Flag for history
 
@@ -1020,6 +1063,7 @@ class AnnotationManager {
       rotHandle.style.zIndex = '1001';
       
       const rotLine = document.createElement('div');
+      rotLine.className = 'rotate-line';
       rotLine.style.position = 'absolute';
       rotLine.style.top = '-15px';
       rotLine.style.left = '50%';
@@ -1055,20 +1099,31 @@ class AnnotationManager {
       wrapper.addEventListener('mousedown', (e) => {
           e.stopPropagation(); // Prevent canvas interaction
           
-          // If clicking input
-          if (e.target === input) {
-              if (!wrapper.classList.contains('selected')) {
-                  this.selectText(wrapper);
-                  e.preventDefault();
-              }
+          const wasSelected = wrapper.classList.contains('selected');
+          const input = wrapper.querySelector('textarea');
+          
+          if (!wasSelected) {
+              this.selectText(wrapper, false);
+          }
+          
+          // If clicking handles, don't move here (handled by their own listeners)
+          if (e.target.classList.contains('resize-handle') || e.target.classList.contains('rotate-handle')) {
+              return;
+          }
+
+          // If input is editable (readOnly=false), allow text interaction (don't move)
+          if (!input.readOnly) {
               return;
           }
           
-          this.selectText(wrapper);
-          
-          if (!e.target.classList.contains('resize-handle') && !e.target.classList.contains('rotate-handle')) {
-              this.setupMoveHandler(e, wrapper);
-          }
+          // Otherwise (readOnly=true), allow moving
+          this.setupMoveHandler(e, wrapper);
+      });
+
+      // Double click to edit
+      input.addEventListener('dblclick', () => {
+          input.readOnly = false;
+          input.focus();
       });
 
       // Handle Enter (Shift+Enter for new line)
@@ -1088,11 +1143,11 @@ class AnnotationManager {
       this.activeWrapper = wrapper;
       this.textWrappers.push(wrapper);
       
-      // Initial selection
-      this.selectText(wrapper);
+      // Initial selection (editable for new)
+      this.selectText(wrapper, true);
   }
 
-  selectText(wrapper) {
+  selectText(wrapper, enableEditing = false) {
       // Deselect others
       this.textWrappers.forEach(w => {
           if (w !== wrapper) this.deselectText(w);
@@ -1100,7 +1155,11 @@ class AnnotationManager {
       
       wrapper.classList.add('selected');
       const input = wrapper.querySelector('textarea');
-      input.readOnly = false;
+      input.readOnly = !enableEditing;
+      
+      if (enableEditing) {
+          input.focus();
+      }
       
       this.activeInput = input;
       this.activeWrapper = wrapper;
@@ -1685,7 +1744,9 @@ class AnnotationManager {
           tempCanvas.width = canvas.width;
           tempCanvas.height = canvas.height;
           const ctx = tempCanvas.getContext('2d');
-          ctx.drawImage(canvas, 0, 0);
+          if (canvas.width > 0 && canvas.height > 0) {
+              ctx.drawImage(canvas, 0, 0);
+          }
           
           state.drawings.push({
               index: index,
@@ -1715,7 +1776,9 @@ class AnnotationManager {
               
               // Draw the old image scaled to the new canvas
               // This bakes the previous state
-              ctx.drawImage(item.image, 0, 0, targetCanvas.width, targetCanvas.height);
+              if (item.image.width > 0 && item.image.height > 0) {
+                  ctx.drawImage(item.image, 0, 0, targetCanvas.width, targetCanvas.height);
+              }
           }
       });
 

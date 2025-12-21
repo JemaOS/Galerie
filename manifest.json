@@ -36,12 +36,18 @@
         "image/bmp": [".bmp"],
         "image/tiff": [".tiff", ".tif"],
         "image/x-icon": [".ico"],
+        "image/heic": [".heic"],
+        "image/heif": [".heif"],
+        "image/avif": [".avif"],
+        "image/apng": [".apng"],
         "video/mp4": [".mp4", ".m4v"],
         "video/webm": [".webm"],
         "video/x-matroska": [".mkv"],
         "video/x-msvideo": [".avi"],
         "video/quicktime": [".mov"],
         "video/3gpp": [".3gp"],
+        "video/3gpp2": [".3g2"],
+        "video/mp2t": [".ts", ".m2ts", ".mts"],
         "video/mpeg": [".mpeg", ".mpg"],
         "video/ogg": [".ogv"],
         "audio/mpeg": [".mp3"],
@@ -50,6 +56,9 @@
         "audio/flac": [".flac"],
         "audio/aac": [".aac"],
         "audio/webm": [".weba"],
+        "audio/mp4": [".m4a", ".m4b"],
+        "audio/opus": [".opus"],
+        "audio/midi": [".mid", ".midi"],
         "application/pdf": [".pdf"]
       }
     }

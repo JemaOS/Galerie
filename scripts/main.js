@@ -138,10 +138,15 @@ class JemaOSGallery {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
               // New update available
-              this.showUpdateNotification();
+              this.showUpdateNotification(registration);
             }
           });
         });
+
+        // Check for waiting worker immediately
+        if (registration.waiting) {
+          this.showUpdateNotification(registration);
+        }
         
       } catch (error) {
         console.warn('⚠️ Service Worker registration failed:', error);
@@ -350,10 +355,14 @@ class JemaOSGallery {
 
   /**
    * Show update notification
+   * @param {ServiceWorkerRegistration} registration - Service Worker registration
    */
-  showUpdateNotification() {
+  showUpdateNotification(registration) {
+    // Prevent duplicate notifications
+    if (document.querySelector('.toast.update-notification')) return;
+
     const toast = GalleryUtils.createElement('div', {
-      className: 'toast info',
+      className: 'toast info update-notification',
       style: 'cursor: pointer;'
     }, [
       GalleryUtils.createElement('i', { className: 'material-icons' }, 'system_update'),
@@ -365,15 +374,19 @@ class JemaOSGallery {
     ]);
     
     toast.addEventListener('click', () => {
-      window.location.reload();
+      if (registration && registration.waiting) {
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        
+        // Wait for the new service worker to take control
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          window.location.reload();
+        }, { once: true });
+      } else {
+        window.location.reload();
+      }
     });
     
     this.uiController.toastContainer.appendChild(toast);
-    
-    // Auto-remove after 10 seconds
-    setTimeout(() => {
-      toast.remove();
-    }, 10000);
   }
 
   /**

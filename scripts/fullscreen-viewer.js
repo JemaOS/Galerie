@@ -142,10 +142,7 @@ class FullscreenViewer {
       toolbarSaveSplitBtn: document.getElementById('viewer-toolbar-save-split'),
       toolbarSaveOptionsBtn: document.getElementById('viewer-toolbar-save-options'),
       toolbarSaveDropdown: document.getElementById('viewer-toolbar-save-dropdown'),
-      toolbarSaveAsSplitBtn: document.getElementById('viewer-toolbar-save-as-split'),
-
-      navArrowLeft: null,
-      navArrowRight: null
+      toolbarSaveAsSplitBtn: document.getElementById('viewer-toolbar-save-as-split')
     };
   }
 
@@ -258,10 +255,25 @@ class FullscreenViewer {
     this.elements.media.addEventListener('wheel', (e) => {
       if (this.currentFile?.type === 'image') {
         e.preventDefault();
-        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        
+        let deltaY = e.deltaY;
+        
+        // Normalize deltaMode (1 = lines, 2 = pages)
+        if (e.deltaMode === 1) {
+            deltaY *= 40;
+        } else if (e.deltaMode === 2) {
+            deltaY *= 800;
+        }
+
+        // Determine sensitivity
+        // Mouse wheel typically sends ~100, trackpad sends smaller values
+        // Pinch gesture (ctrlKey) needs higher sensitivity
+        const sensitivity = e.ctrlKey ? 0.01 : 0.001;
+        
+        const delta = -deltaY * sensitivity;
         this.setZoom(this.zoomLevel + delta);
       }
-    });
+    }, { passive: false });
     
     // Fullscreen change events
     document.addEventListener('fullscreenchange', () => this.handleFullscreenChange());
@@ -284,12 +296,6 @@ class FullscreenViewer {
           } else {
              this.close();
           }
-          break;
-        case 'ArrowLeft':
-          this.showPrevious();
-          break;
-        case 'ArrowRight':
-          this.showNext();
           break;
         case ' ': // Space
           if (this.currentFile && (this.currentFile.type === 'video' || this.currentFile.type === 'audio')) {
@@ -331,13 +337,7 @@ class FullscreenViewer {
           const diffX = touchEndX - this.touchStartX;
           const diffY = touchEndY - this.touchStartY;
 
-          if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > this.swipeThreshold) {
-              if (diffX > 0) {
-                  this.showPrevious();
-              } else {
-                  this.showNext();
-              }
-          } else if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > this.swipeThreshold) {
+          if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > this.swipeThreshold) {
               if (diffY > 0) { // Swipe down
                   this.close();
               }
@@ -436,10 +436,6 @@ class FullscreenViewer {
           // Default to Pen tool to match screenshot and user request
           this.setTool('pen');
           
-          // Hide nav arrows
-          if (this.elements.navArrowLeft) this.elements.navArrowLeft.style.display = 'none';
-          if (this.elements.navArrowRight) this.elements.navArrowRight.style.display = 'none';
-
       } else {
           this.elements.defaultToolbar.classList.remove('hidden');
           this.elements.editToolbar.classList.add('hidden');
@@ -451,10 +447,6 @@ class FullscreenViewer {
           this.history = [];
           this.historyStep = -1;
           this.updateUndoRedoButtons();
-          
-          // Restore nav arrows
-          if (this.elements.navArrowLeft) this.elements.navArrowLeft.style.display = '';
-          if (this.elements.navArrowRight) this.elements.navArrowRight.style.display = '';
           
           // Restore cursor
           const img = this.elements.media.querySelector('img');
@@ -909,7 +901,6 @@ class FullscreenViewer {
       this.elements.viewer.classList.add('active');
       
       this.loadFile(file);
-      this.updateNavigation();
       
       // Prevent body scroll
       document.body.style.overflow = 'hidden';
@@ -938,14 +929,12 @@ class FullscreenViewer {
                   this.currentIndex = newIndex;
                   this.currentFile = this.files[this.currentIndex];
                   this.loadFile(this.currentFile);
-                  this.updateNavigation();
               }
           } else {
               // If deleted file was before current, adjust index
               if (index < this.currentIndex) {
                   this.currentIndex--;
               }
-              this.updateNavigation();
           }
       }
   }
@@ -998,9 +987,6 @@ class FullscreenViewer {
     try {
       if (file.type === 'image') {
         await this.loadImage(file);
-        // Show navigation arrows for images
-        if (this.elements.navArrowLeft) this.elements.navArrowLeft.style.display = '';
-        if (this.elements.navArrowRight) this.elements.navArrowRight.style.display = '';
         // Show edit button
         if (this.elements.editModeBtn) this.elements.editModeBtn.style.display = '';
       } else if (file.type === 'video') {
@@ -1010,16 +996,10 @@ class FullscreenViewer {
         this.videoPlayer = new VideoPlayer(this.elements.media, file, this.uiController);
         // Hide default toolbar as VideoPlayer has its own custom UI
         this.elements.defaultToolbar.style.display = 'none';
-        // Hide navigation arrows for video
-        if (this.elements.navArrowLeft) this.elements.navArrowLeft.style.display = 'none';
-        if (this.elements.navArrowRight) this.elements.navArrowRight.style.display = 'none';
         // Hide edit button
         if (this.elements.editModeBtn) this.elements.editModeBtn.style.display = 'none';
       } else if (file.type === 'audio') {
         await this.loadAudio(file);
-        // Show navigation arrows for audio
-        if (this.elements.navArrowLeft) this.elements.navArrowLeft.style.display = '';
-        if (this.elements.navArrowRight) this.elements.navArrowRight.style.display = '';
         // Hide edit button
         if (this.elements.editModeBtn) this.elements.editModeBtn.style.display = 'none';
       }
@@ -1108,10 +1088,6 @@ class FullscreenViewer {
     audio.addEventListener('ended', () => {
       this.isPlaying = false;
       this.updatePlayPauseButton();
-      // Auto-advance to next file
-      setTimeout(() => {
-        this.showNext();
-      }, 1000);
     });
 
     this.elements.media.appendChild(audio);
@@ -1125,29 +1101,6 @@ class FullscreenViewer {
   }
 
 
-  /**
-   * Show previous file
-   */
-  showPrevious() {
-    if (this.currentIndex > 0) {
-      this.currentIndex--;
-      this.currentFile = this.files[this.currentIndex];
-      this.loadFile(this.currentFile);
-      this.updateNavigation();
-    }
-  }
-
-  /**
-   * Show next file
-   */
-  showNext() {
-    if (this.currentIndex < this.files.length - 1) {
-      this.currentIndex++;
-      this.currentFile = this.files[this.currentIndex];
-      this.loadFile(this.currentFile);
-      this.updateNavigation();
-    }
-  }
 
   /**
    * Toggle play/pause for videos and audio
@@ -1193,72 +1146,6 @@ class FullscreenViewer {
     this.updateFullscreenButton();
   }
 
-  /**
-   * Update navigation buttons
-   */
-  updateNavigation() {
-    // Check if elements exist before accessing properties
-    if (this.elements.prev) {
-      this.elements.prev.disabled = this.currentIndex === 0;
-    }
-    if (this.elements.next) {
-      this.elements.next.disabled = this.currentIndex === this.files.length - 1;
-    }
-    
-    // Update navigation arrows
-    if (this.elements.navArrowLeft) {
-      this.elements.navArrowLeft.disabled = this.currentIndex === 0;
-    }
-    if (this.elements.navArrowRight) {
-      this.elements.navArrowRight.disabled = this.currentIndex === this.files.length - 1;
-    }
-  }
-
-  /**
-   * Create navigation arrows
-   */
-  createNavigationArrows() {
-    this.removeNavigationArrows();
-    
-    // Left arrow
-    this.elements.navArrowLeft = GalleryUtils.createElement('button', {
-      className: 'nav-arrow prev',
-      title: 'Précédent (←)'
-    }, GalleryUtils.createElement('i', { className: 'material-icons' }, 'chevron_left'));
-    
-    this.elements.navArrowLeft.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.showPrevious();
-    });
-    
-    // Right arrow
-    this.elements.navArrowRight = GalleryUtils.createElement('button', {
-      className: 'nav-arrow next',
-      title: 'Suivant (→)'
-    }, GalleryUtils.createElement('i', { className: 'material-icons' }, 'chevron_right'));
-    
-    this.elements.navArrowRight.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.showNext();
-    });
-    
-    this.elements.viewer.appendChild(this.elements.navArrowLeft);
-    this.elements.viewer.appendChild(this.elements.navArrowRight);
-  }
-
-  /**
-   * Remove navigation arrows
-   */
-  removeNavigationArrows() {
-    if (this.elements.navArrowLeft) {
-      this.elements.navArrowLeft.remove();
-      this.elements.navArrowLeft = null;
-    }
-    if (this.elements.navArrowRight) {
-      this.elements.navArrowRight.remove();
-      this.elements.navArrowRight = null;
-    }
-  }
 
   /**
    * Show controls

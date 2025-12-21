@@ -24,9 +24,22 @@ if (typeof pdfjsLib !== 'undefined' && !pdfjsLib.GlobalWorkerOptions.workerSrc) 
 
 /**
  * Handles PDF viewing experience using PDF.js
+ * 
+ * ZOOM ARCHITECTURE (Adobe Reader Style):
+ * ========================================
+ * 1. Canvases are rendered ONCE at a fixed high resolution (BASE_RENDER_SCALE)
+ * 2. Zoom is achieved purely through CSS transform: scale() on the container
+ * 3. NO canvas re-rendering during zoom - only CSS changes
+ * 4. NO layout changes during zoom - wrapper dimensions are updated via CSS
+ * 5. Re-render only when zoom stops AND quality is significantly degraded
  */
 
 class PdfViewer {
+  // Fixed render scale - canvases are always rendered at this resolution
+  static BASE_RENDER_SCALE = 2.0;
+  static MAX_ZOOM = 5.0;
+  static MIN_ZOOM = 0.2;
+
   constructor(fileHandler, uiController) {
     this.fileHandler = fileHandler;
     this.uiController = uiController;
@@ -36,23 +49,31 @@ class PdfViewer {
     this.pageNum = 1;
     this.pageRendering = false;
     this.pageNumPending = null;
+    
+    // Zoom state - this.scale is the VISUAL zoom level (what user sees)
+    // Canvases are always rendered at BASE_RENDER_SCALE
     this.scale = 1.0;
-    this.MAX_ZOOM = 5.0;
-    this.renderedScale = 1.0;
-    this.zoomTimeout = null;
     this.rotation = 0;
+    
     this.canvas = null;
     this.ctx = null;
     this.isOpen = false;
     this.isEditMode = false;
     this.isTextEditMode = false;
-    this.isZooming = false; // Track zoom state to prevent page superposition
+    this.isSpaceHeld = false;
     
     this.elements = {};
     
     this.annotationManager = null;
     this.textEditor = null;
     this.activeRenderTasks = new Map();
+    
+    // Page dimensions at scale=1.0 (base dimensions)
+    this.basePageHeights = [];
+    this.basePageWidths = [];
+    
+    // Debounce timer for quality re-render
+    this.qualityRenderTimeout = null;
   }
 
   /**
@@ -116,6 +137,10 @@ class PdfViewer {
       // Fit buttons
       fitWidth: document.getElementById('pdf-fit-width'),
       fitPage: document.getElementById('pdf-fit-page'),
+      
+      // Main scrollable container
+      main: document.getElementById('pdf-main'),
+      zoomWrapper: document.getElementById('pdf-zoom-wrapper'),
     };
   }
 
@@ -123,21 +148,26 @@ class PdfViewer {
    * Setup event listeners
    */
   setupEventListeners() {
+    this.setupPanning();
     if (this.elements.close) {
       this.elements.close.addEventListener('click', () => this.close());
     }
     
-    this.elements.zoomIn.addEventListener('click', () => this.onZoomIn());
-    this.elements.zoomOut.addEventListener('click', () => this.onZoomOut());
+    this.elements.zoomIn.addEventListener('click', () => this.zoomIn());
+    this.elements.zoomOut.addEventListener('click', () => this.zoomOut());
     
     if (this.elements.editZoomIn) {
-        this.elements.editZoomIn.addEventListener('click', () => this.onZoomIn());
+        this.elements.editZoomIn.addEventListener('click', () => this.zoomIn());
     }
     if (this.elements.editZoomOut) {
-        this.elements.editZoomOut.addEventListener('click', () => this.onZoomOut());
+        this.elements.editZoomOut.addEventListener('click', () => this.zoomOut());
     }
 
-    this.elements.rotate.addEventListener('click', () => this.rotate());
+    if (this.elements.rotate) {
+        this.elements.rotate.addEventListener('click', () => {
+            this.rotate();
+        });
+    }
     
     if (this.elements.fitWidth) {
       this.elements.fitWidth.addEventListener('click', () => this.fitToWidth());
@@ -158,13 +188,32 @@ class PdfViewer {
         this.elements.pageNum.value = this.pageNum;
       }
     });
+
+    // Window resize
+    window.addEventListener('resize', () => {
+        this.onWindowResize();
+    });
+
+    // Resize Observer for main container (handles sidebar toggle)
+    if (this.elements.main) {
+        this.resizeObserver = new ResizeObserver(() => {
+            window.requestAnimationFrame(() => {
+                this.onWindowResize();
+            });
+        });
+        this.resizeObserver.observe(this.elements.main);
+    }
     
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
       if (!this.isOpen) return;
       
-      // Don't trigger shortcuts if typing in annotation text input
       if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+
+      if (e.key === ' ' && !this.isSpaceHeld) {
+          this.isSpaceHeld = true;
+          this.updateCursor();
+      }
 
       if (e.key === 'Escape') {
         if (this.isEditMode) {
@@ -186,6 +235,13 @@ class PdfViewer {
               }
           }
       }
+    });
+
+    document.addEventListener('keyup', (e) => {
+        if (e.key === ' ') {
+            this.isSpaceHeld = false;
+            this.updateCursor();
+        }
     });
     
     // Edit Mode
@@ -254,10 +310,125 @@ class PdfViewer {
         });
     }
 
+    // Wheel Event for Zoom (Ctrl+Wheel or Pinch)
+    if (this.elements.viewer) {
+        this.elements.viewer.addEventListener('wheel', (e) => {
+            if (e.ctrlKey) {
+                e.preventDefault();
+                
+                const main = this.elements.main;
+                const container = this.elements.container;
+                
+                if (!main || !container) return;
+
+                // Get mouse position relative to viewport
+                const mainRect = main.getBoundingClientRect();
+                const mouseX = e.clientX - mainRect.left;
+                const mouseY = e.clientY - mainRect.top;
+                
+                // Calculate focal point in content coordinates (at current scale)
+                const contentX = (main.scrollLeft + mouseX) / this.scale;
+                const contentY = (main.scrollTop + mouseY) / this.scale;
+                
+                // Calculate new scale
+                const delta = -e.deltaY;
+                const factor = Math.pow(1.01, delta);
+                const oldScale = this.scale;
+                let newScale = this.scale * factor;
+                newScale = Math.max(PdfViewer.MIN_ZOOM, Math.min(PdfViewer.MAX_ZOOM, newScale));
+                
+                if (Math.abs(newScale - oldScale) < 0.001) return;
+                
+                // Apply zoom with focal point
+                this.setZoom(newScale, contentX, contentY, mouseX, mouseY);
+            }
+        }, { passive: false });
+    }
+  }
+
+  /**
+   * Setup panning (drag-to-scroll)
+   */
+  setupPanning() {
+      const main = this.elements.main;
+      if (!main) return;
+
+      let isDragging = false;
+      let startX, startY, scrollLeft, scrollTop;
+
+      main.addEventListener('mousedown', (e) => {
+          if (this.isEditMode || this.isTextEditMode) return;
+          if (e.button !== 0) return;
+          if (['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT'].includes(e.target.tagName)) return;
+          if (!this.isSpaceHeld) return;
+
+          const canScrollX = main.scrollWidth > main.clientWidth;
+          const canScrollY = main.scrollHeight > main.clientHeight;
+          
+          if (!canScrollX && !canScrollY) return;
+
+          isDragging = true;
+          main.classList.add('grabbing');
+          main.classList.remove('grab');
+          
+          startX = e.pageX - main.offsetLeft;
+          startY = e.pageY - main.offsetTop;
+          scrollLeft = main.scrollLeft;
+          scrollTop = main.scrollTop;
+          
+          e.preventDefault();
+      });
+
+      main.addEventListener('mouseleave', () => {
+          isDragging = false;
+          main.classList.remove('grabbing');
+      });
+
+      main.addEventListener('mouseup', () => {
+          isDragging = false;
+          main.classList.remove('grabbing');
+          if (this.isSpaceHeld) {
+              main.classList.add('grab');
+          }
+      });
+
+      main.addEventListener('mousemove', (e) => {
+          if (!isDragging) return;
+          
+          e.preventDefault();
+          const x = e.pageX - main.offsetLeft;
+          const y = e.pageY - main.offsetTop;
+          
+          const walkX = (x - startX);
+          const walkY = (y - startY);
+          
+          main.scrollLeft = scrollLeft - walkX;
+          main.scrollTop = scrollTop - walkY;
+      });
+  }
+
+  /**
+   * Update cursor based on state
+   */
+  updateCursor() {
+      const main = this.elements.main;
+      if (!main) return;
+
+      if (this.isEditMode || this.isTextEditMode) {
+          main.classList.remove('grab', 'grabbing');
+          main.style.cursor = '';
+          return;
+      }
+
+      if (this.isSpaceHeld) {
+          main.classList.add('grab');
+      } else {
+          main.classList.remove('grab');
+          main.classList.remove('grabbing');
+      }
   }
 
   setupSplitButton() {
-      // Sidebar Button
       if (this.elements.saveSplitBtn) {
           this.elements.saveSplitBtn.addEventListener('click', () => this.save());
       }
@@ -276,7 +447,6 @@ class PdfViewer {
           });
       }
 
-      // Toolbar Button
       if (this.elements.toolbarSaveSplitBtn) {
           this.elements.toolbarSaveSplitBtn.addEventListener('click', () => this.save());
       }
@@ -295,15 +465,12 @@ class PdfViewer {
           });
       }
       
-      // Close dropdowns when clicking outside
       document.addEventListener('click', (e) => {
-          // Sidebar Dropdown
           if (this.elements.saveDropdown && this.elements.saveDropdown.classList.contains('show')) {
               if (!this.elements.saveOptionsBtn.contains(e.target) && !this.elements.saveDropdown.contains(e.target)) {
                   this.elements.saveDropdown.classList.remove('show');
               }
           }
-          // Toolbar Dropdown
           if (this.elements.toolbarSaveDropdown && this.elements.toolbarSaveDropdown.classList.contains('show')) {
               if (!this.elements.toolbarSaveOptionsBtn.contains(e.target) && !this.elements.toolbarSaveDropdown.contains(e.target)) {
                   this.elements.toolbarSaveDropdown.classList.remove('show');
@@ -319,11 +486,22 @@ class PdfViewer {
       this.isEditMode = active;
 
       if (active) {
-          // Load AnnotationManager if needed
           if (!this.annotationManager) {
               this.uiController.showLoading(true);
               try {
                   await window.loadScript('scripts/annotation-manager.js');
+                  
+                  if (typeof AnnotationManager === 'undefined') {
+                      let retries = 0;
+                      while (typeof AnnotationManager === 'undefined' && retries < 50) {
+                          await new Promise(resolve => setTimeout(resolve, 50));
+                          retries++;
+                      }
+                      if (typeof AnnotationManager === 'undefined') {
+                          throw new Error('AnnotationManager class not found after loading script');
+                      }
+                  }
+
                   this.annotationManager = new AnnotationManager(this.uiController);
               } catch (e) {
                   console.error('Failed to load annotation manager', e);
@@ -339,7 +517,6 @@ class PdfViewer {
           this.elements.editToolbar.classList.remove('hidden');
           this.elements.propertiesSidebar.classList.remove('hidden');
           
-          // Collect all page wrappers and canvases
           const targets = [];
           if (this.pageWrappers) {
             Object.values(this.pageWrappers).forEach(wrapper => {
@@ -375,20 +552,19 @@ class PdfViewer {
           
           if (this.annotationManager) this.annotationManager.stop();
           
-          // Stop text editor if active
           if (this.textEditor) {
               this.textEditor.stop();
               this.isTextEditMode = false;
           }
       }
+      
+      this.updateCursor();
   }
 
   async setTool(toolId) {
-      // Handle text edit tool specially
       if (toolId === 'text-edit') {
           await this.toggleTextEditMode(true);
           
-          // Update UI
           const toolBtns = this.elements.editToolbar.querySelectorAll('.tool-btn');
           toolBtns.forEach(btn => {
               if (btn.dataset.tool === toolId) {
@@ -404,11 +580,9 @@ class PdfViewer {
           return;
       }
       
-      // Exit text edit mode when switching to other tools
       if (this.isTextEditMode) {
           await this.toggleTextEditMode(false);
           
-          // Restore AnnotationManager properties panel since TextEditor overwrote it
           if (this.elements.propertiesContainer && this.annotationManager) {
               this.annotationManager.renderProperties(this.elements.propertiesContainer);
           }
@@ -416,12 +590,10 @@ class PdfViewer {
       
       if (this.annotationManager) this.annotationManager.setTool(toolId);
       
-      // Update UI in Edit Toolbar
       const toolBtns = this.elements.editToolbar.querySelectorAll('.tool-btn');
       toolBtns.forEach(btn => {
           if (btn.dataset.tool === toolId) {
               btn.classList.add('active');
-              // Highlight effect
               btn.style.backgroundColor = 'rgba(101, 105, 208, 0.2)';
               btn.style.color = '#6569d0';
           } else {
@@ -439,11 +611,22 @@ class PdfViewer {
       this.isTextEditMode = active;
       
       if (active) {
-          // Load Text Editor if needed
           if (!this.textEditor) {
               this.uiController.showLoading(true);
               try {
                   await window.loadScript('scripts/pdf-text-editor.js');
+                  
+                  if (typeof PdfTextEditor === 'undefined') {
+                      let retries = 0;
+                      while (typeof PdfTextEditor === 'undefined' && retries < 50) {
+                          await new Promise(resolve => setTimeout(resolve, 50));
+                          retries++;
+                      }
+                      if (typeof PdfTextEditor === 'undefined') {
+                          throw new Error('PdfTextEditor class not found after loading script');
+                      }
+                  }
+
                   this.textEditor = new PdfTextEditor(this);
               } catch (e) {
                   console.error('Failed to load text editor:', e);
@@ -455,41 +638,33 @@ class PdfViewer {
               this.uiController.showLoading(false);
           }
           
-          // Pause annotation manager
           if (this.annotationManager) {
               this.annotationManager.pause();
           }
           
-          // Start text edit mode for current page
           await this.textEditor.startTextEditMode(this.pageNum);
           
-          // Add language selector to properties
           if (this.elements.propertiesContainer) {
               this.textEditor.renderLanguageSelector(this.elements.propertiesContainer);
           }
           
-          // Show indicator
           this.showTextEditIndicator();
           
       } else {
-          // Stop text editor
           if (this.textEditor) {
               this.textEditor.stop();
           }
           
-          // Resume annotation manager
           if (this.annotationManager) {
               this.annotationManager.resume();
           }
           
-          // Hide indicator
           this.hideTextEditIndicator();
       }
+      
+      this.updateCursor();
   }
 
-  /**
-   * Show text edit mode indicator
-   */
   showTextEditIndicator() {
       let indicator = document.getElementById('text-edit-indicator');
       if (!indicator) {
@@ -505,9 +680,6 @@ class PdfViewer {
       indicator.style.display = 'flex';
   }
 
-  /**
-   * Hide text edit mode indicator
-   */
   hideTextEditIndicator() {
       const indicator = document.getElementById('text-edit-indicator');
       if (indicator) {
@@ -517,8 +689,6 @@ class PdfViewer {
 
   /**
    * Open PDF file
-   * @param {Object} file - File object
-   * @param {Object} options - Options for opening (preserveState, scale, pageNum, etc.)
    */
   async open(file, options = {}) {
     this.currentFile = file;
@@ -536,13 +706,11 @@ class PdfViewer {
 
     this.isEditMode = false;
     
-    // Show viewer
     this.elements.viewer.classList.remove('hidden');
     setTimeout(() => {
       this.elements.viewer.classList.add('active');
     }, 10);
     
-    // Reset UI
     this.elements.defaultToolbar.classList.remove('hidden');
     this.elements.editToolbar.classList.add('hidden');
     this.elements.propertiesSidebar.classList.add('hidden');
@@ -550,8 +718,6 @@ class PdfViewer {
     this.elements.filename.textContent = file.name;
     
     try {
-      // Load PDF
-      // Try loading with empty password directly in parameters to avoid prompt if possible
       const loadingTask = pdfjsLib.getDocument({
           url: file.url,
           password: '',
@@ -561,7 +727,6 @@ class PdfViewer {
       
       loadingTask.onPassword = (updatePassword, reason) => {
           if (reason === pdfjsLib.PasswordResponses.NEED_PASSWORD) {
-              // Try empty password again if requested
               updatePassword('');
           }
       };
@@ -571,20 +736,15 @@ class PdfViewer {
       if (this.pdfDoc) {
           this.elements.pageCount.textContent = this.pdfDoc.numPages;
           
-          // Calculate initial scale to fit the page in viewport
           if (!options.preserveState || !options.scale) {
               await this.calculateInitialScale();
           }
           
           await this.render();
           
-          // Restore scroll position if preserving state
           if (options.preserveState && options.scrollTop !== undefined) {
               const main = document.getElementById('pdf-main');
               if (main) {
-                  // We need to wait for the rendering to at least create the elements
-                  // render() is async but it awaits renderSinglePage which creates elements
-                  // However, the browser might need a tick to update layout
                   setTimeout(() => {
                       main.scrollTop = options.scrollTop;
                       main.scrollLeft = options.scrollLeft;
@@ -604,13 +764,11 @@ class PdfViewer {
    * Close viewer
    */
   async close() {
-    // Cancel all active renders
     if (this.activeRenderTasks) {
         this.activeRenderTasks.forEach(task => task.cancel());
         this.activeRenderTasks.clear();
     }
 
-    // Auto-save on close if there are changes
     const hasTextChanges = this.textEditor && this.textEditor.hasChanges();
     const hasAnnotationChanges = this.annotationManager && this.annotationManager.hasChanges();
     
@@ -621,7 +779,10 @@ class PdfViewer {
     this.isOpen = false;
     this.toggleEditMode(false);
     
-    // Disconnect observers
+    if (this.resizeObserver) {
+        this.resizeObserver.disconnect();
+        this.resizeObserver = null;
+    }
     if (this.observer) {
         this.observer.disconnect();
         this.observer = null;
@@ -635,7 +796,6 @@ class PdfViewer {
         this.thumbnailObserver = null;
     }
     
-    // Cleanup text editor
     if (this.textEditor) {
         await this.textEditor.destroy();
         this.textEditor = null;
@@ -644,28 +804,13 @@ class PdfViewer {
     this.elements.viewer.classList.remove('active');
     setTimeout(() => {
       this.elements.viewer.classList.add('hidden');
-      this.elements.container.innerHTML = ''; // Clear canvas
+      this.elements.container.innerHTML = '';
     }, 300);
 
-    // If we only have one file, return to home page (landing state)
-    // The user mentioned "superposition avec une autre page où il ya deposer fichier".
-    // This suggests that when closing or saving/reloading, the "Drop Zone" or "Empty State" is becoming visible underneath or on top.
-    // If we have files, we shouldn't be showing the drop zone.
-    // The logic here removes the file if it's the only one, which forces the "Empty State" / "Drop Zone" to appear.
-    // This might be intended behavior for "closing" the viewer, but if the user just saved, they might not want to close the file.
-    // However, this is the close() method.
-    
     if (this.uiController && this.uiController.fileHandler) {
       if (this.uiController.fileHandler.files.length === 1) {
         const files = this.uiController.fileHandler.files;
         if (files.length > 0) {
-          // Only remove if we are actually closing the viewer to go back to "nothing open"
-          // If we are just reloading (which might call close/open), we shouldn't remove it.
-          // But close() is usually user-initiated.
-          // The issue might be that when saving, we trigger a reload which might momentarily show the background?
-          // Or if the user is in edit mode and saves, does it close?
-          // In save(), we call open() which might not call close() explicitly but re-initializes.
-          
           this.uiController.fileHandler.removeFile(files[0].id);
           this.uiController.renderFiles();
         }
@@ -677,12 +822,10 @@ class PdfViewer {
    * Generate PDF Blob with changes
    */
   async generatePdfBlob() {
-      // Load existing PDF
       const arrayBuffer = await fetch(this.currentFile.url).then(res => res.arrayBuffer());
       const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
       const pages = pdfDoc.getPages();
       
-      // Apply rotation
       if (this.rotation !== 0) {
           pages.forEach(page => {
               const rotation = page.getRotation();
@@ -691,14 +834,11 @@ class PdfViewer {
           });
       }
       
-      // Apply text edits (OCR-based text modifications)
       if (this.textEditor && this.textEditor.hasChanges()) {
           await this.textEditor.applyChangesToPdf(pdfDoc);
           this.textEditor.clearPendingChanges();
       }
       
-      // Apply annotations
-      // Note: We need to ensure any active text input is finalized before saving
       if (this.annotationManager && this.annotationManager.activeInput) {
           this.annotationManager.finalizeTextInput();
       }
@@ -715,7 +855,9 @@ class PdfViewer {
                       tempCanvas.height = annotationCanvas.height;
                       const ctx = tempCanvas.getContext('2d');
                       
-                      ctx.drawImage(annotationCanvas, 0, 0);
+                      if (annotationCanvas.width > 0 && annotationCanvas.height > 0) {
+                          ctx.drawImage(annotationCanvas, 0, 0);
+                      }
                       this.annotationManager.drawTextObjects(ctx, wrapper);
                       
                       const imageBytes = tempCanvas.toDataURL('image/png');
@@ -745,12 +887,7 @@ class PdfViewer {
   async refreshPreview() {
       if (!this.currentFile) return;
 
-      // Capture state before reload
       const currentScale = this.scale;
-      // Rotation is baked into the PDF, so we reset it to 0, but we might want to preserve the view rotation if it wasn't baked?
-      // The generatePdfBlob bakes the rotation. So the new PDF will be rotated.
-      // So we should reset rotation to 0.
-      // But we want to preserve scroll and zoom.
       const currentPage = this.pageNum;
       const main = document.getElementById('pdf-main');
       const scrollTop = main ? main.scrollTop : 0;
@@ -768,40 +905,29 @@ class PdfViewer {
       try {
           this.uiController.showLoading(true);
           
-          // Generate blob with changes
           const blob = await this.generatePdfBlob();
           
-          // Revoke previous preview URL if it exists to avoid memory leaks
           if (this.previewUrl) {
               URL.revokeObjectURL(this.previewUrl);
           }
           
           this.previewUrl = URL.createObjectURL(blob);
-          
-          // Update current file URL to point to the new blob
-          // We keep the original file reference but update the URL
-          // This ensures subsequent edits are based on this version
           this.currentFile.url = this.previewUrl;
           
-          // Reset state that is now baked into the PDF
           this.rotation = 0;
           if (this.annotationManager) this.annotationManager.clear();
-          // Note: generatePdfBlob already clears textEditor pending changes
           
-          // Reload viewer with preserved state
           await this.open(this.currentFile, {
               preserveState: true,
               scale: currentScale,
               pageNum: currentPage,
               scrollTop: scrollTop,
               scrollLeft: scrollLeft,
-              rotation: 0 // Reset rotation as it's baked
+              rotation: 0
           });
           
-          // Restore edit mode
           if (wasEditMode) {
               await this.toggleEditMode(true);
-              // Restore tool
               if (activeTool) {
                   this.setTool(activeTool);
               }
@@ -822,7 +948,6 @@ class PdfViewer {
   async save() {
     if (!this.currentFile) return;
 
-    // Capture edit mode state before it gets reset by open()
     const wasEditMode = this.isEditMode;
     let activeTool = null;
     if (wasEditMode) {
@@ -832,7 +957,6 @@ class PdfViewer {
         }
     }
 
-    // Capture view state
     const currentScale = this.scale;
     const currentPage = this.pageNum;
     const main = document.getElementById('pdf-main');
@@ -850,11 +974,6 @@ class PdfViewer {
             this.rotation = 0;
             if (this.annotationManager) this.annotationManager.clear();
             
-            // Reload the PDF to show the saved version
-            // We need to close and reopen or just re-render
-            // Re-opening is safer to ensure we get the fresh file content
-            // IMPORTANT: Do NOT call close() before open() if it triggers the "remove file" logic for single files.
-            // this.open() handles resetting the UI.
             await this.open(this.currentFile, {
                 preserveState: true,
                 scale: currentScale,
@@ -864,16 +983,13 @@ class PdfViewer {
                 rotation: 0
             });
             
-            // Restore edit mode if it was active
             if (wasEditMode) {
                 await this.toggleEditMode(true);
-                // Restore tool
                 if (activeTool) {
                     this.setTool(activeTool);
                 }
             }
         } else {
-            // If save failed (e.g. no handle), try Save As
             this.saveAs(blob);
         }
         
@@ -909,352 +1025,349 @@ class PdfViewer {
 
   /**
    * Render all pages
+   * Pages are rendered at BASE_RENDER_SCALE, then CSS transform is used for visual zoom
    */
   async render() {
     this.pageRendering = true;
 
-    // Cancel all active renders
-    if (this.activeRenderTasks) {
-        this.activeRenderTasks.forEach(task => task.cancel());
-        this.activeRenderTasks.clear();
-    }
-    
-    // Capture Scroll Anchor (Relative Center)
-    const main = document.getElementById('pdf-main');
-    let anchorRatio = 0;
-    let paddingTop = 0;
-    
-    // We use defaultPageHeight from the PREVIOUS render to calculate the old content height.
-    // main.scrollHeight is unreliable because the CSS transform in applySmoothZoom scales the container,
-    // changing the scrollHeight, but scrollTop remains unscaled.
-    if (main && this.defaultPageHeight && this.pdfDoc) {
-        const style = window.getComputedStyle(main);
-        paddingTop = parseFloat(style.paddingTop) || 0;
-        
-        // Calculate logical content height from previous render state
-        const contentHeight = this.pdfDoc.numPages * this.defaultPageHeight;
-        
-        const scrollTop = main.scrollTop;
-        const clientHeight = main.clientHeight;
-        
-        // Center relative to content top
-        const centerY = scrollTop + (clientHeight / 2) - paddingTop;
-        
-        if (contentHeight > 0) {
-            anchorRatio = centerY / contentHeight;
-        }
-    }
-
-    this.renderedScale = this.scale;
-    
-    // Capture Edit Mode State
-    const wasEditMode = this.isEditMode;
-    const wasTextEditMode = this.isTextEditMode;
-    let activeTool = null;
-    let annotationState = null;
-
-    if (wasEditMode && this.annotationManager) {
-        activeTool = this.annotationManager.currentTool;
-        if (typeof this.annotationManager.snapshot === 'function') {
-             annotationState = this.annotationManager.snapshot();
-        }
-        // Stop but keep UI to prevent blinking
-        this.annotationManager.stop(true);
-    }
-
-    if (this.isTextEditMode && this.textEditor) {
-        this.textEditor.stop();
-    }
-
-    // Get dimensions from first page to use as default for placeholders
-    let defaultViewport = null;
     try {
-        const firstPage = await this.pdfDoc.getPage(1);
-        const dpr = window.devicePixelRatio || 1;
-        // Calculate logical dimensions that match the physical pixel snapping
-        const scaledViewport = firstPage.getViewport({ scale: this.scale * dpr, rotation: this.rotation });
-        defaultViewport = {
-            width: Math.floor(scaledViewport.width) / dpr,
-            height: Math.floor(scaledViewport.height) / dpr
-        };
-    } catch (e) {
-        console.error('Error getting first page dimensions', e);
-        // Fallback
-        defaultViewport = { width: 600, height: 800 };
-    }
-
-    this.defaultPageHeight = defaultViewport.height;
-    this.defaultPageWidth = defaultViewport.width;
-
-    // Reset any CSS transform that might have been applied
-    this.elements.container.style.transform = 'none';
-
-    // Update Container Height - use exact height to prevent extra white space
-    const totalHeight = this.pdfDoc.numPages * this.defaultPageHeight;
-    this.elements.container.style.height = `${totalHeight}px`;
-    this.elements.container.style.minHeight = '';
-    this.elements.container.style.position = 'relative';
-
-    // Restore Scroll Position (Anchored)
-    if (main && anchorRatio > 0) {
-        // Use the calculated totalHeight as the new content height
-        const newContentHeight = totalHeight;
-        const newCenterY = anchorRatio * newContentHeight;
-        const targetScrollTop = newCenterY + paddingTop - (main.clientHeight / 2);
+        // Cancel all active renders
+        if (this.activeRenderTasks) {
+            this.activeRenderTasks.forEach(task => task.cancel());
+            this.activeRenderTasks.clear();
+        }
         
-        main.scrollTop = Math.max(0, targetScrollTop);
-    }
-
-    // Update Existing Wrappers (to avoid blank screen flash)
-    if (this.pageWrappers && Object.keys(this.pageWrappers).length > 0) {
-        Object.keys(this.pageWrappers).forEach(key => {
-            const wrapper = this.pageWrappers[key];
-            if (wrapper) {
-                const pageNum = parseInt(wrapper.dataset.pageNumber);
-                
-                // Cancel any pending render for this page
-                if (this.activeRenderTasks.has(pageNum)) {
-                    try {
-                        this.activeRenderTasks.get(pageNum).cancel();
-                    } catch(e) { /* ignore */ }
-                    this.activeRenderTasks.delete(pageNum);
-                }
-                
-                // Invalidate render ID to prevent stale renders from completing
-                delete wrapper.dataset.renderId;
-                delete wrapper.dataset.rendering;
-                
-                // Update wrapper dimensions and position
-                wrapper.style.width = `${this.defaultPageWidth}px`;
-                wrapper.style.height = `${this.defaultPageHeight}px`;
-                wrapper.style.top = `${(pageNum - 1) * this.defaultPageHeight}px`;
-                // Centering is handled by CSS, just ensure position is absolute
-                wrapper.style.position = 'absolute';
-                wrapper.style.left = '50%';
-                wrapper.style.transform = 'translateX(-50%)';
-                
-                // Mark as not loaded so it re-renders
-                wrapper.dataset.loaded = 'false';
-                
-                // Stretch the old canvas to fill the new wrapper size
-                // This prevents the white background from showing during zoom (the "white block" issue)
-                const oldCanvas = wrapper.querySelector('canvas:not(.pdf-canvas-rendering)');
-                if (oldCanvas) {
-                    oldCanvas.style.width = '100%';
-                    oldCanvas.style.height = '100%';
-                }
-                
-                // Remove any canvases that were mid-render (they're now stale)
-                const renderingCanvases = wrapper.querySelectorAll('.pdf-canvas-rendering');
-                renderingCanvases.forEach(c => c.remove());
+        // Get base dimensions from first page
+        const firstPage = await this.pdfDoc.getPage(1);
+        const baseViewport = firstPage.getViewport({ scale: 1.0, rotation: this.rotation });
+        
+        // Initialize base page dimensions (at scale=1.0)
+        this.basePageHeights = new Array(this.pdfDoc.numPages + 1).fill(baseViewport.height);
+        this.basePageWidths = new Array(this.pdfDoc.numPages + 1).fill(baseViewport.width);
+        
+        // Ensure zoom wrapper exists
+        if (!this.elements.zoomWrapper) {
+            this.elements.zoomWrapper = document.getElementById('pdf-zoom-wrapper');
+            if (!this.elements.zoomWrapper && this.elements.main) {
+                this.elements.zoomWrapper = document.createElement('div');
+                this.elements.zoomWrapper.id = 'pdf-zoom-wrapper';
+                this.elements.main.appendChild(this.elements.zoomWrapper);
+                this.elements.zoomWrapper.appendChild(this.elements.container);
             }
-        });
-    } else {
-        // First load or full reset
+        }
+        
+        // Calculate total content size at base scale (scale=1.0)
+        const totalBaseHeight = this.basePageHeights.slice(1).reduce((a, b) => a + b, 0);
+        const maxBaseWidth = Math.max(...this.basePageWidths.slice(1));
+        
+        // Container holds content at BASE_RENDER_SCALE (for high-res canvases)
+        // But we position pages as if at scale=1.0, then use CSS transform on container
+        this.elements.container.style.width = `${maxBaseWidth}px`;
+        this.elements.container.style.height = `${totalBaseHeight}px`;
+        this.elements.container.style.position = 'absolute';
+        this.elements.container.style.top = '0';
+        this.elements.container.style.left = '0';
+        
+        // Apply CSS transform for current zoom level
+        this.applyZoomTransform();
+        
+        // Clear and recreate page wrappers
         this.pageWrappers = {};
         this.elements.container.innerHTML = '';
-    }
-
-    this.pageRendering = false;
-
-    // Update UI
-    this.elements.zoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
-    if (this.elements.editZoomLevel) {
-        this.elements.editZoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
-    }
-
-    // Setup Virtual Scroll
-    this.setupVirtualScroll();
-    
-    // Initial render of visible pages
-    this.updateVisiblePages();
-    
-    // Reset zoom flag
-    this.isZooming = false;
-    
-    if (this.renderPending) {
-      this.renderPending = false;
-      this.render();
-      return;
-    }
-    
-    if (this.observer) this.observer.disconnect();
-
-    // Restore Edit Mode
-    if (wasEditMode) {
-        if (wasTextEditMode) {
-            await this.toggleEditMode(true, null);
-            await this.setTool('text-edit');
-        } else if (activeTool) {
-            await this.toggleEditMode(true, activeTool);
-        } else {
-            await this.toggleEditMode(true);
-        }
         
-        if (annotationState && this.annotationManager && typeof this.annotationManager.restore === 'function') {
-            this.annotationManager.restore(annotationState);
+        // Update UI
+        this.elements.zoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
+        if (this.elements.editZoomLevel) {
+            this.elements.editZoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
+        }
+
+        // Setup Virtual Scroll
+        this.setupVirtualScroll();
+        
+        // Initial render of visible pages
+        await this.updateVisiblePages();
+        
+        this.updateCursor();
+        
+        if (this.observer) this.observer.disconnect();
+
+    } catch (error) {
+        console.error('Error in render():', error);
+    } finally {
+        this.pageRendering = false;
+        
+        if (this.renderPending) {
+            this.renderPending = false;
+            this.render();
         }
     }
   }
 
   /**
-   * Create a placeholder for a page
+   * Apply CSS transform for zoom
+   * This is the ONLY place where zoom visual changes happen
    */
-  createPagePlaceholder(num, container, wrappers, defaultViewport) {
-      const wrapper = document.createElement('div');
-      wrapper.className = 'pdf-page-wrapper';
-      wrapper.dataset.pageNumber = num;
-      wrapper.dataset.loaded = 'false';
+  applyZoomTransform() {
+      const container = this.elements.container;
+      const wrapper = this.elements.zoomWrapper;
+      const main = this.elements.main;
       
-      // Set dimensions
-      // We set the wrapper size to match the expected canvas size
-      wrapper.style.width = `${defaultViewport.width}px`;
-      wrapper.style.height = `${defaultViewport.height}px`;
+      if (!container || !wrapper || !main) return;
       
-      container.appendChild(wrapper);
-      wrappers[num] = wrapper;
+      // Apply scale transform to container
+      container.style.transformOrigin = '0 0';
+      container.style.transform = `scale(${this.scale})`;
+      
+      // Calculate visual dimensions
+      const totalBaseHeight = this.basePageHeights.slice(1).reduce((a, b) => a + b, 0);
+      const maxBaseWidth = Math.max(...this.basePageWidths.slice(1));
+      const visualWidth = maxBaseWidth * this.scale;
+      const visualHeight = totalBaseHeight * this.scale;
+      
+      // Update wrapper to match visual size (for scrollbars)
+      wrapper.style.width = `${visualWidth}px`;
+      wrapper.style.height = `${visualHeight}px`;
+      
+      // Center content if smaller than viewport
+      const viewportWidth = main.clientWidth;
+      const viewportHeight = main.clientHeight;
+      
+      if (visualWidth < viewportWidth) {
+          wrapper.style.marginLeft = `${(viewportWidth - visualWidth) / 2}px`;
+      } else {
+          wrapper.style.marginLeft = '0px';
+      }
+      
+      if (visualHeight < viewportHeight) {
+          wrapper.style.marginTop = `${(viewportHeight - visualHeight) / 2}px`;
+      } else {
+          wrapper.style.marginTop = '0px';
+      }
   }
 
   /**
-   * Render page content (Lazy Load)
+   * Set zoom level with focal point
+   * @param {number} newScale - New zoom level
+   * @param {number} contentX - Focal point X in content coordinates (at scale=1.0)
+   * @param {number} contentY - Focal point Y in content coordinates (at scale=1.0)
+   * @param {number} mouseX - Mouse X relative to viewport
+   * @param {number} mouseY - Mouse Y relative to viewport
+   */
+  setZoom(newScale, contentX, contentY, mouseX, mouseY) {
+      const main = this.elements.main;
+      if (!main) return;
+      
+      const oldScale = this.scale;
+      this.scale = newScale;
+      
+      // Update UI
+      this.elements.zoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
+      if (this.elements.editZoomLevel) {
+          this.elements.editZoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
+      }
+      
+      // Apply CSS transform (instant, no re-render)
+      this.applyZoomTransform();
+      
+      // Adjust scroll to keep focal point under mouse
+      if (contentX !== undefined && contentY !== undefined) {
+          const newScrollLeft = (contentX * this.scale) - mouseX;
+          const newScrollTop = (contentY * this.scale) - mouseY;
+          
+          main.scrollLeft = Math.max(0, newScrollLeft);
+          main.scrollTop = Math.max(0, newScrollTop);
+      }
+      
+      // Clear any pending quality render
+      if (this.qualityRenderTimeout) {
+          clearTimeout(this.qualityRenderTimeout);
+          this.qualityRenderTimeout = null;
+      }
+      
+      // Schedule quality re-render if zoom is significantly different from render scale
+      // Canvases are rendered at BASE_RENDER_SCALE, so check if visual quality is degraded
+      const qualityRatio = this.scale / PdfViewer.BASE_RENDER_SCALE;
+      if (qualityRatio > 1.5 || qualityRatio < 0.3) {
+          // Quality is degraded, schedule re-render after zoom stops
+          this.qualityRenderTimeout = setTimeout(() => {
+              this.qualityRenderTimeout = null;
+              // Re-render visible pages at current scale for better quality
+              this.rerenderForQuality();
+          }, 500);
+      }
+  }
+
+  /**
+   * Re-render visible pages for better quality after zoom
+   * This is called after zoom stops if quality is degraded
+   */
+  async rerenderForQuality() {
+      // For now, we keep the high-res render and rely on CSS scaling
+      // This could be enhanced to re-render at a different scale if needed
+      // But for most use cases, BASE_RENDER_SCALE=2.0 provides good quality up to 300% zoom
+  }
+
+  /**
+   * Zoom in by 10%
+   */
+  zoomIn() {
+      if (this.scale >= PdfViewer.MAX_ZOOM) return;
+      
+      const main = this.elements.main;
+      const mainRect = main.getBoundingClientRect();
+      
+      // Use viewport center as focal point
+      const mouseX = mainRect.width / 2;
+      const mouseY = mainRect.height / 2;
+      const contentX = (main.scrollLeft + mouseX) / this.scale;
+      const contentY = (main.scrollTop + mouseY) / this.scale;
+      
+      let newScale = Math.round((this.scale + 0.1) * 10) / 10;
+      if (newScale > PdfViewer.MAX_ZOOM) newScale = PdfViewer.MAX_ZOOM;
+      
+      this.setZoom(newScale, contentX, contentY, mouseX, mouseY);
+  }
+
+  /**
+   * Zoom out by 10%
+   */
+  zoomOut() {
+      if (this.scale <= PdfViewer.MIN_ZOOM) return;
+      
+      const main = this.elements.main;
+      const mainRect = main.getBoundingClientRect();
+      
+      // Use viewport center as focal point
+      const mouseX = mainRect.width / 2;
+      const mouseY = mainRect.height / 2;
+      const contentX = (main.scrollLeft + mouseX) / this.scale;
+      const contentY = (main.scrollTop + mouseY) / this.scale;
+      
+      let newScale = Math.round((this.scale - 0.1) * 10) / 10;
+      if (newScale < PdfViewer.MIN_ZOOM) newScale = PdfViewer.MIN_ZOOM;
+      
+      this.setZoom(newScale, contentX, contentY, mouseX, mouseY);
+  }
+
+  /**
+   * Update layout when page dimensions change
+   */
+  updateLayout() {
+      // Recalculate container dimensions
+      const totalBaseHeight = this.basePageHeights.slice(1).reduce((a, b) => a + b, 0);
+      const maxBaseWidth = Math.max(...this.basePageWidths.slice(1));
+      
+      if (this.elements.container) {
+          this.elements.container.style.width = `${maxBaseWidth}px`;
+          this.elements.container.style.height = `${totalBaseHeight}px`;
+      }
+      
+      // Update positions of active wrappers
+      if (this.pageWrappers) {
+          Object.entries(this.pageWrappers).forEach(([key, wrapper]) => {
+              const pageNum = parseInt(key);
+              wrapper.style.top = `${this.getPageTop(pageNum)}px`;
+              // Ensure width/height are correct
+              wrapper.style.width = `${this.basePageWidths[pageNum]}px`;
+              wrapper.style.height = `${this.basePageHeights[pageNum]}px`;
+          });
+      }
+      
+      // Update zoom transform (handles visual scaling and scrollbars)
+      this.applyZoomTransform();
+  }
+
+  /**
+   * Render page content
+   * Renders at BASE_RENDER_SCALE for high quality, uses CSS transform for display
    */
   async renderPageContent(wrapper) {
       const num = parseInt(wrapper.dataset.pageNumber);
-
+      
       if (wrapper.dataset.loaded === 'true') return;
-
-      // Strict cancellation: If a task exists, cancel it and wait for cleanup
+      if (wrapper.dataset.rendering === 'true') return;
+      
+      // Cancel any existing render for this page
       if (this.activeRenderTasks.has(num)) {
           try {
               this.activeRenderTasks.get(num).cancel();
-          } catch (e) {
-              console.warn(`Error cancelling render for page ${num}:`, e);
-          }
+          } catch (e) { /* ignore */ }
           this.activeRenderTasks.delete(num);
       }
       
-      // Generate a unique render ID to track this specific render attempt
-      const renderId = Date.now() + Math.random();
-      wrapper.dataset.renderId = renderId;
       wrapper.dataset.rendering = 'true';
 
       try {
           const page = await this.pdfDoc.getPage(num);
           
-          // Check if this render is still valid (not superseded by another render)
-          if (wrapper.dataset.renderId != renderId) return;
-          if (wrapper.dataset.rendering !== 'true') return;
-
           const dpr = window.devicePixelRatio || 1;
-          // Super-sampling for sharper text rendering
-          // Use 2x for high-quality text, similar to how Chrome renders PDFs
-          const qualityScale = 2.0;
           
-          // Use dpr * qualityScale in viewport scale for sharper rendering
-          const viewport = page.getViewport({ scale: this.scale * dpr * qualityScale, rotation: this.rotation });
+          // Render at BASE_RENDER_SCALE for high quality
+          const renderScale = PdfViewer.BASE_RENDER_SCALE * dpr;
+          const viewport = page.getViewport({ scale: renderScale, rotation: this.rotation });
           
-          // Set canvas dimensions to super-sampled pixels
-          const physicalWidth = Math.floor(viewport.width);
-          const physicalHeight = Math.floor(viewport.height);
+          // Update base dimensions for this page (at scale=1.0)
+          const baseViewport = page.getViewport({ scale: 1.0, rotation: this.rotation });
           
-          // Calculate CSS dimensions (logical pixels)
-          const cssWidth = physicalWidth / (dpr * qualityScale);
-          const cssHeight = physicalHeight / (dpr * qualityScale);
-
-          // Update wrapper dimensions if different (handling mixed page sizes)
-          wrapper.style.width = `${cssWidth}px`;
-          wrapper.style.height = `${cssHeight}px`;
-
-          // Create new canvas but DON'T append yet - render offscreen first
+          // Check if dimensions changed from initial guess
+          if (this.basePageWidths[num] !== baseViewport.width ||
+              this.basePageHeights[num] !== baseViewport.height) {
+              
+              this.basePageWidths[num] = baseViewport.width;
+              this.basePageHeights[num] = baseViewport.height;
+              
+              // Update this wrapper immediately
+              wrapper.style.width = `${baseViewport.width}px`;
+              wrapper.style.height = `${baseViewport.height}px`;
+              
+              // Trigger layout update to fix container size and other page positions
+              this.updateLayout();
+          }
+          
+          // Create canvas
           const canvas = document.createElement('canvas');
-          canvas.className = 'pdf-page-canvas pdf-canvas-rendering';
+          canvas.className = 'pdf-page-canvas';
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
           
-          // Set canvas dimensions to super-sampled pixels
-          canvas.width = physicalWidth;
-          canvas.height = physicalHeight;
-          
-          // Set CSS dimensions to logical pixels
-          canvas.style.width = `${cssWidth}px`;
-          canvas.style.height = `${cssHeight}px`;
-          
-          // Use crisp-edges for pixel-perfect downscaling
-          canvas.style.imageRendering = 'auto';
-          
-          // Position absolutely to overlay during transition
-          canvas.style.position = 'absolute';
-          canvas.style.top = '0';
-          canvas.style.left = '0';
-          canvas.style.opacity = '0'; // Hidden until render complete
+          // Canvas displays at base size (scale=1.0), CSS transform on container handles zoom
+          // So we need to scale down the high-res canvas to base size
+          const displayWidth = baseViewport.width;
+          const displayHeight = baseViewport.height;
+          canvas.style.width = `${displayWidth}px`;
+          canvas.style.height = `${displayHeight}px`;
           
           const ctx = canvas.getContext('2d', { alpha: false });
-          // Disable image smoothing to preserve sharp text edges during rendering
           ctx.imageSmoothingEnabled = false;
-          
-          // Append canvas (hidden) so it can render
-          wrapper.appendChild(canvas);
           
           const renderTask = page.render({
               canvasContext: ctx,
               viewport: viewport,
-              intent: 'print' // Trigger higher quality rendering path
+              intent: 'print'
           });
 
-          // Store render task to allow cancellation
           this.activeRenderTasks.set(num, renderTask);
 
           await renderTask.promise;
           
-          // Verify this render is still valid before swapping
-          if (wrapper.dataset.renderId != renderId) {
-              canvas.remove();
-              return;
-          }
-          
-          // ATOMIC SWAP: Use requestAnimationFrame to ensure single-frame update
-          // This prevents any visual glitch between removing old and showing new
-          requestAnimationFrame(() => {
-              // Double-check validity again in case of race condition
-              if (wrapper.dataset.renderId != renderId) {
-                  canvas.remove();
-                  return;
-              }
-              
-              // Remove old canvases
-              const oldCanvases = wrapper.querySelectorAll('canvas:not(.pdf-canvas-rendering)');
-              oldCanvases.forEach(oldCanvas => {
-                  // Clear canvas memory before removal
-                  oldCanvas.width = 0;
-                  oldCanvas.height = 0;
-                  oldCanvas.remove();
-              });
-              
-              // Reveal the new canvas immediately (no transition)
-              canvas.classList.remove('pdf-canvas-rendering');
-              canvas.style.opacity = '1';
-              canvas.style.position = '';
-              canvas.style.top = '';
-              canvas.style.left = '';
-              
-              // Mark as loaded inside RAF to ensure proper sequencing
-              wrapper.dataset.loaded = 'true';
-              delete wrapper.dataset.rendering;
-              delete wrapper.dataset.renderId;
-          });
-
           this.activeRenderTasks.delete(num);
           
+          // Swap canvas
+          const oldCanvas = wrapper.querySelector('canvas');
+          if (oldCanvas) {
+              oldCanvas.remove();
+          }
+          wrapper.appendChild(canvas);
+          
+          wrapper.dataset.loaded = 'true';
+          delete wrapper.dataset.rendering;
+          
       } catch (error) {
-          // Ignore cancellation errors
-          if (error.name === 'RenderingCancelledException') {
-              // Clean up any partially rendered canvas
-              const renderingCanvas = wrapper.querySelector('.pdf-canvas-rendering');
-              if (renderingCanvas) renderingCanvas.remove();
-          } else {
+          if (error.name !== 'RenderingCancelledException') {
               console.error(`Error rendering page ${num}:`, error);
           }
           this.activeRenderTasks.delete(num);
           delete wrapper.dataset.rendering;
-          delete wrapper.dataset.renderId;
       }
   }
 
@@ -1264,7 +1377,6 @@ class PdfViewer {
   unloadPageContent(wrapper) {
       const num = parseInt(wrapper.dataset.pageNumber);
 
-      // Cancel any pending render
       if (this.activeRenderTasks.has(num)) {
           try {
             this.activeRenderTasks.get(num).cancel();
@@ -1272,20 +1384,16 @@ class PdfViewer {
           this.activeRenderTasks.delete(num);
       }
       
-      // Invalidate any pending render by clearing the render ID
       delete wrapper.dataset.rendering;
-      delete wrapper.dataset.renderId;
 
-      // Remove ALL canvases (including any being rendered)
       const allCanvases = wrapper.querySelectorAll('canvas');
       allCanvases.forEach(canvas => {
-          // Clear canvas memory
           canvas.width = 0;
           canvas.height = 0;
           canvas.remove();
       });
       
-      wrapper.innerHTML = ''; // Remove all content
+      wrapper.innerHTML = '';
       wrapper.dataset.loaded = 'false';
   }
 
@@ -1296,12 +1404,10 @@ class PdfViewer {
       const main = document.getElementById('pdf-main');
       if (!main) return;
 
-      // Remove existing listener if any
       if (this.scrollHandler) {
           main.removeEventListener('scroll', this.scrollHandler);
       }
 
-      // Throttled scroll handler for DOM updates
       let ticking = false;
       this.scrollHandler = () => {
           if (!ticking) {
@@ -1319,80 +1425,109 @@ class PdfViewer {
   /**
    * Update visible pages based on scroll position
    */
-  updateVisiblePages() {
+  async updateVisiblePages() {
       const main = document.getElementById('pdf-main');
       if (!main) return;
 
-      const scrollTop = main.scrollTop;
-      const clientHeight = main.clientHeight;
-      const buffer = 1; // Number of pages to render outside viewport
+      // Scroll position is in visual coordinates (scaled)
+      // Convert to base coordinates for page calculation
+      const scrollTop = main.scrollTop / this.scale;
+      const clientHeight = main.clientHeight / this.scale;
+      const buffer = 1;
 
-      // Calculate range
-      let startIndex = Math.floor(scrollTop / this.defaultPageHeight) - buffer;
-      let endIndex = Math.ceil((scrollTop + clientHeight) / this.defaultPageHeight) + buffer;
+      // Find visible page range
+      let currentTop = 0;
+      let startIndex = 1;
+      
+      for (let i = 1; i <= this.pdfDoc.numPages; i++) {
+          if (currentTop + this.basePageHeights[i] > scrollTop) {
+              startIndex = i;
+              break;
+          }
+          currentTop += this.basePageHeights[i];
+      }
+      
+      let endIndex = startIndex;
+      let visibleHeight = 0;
+      
+      for (let i = startIndex; i <= this.pdfDoc.numPages; i++) {
+          visibleHeight += this.basePageHeights[i];
+          endIndex = i;
+          if (currentTop + visibleHeight > scrollTop + clientHeight) {
+              break;
+          }
+      }
+      
+      startIndex = Math.max(1, startIndex - buffer);
+      endIndex = Math.min(this.pdfDoc.numPages, endIndex + buffer);
 
-      // Clamp
-      startIndex = Math.max(1, startIndex);
-      endIndex = Math.min(this.pdfDoc.numPages, endIndex);
-
-      // Update DOM
-      // 1. Remove wrappers out of range
-      // 2. Add wrappers in range
-      // 3. Update padding
-
-      // Identify pages to keep
+      // Remove wrappers out of range
       const pagesToKeep = new Set();
       for (let i = startIndex; i <= endIndex; i++) {
           pagesToKeep.add(i);
       }
 
-      // Remove old wrappers
       Object.keys(this.pageWrappers).forEach(key => {
           const pageNum = parseInt(key);
           if (!pagesToKeep.has(pageNum)) {
               const wrapper = this.pageWrappers[pageNum];
               if (wrapper && wrapper.parentNode) {
-                  this.unloadPageContent(wrapper); // Cleanup resources
+                  this.unloadPageContent(wrapper);
                   wrapper.remove();
               }
               delete this.pageWrappers[pageNum];
           }
       });
 
-      // Add new wrappers
-      const fragment = document.createDocumentFragment();
-      let firstWrapper = null;
+      // Add/render pages in range
+      const renderPromises = [];
 
       for (let i = startIndex; i <= endIndex; i++) {
-          if (!this.pageWrappers[i]) {
-              const wrapper = document.createElement('div');
+          let wrapper = this.pageWrappers[i];
+          
+          if (!wrapper) {
+              wrapper = document.createElement('div');
               wrapper.className = 'pdf-page-wrapper';
               wrapper.dataset.pageNumber = i;
               wrapper.dataset.loaded = 'false';
-              wrapper.style.width = `${this.defaultPageWidth}px`;
-              wrapper.style.height = `${this.defaultPageHeight}px`;
               
-              // Use absolute positioning with transform for centering
+              // Position at base scale (CSS transform handles visual scale)
+              wrapper.style.width = `${this.basePageWidths[i]}px`;
+              wrapper.style.height = `${this.basePageHeights[i]}px`;
               wrapper.style.position = 'absolute';
-              wrapper.style.top = `${(i - 1) * this.defaultPageHeight}px`;
+              wrapper.style.top = `${this.getPageTop(i)}px`;
               wrapper.style.left = '50%';
               wrapper.style.transform = 'translateX(-50%)';
 
               this.elements.container.appendChild(wrapper);
               this.pageWrappers[i] = wrapper;
-              
-              // Trigger render
-              this.renderPageContent(wrapper);
+          }
+          
+          if (wrapper.dataset.loaded === 'false' && wrapper.dataset.rendering !== 'true') {
+              renderPromises.push(this.renderPageContent(wrapper));
           }
       }
 
-      // Update current page number based on scroll
+      // Update current page number
       const centerPoint = scrollTop + (clientHeight / 2);
-      const currentPage = Math.floor(centerPoint / this.defaultPageHeight) + 1;
+      let pageTop = 0;
+      let currentPage = 1;
+      for (let i = 1; i <= this.pdfDoc.numPages; i++) {
+          if (pageTop + this.basePageHeights[i] > centerPoint) {
+              currentPage = i;
+              break;
+          }
+          pageTop += this.basePageHeights[i];
+      }
+      
       if (currentPage !== this.pageNum && currentPage >= 1 && currentPage <= this.pdfDoc.numPages) {
           this.pageNum = currentPage;
           this.elements.pageNum.value = currentPage;
           this.updateActiveThumbnail(currentPage);
+      }
+
+      if (renderPromises.length > 0) {
+          await Promise.all(renderPromises);
       }
   }
 
@@ -1408,32 +1543,26 @@ class PdfViewer {
   }
 
   /**
-   * Setup intersection observer to update page number
-   * Deprecated in favor of scroll-based calculation in updateVisiblePages
+   * Get top position of a page (at base scale)
    */
-  setupIntersectionObserver() {
-      // No-op for virtual scroll
-  }
-
-  /**
-   * Update current page based on visibility
-   * Deprecated
-   */
-  updateCurrentPage() {
-      // No-op
+  getPageTop(pageNum) {
+      let top = 0;
+      for (let i = 1; i < pageNum; i++) {
+          top += this.basePageHeights[i];
+      }
+      return top;
   }
 
   /**
    * Scroll to specific page
-   * @param {number} num - Page number
    */
   scrollToPage(num) {
     const main = document.getElementById('pdf-main');
     if (main) {
-        const top = (num - 1) * this.defaultPageHeight;
-        main.scrollTo({ top: top, behavior: 'auto' }); // Use auto for instant jump or smooth for animation
+        // Page top is at base scale, multiply by current scale for visual position
+        const top = this.getPageTop(num) * this.scale;
+        main.scrollTo({ top: top, behavior: 'auto' });
         
-        // Force update immediately
         this.updateVisiblePages();
         
         this.pageNum = num;
@@ -1462,81 +1591,7 @@ class PdfViewer {
    * Calculate initial scale to fit page in viewport
    */
   async calculateInitialScale() {
-    try {
-      const firstPage = await this.pdfDoc.getPage(1);
-      const viewport = firstPage.getViewport({ scale: 1.0, rotation: this.rotation });
-      
-      const main = document.getElementById('pdf-main');
-      if (!main) {
-        this.scale = 1.0;
-        return;
-      }
-      
-      // Get available space (accounting for padding and sidebar)
-      const availableWidth = main.clientWidth - 48; // 24px padding on each side
-      const availableHeight = main.clientHeight - 48;
-      
-      // Calculate scale to fit width or height
-      const scaleWidth = availableWidth / viewport.width;
-      const scaleHeight = availableHeight / viewport.height;
-      
-      // Use the smaller scale to ensure the page fits entirely
-      // But cap at 1.5 to avoid overly large pages
-      // And minimum of 0.3 to avoid too small
-      let optimalScale = Math.min(scaleWidth, scaleHeight);
-      optimalScale = Math.max(0.3, Math.min(1.5, optimalScale));
-      
-      // Round to 1 decimal place
-      this.scale = Math.round(optimalScale * 10) / 10;
-      
-      console.log(`PDF dimensions: ${viewport.width}x${viewport.height}, Available: ${availableWidth}x${availableHeight}, Scale: ${this.scale}`);
-    } catch (error) {
-      console.error('Error calculating scale:', error);
-      this.scale = 1.0;
-    }
-  }
-
-  /**
-   * Zoom in
-   */
-  onZoomIn() {
-    if (this.scale >= this.MAX_ZOOM) return;
-    this.scale = Math.round((this.scale + 0.1) * 10) / 10;
-    if (this.scale > this.MAX_ZOOM) this.scale = this.MAX_ZOOM;
-    this.applySmoothZoom();
-  }
-
-  /**
-   * Zoom out
-   */
-  onZoomOut() {
-    if (this.scale <= 0.2) return;
-    this.scale = Math.round((this.scale - 0.1) * 10) / 10;
-    this.applySmoothZoom();
-  }
-
-  /**
-   * Apply zoom without CSS transform to avoid glitches
-   * Simply debounce and re-render at new scale
-   */
-  applySmoothZoom() {
-      // Update UI immediately
-      if (this.elements.zoomLevel) {
-          this.elements.zoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
-      }
-      if (this.elements.editZoomLevel) {
-          this.elements.editZoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
-      }
-
-      // Mark that we're in a zoom operation
-      this.isZooming = true;
-      
-      // Debounce the actual render to avoid too many re-renders during rapid zoom
-      if (this.zoomTimeout) clearTimeout(this.zoomTimeout);
-      this.zoomTimeout = setTimeout(() => {
-          // Queue render - old canvases stay visible until new ones are ready
-          this.queueRender();
-      }, 100);
+    this.scale = 1.0;
   }
 
   /**
@@ -1544,54 +1599,164 @@ class PdfViewer {
    */
   rotate() {
     this.rotation = (this.rotation + 90) % 360;
+    
+    try {
+        this.renderThumbnails();
+    } catch (e) {
+        console.error('Error rendering thumbnails:', e);
+    }
+
+    this.pageRendering = false;
     this.queueRender();
   }
 
   /**
-   * Fit to width - scale PDF to fit the available width
+   * Fit to width - scales the PDF so the page width fills the available viewport width
    */
   async fitToWidth() {
     try {
-      const currentPage = await this.pdfDoc.getPage(this.pageNum);
-      const viewport = currentPage.getViewport({ scale: 1.0, rotation: this.rotation });
+      if (!this.pdfDoc) return;
       
       const main = document.getElementById('pdf-main');
       if (!main) return;
       
-      const availableWidth = main.clientWidth - 48; // accounting for padding
-      this.scale = Math.round((availableWidth / viewport.width) * 10) / 10;
-      this.scale = Math.max(0.2, Math.min(this.MAX_ZOOM, this.scale)); // Clamp between 0.2 and MAX_ZOOM
+      // Get page width - prefer cached value, fallback to fetching from PDF
+      let pageWidth = this.basePageWidths?.[this.pageNum] || this.basePageWidths?.[1];
       
-      this.queueRender();
+      // If not cached, get directly from PDF
+      if (!pageWidth) {
+          const page = await this.pdfDoc.getPage(this.pageNum);
+          const viewport = page.getViewport({ scale: 1.0, rotation: this.rotation });
+          pageWidth = viewport.width;
+      }
+      
+      if (!pageWidth) return;
+      
+      // Available width minus padding for scrollbar and margins
+      const availableWidth = main.clientWidth - 48;
+      
+      // Calculate scale: we want pageWidth * scale = availableWidth
+      let newScale = availableWidth / pageWidth;
+      
+      // Round to 1 decimal place for cleaner display
+      newScale = Math.round(newScale * 10) / 10;
+      
+      // Clamp to valid range
+      newScale = Math.max(PdfViewer.MIN_ZOOM, Math.min(PdfViewer.MAX_ZOOM, newScale));
+      
+      console.log(`[PDF] fitToWidth: pageWidth=${pageWidth}, availableWidth=${availableWidth}, newScale=${newScale}`);
+      
+      this.scale = newScale;
+      this.applyZoomTransform();
+      
+      // Center horizontally
+      // If the container is wider than the viewport (because of other wider pages),
+      // we need to scroll to center the current page.
+      // The container width is maxBaseWidth * scale.
+      // The current page is centered in the container.
+      // So we want to scroll to (containerWidth - viewportWidth) / 2.
+      
+      const maxBaseWidth = Math.max(...this.basePageWidths.slice(1));
+      const visualContainerWidth = maxBaseWidth * this.scale;
+      const viewportWidth = main.clientWidth;
+      
+      if (visualContainerWidth > viewportWidth) {
+          main.scrollLeft = (visualContainerWidth - viewportWidth) / 2;
+      } else {
+          main.scrollLeft = 0;
+      }
+      
+      this.elements.zoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
+      if (this.elements.editZoomLevel) {
+          this.elements.editZoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
+      }
     } catch (error) {
       console.error('Error fitting to width:', error);
     }
   }
 
   /**
-   * Fit to page - scale PDF to fit entirely in viewport
+   * Fit to page - scales the PDF so the entire page fits in the viewport
    */
   async fitToPage() {
     try {
-      const currentPage = await this.pdfDoc.getPage(this.pageNum);
-      const viewport = currentPage.getViewport({ scale: 1.0, rotation: this.rotation });
+      if (!this.pdfDoc) return;
       
       const main = document.getElementById('pdf-main');
       if (!main) return;
       
+      // Get page dimensions - prefer cached values, fallback to fetching from PDF
+      let pageWidth = this.basePageWidths?.[this.pageNum] || this.basePageWidths?.[1];
+      let pageHeight = this.basePageHeights?.[this.pageNum] || this.basePageHeights?.[1];
+      
+      // If not cached, get directly from PDF
+      if (!pageWidth || !pageHeight) {
+          const page = await this.pdfDoc.getPage(this.pageNum);
+          const viewport = page.getViewport({ scale: 1.0, rotation: this.rotation });
+          pageWidth = viewport.width;
+          pageHeight = viewport.height;
+      }
+      
+      if (!pageWidth || !pageHeight) return;
+      
+      // Available space minus padding
       const availableWidth = main.clientWidth - 48;
       const availableHeight = main.clientHeight - 48;
       
-      const scaleWidth = availableWidth / viewport.width;
-      const scaleHeight = availableHeight / viewport.height;
+      // Calculate scale for both dimensions
+      const scaleWidth = availableWidth / pageWidth;
+      const scaleHeight = availableHeight / pageHeight;
       
-      this.scale = Math.round(Math.min(scaleWidth, scaleHeight) * 10) / 10;
-      this.scale = Math.max(0.2, Math.min(this.MAX_ZOOM, this.scale));
+      // Use the smaller scale to ensure the entire page fits
+      let newScale = Math.min(scaleWidth, scaleHeight);
       
-      this.queueRender();
+      // Round to 1 decimal place
+      newScale = Math.round(newScale * 10) / 10;
+      
+      // Clamp to valid range
+      newScale = Math.max(PdfViewer.MIN_ZOOM, Math.min(PdfViewer.MAX_ZOOM, newScale));
+      
+      console.log(`[PDF] fitToPage: pageWidth=${pageWidth}, pageHeight=${pageHeight}, newScale=${newScale}`);
+      
+      this.scale = newScale;
+      this.applyZoomTransform();
+      
+      // Center horizontally
+      const maxBaseWidth = Math.max(...this.basePageWidths.slice(1));
+      const visualContainerWidth = maxBaseWidth * this.scale;
+      const viewportWidth = main.clientWidth;
+      
+      if (visualContainerWidth > viewportWidth) {
+          main.scrollLeft = (visualContainerWidth - viewportWidth) / 2;
+      } else {
+          main.scrollLeft = 0;
+      }
+      
+      // Center vertically on the current page
+      // We need to scroll to the top of the current page minus half the available vertical space
+      // But scrollToPage handles this better usually.
+      // For fitToPage, we usually want to see the whole page, so scrolling to the top of the page is best.
+      // However, if we just zoomed out to fit the page, we might want to center it vertically if there's space.
+      // applyZoomTransform handles vertical centering via marginTop if the content is smaller than viewport.
+      // If content is larger (multiple pages), we should scroll to the current page.
+      
+      this.scrollToPage(this.pageNum);
+      
+      this.elements.zoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
+      if (this.elements.editZoomLevel) {
+          this.elements.editZoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
+      }
     } catch (error) {
       console.error('Error fitting to page:', error);
     }
+  }
+
+  /**
+   * Handle window resize
+   */
+  onWindowResize() {
+      if (!this.isOpen) return;
+      this.applyZoomTransform();
   }
 
   /**
@@ -1599,12 +1764,17 @@ class PdfViewer {
    */
   async renderThumbnails() {
     const sidebar = this.elements.sidebar;
+    const scrollTop = sidebar.scrollTop;
+
     sidebar.innerHTML = '<div class="pdf-sidebar-content"></div>';
     const container = sidebar.querySelector('.pdf-sidebar-content');
     
     this.thumbnailWrappers = [];
 
-    // Create placeholders
+    const isLandscape = this.rotation % 180 === 90;
+    const placeholderWidth = 140;
+    const placeholderHeight = isLandscape ? 100 : 200;
+
     for (let num = 1; num <= this.pdfDoc.numPages; num++) {
       const wrapper = document.createElement('div');
       wrapper.className = 'pdf-thumbnail';
@@ -1612,19 +1782,15 @@ class PdfViewer {
       wrapper.dataset.pageNumber = num;
       wrapper.dataset.loaded = 'false';
       
-      // Click to scroll
       wrapper.addEventListener('click', () => {
         this.scrollToPage(num);
       });
 
-      // Canvas
       const canvas = document.createElement('canvas');
-      // Set a default size to avoid layout shift
-      canvas.width = 140;
-      canvas.height = 200; // Approx A4
+      canvas.width = placeholderWidth;
+      canvas.height = placeholderHeight;
       wrapper.appendChild(canvas);
       
-      // Page Number
       const label = document.createElement('div');
       label.className = 'pdf-thumbnail-number';
       label.textContent = num;
@@ -1635,6 +1801,10 @@ class PdfViewer {
     }
 
     this.setupThumbnailObserver();
+    
+    if (scrollTop > 0) {
+        sidebar.scrollTop = scrollTop;
+    }
   }
 
   /**
@@ -1649,7 +1819,7 @@ class PdfViewer {
       
       const options = {
           root: sidebar,
-          rootMargin: '100% 0px', // Render ahead
+          rootMargin: '100% 0px',
           threshold: 0
       };
 
@@ -1678,34 +1848,28 @@ class PdfViewer {
       try {
           const page = await this.pdfDoc.getPage(num);
           
-          // Calculate scale to match sidebar width (approx 140px + padding)
-          // We want crisp thumbnails, so we consider devicePixelRatio
           const dpr = window.devicePixelRatio || 1;
-          const targetWidth = 150; // Slightly larger than CSS width (140px)
-          // Use 2x super-sampling for sharp thumbnails
+          const targetWidth = 150;
           const qualityScale = 2.0;
           
-          // Get unscaled viewport to calculate required scale
-          const unscaledViewport = page.getViewport({ scale: 1.0 });
+          const unscaledViewport = page.getViewport({ scale: 1.0, rotation: this.rotation });
           const scale = (targetWidth / unscaledViewport.width) * dpr * qualityScale;
           
-          const viewport = page.getViewport({ scale: scale });
+          const viewport = page.getViewport({ scale: scale, rotation: this.rotation });
           
           const ctx = canvas.getContext('2d', { alpha: false });
           canvas.height = viewport.height;
           canvas.width = viewport.width;
           
-          // Set CSS size for proper downscaling
           canvas.style.width = `${viewport.width / (dpr * qualityScale)}px`;
           canvas.style.height = `${viewport.height / (dpr * qualityScale)}px`;
           
-          // Disable smoothing for crisp text
           ctx.imageSmoothingEnabled = false;
           
           await page.render({
               canvasContext: ctx,
               viewport: viewport,
-              intent: 'print' // Higher quality rendering
+              intent: 'print'
           }).promise;
           
           wrapper.dataset.loaded = 'true';
@@ -1715,22 +1879,18 @@ class PdfViewer {
   }
 
   /**
-   * Update active thumbnail based on current page
-   * @param {number} pageNum - Current page number
+   * Update active thumbnail
    */
   updateActiveThumbnail(pageNum) {
     if (!this.thumbnailWrappers) return;
 
-    // Remove active class from all
     this.thumbnailWrappers.forEach(wrapper => {
       if (wrapper) wrapper.classList.remove('active');
     });
     
-    // Add to current
     const current = this.thumbnailWrappers[pageNum];
     if (current) {
       current.classList.add('active');
-      // Scroll sidebar to keep thumbnail in view
       current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
   }

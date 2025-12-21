@@ -33,17 +33,20 @@ class FileHandler {
     this.maxFileSize = 2 * 1024 * 1024 * 1024; // 2GB limit
     this.supportedTypes = new Set([
       // Images
-      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 
+      'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
       'image/bmp', 'image/svg+xml', 'image/tiff', 'image/x-icon',
+      'image/heic', 'image/heif', 'image/avif', 'image/apng', 'image/pjpeg',
       // Videos
       'video/mp4', 'video/avi', 'video/quicktime', 'video/x-msvideo',
       'video/webm', 'video/ogg', 'video/x-matroska', 'video/3gpp',
       'video/mpeg', 'video/x-m4v', 'video/3gpp2', 'video/mp2t', 'video/x-f4v',
       'video/h264', 'video/h265', 'video/hevc', 'video/x-flv', 'video/x-divx', 'video/divx', 'video/vnd.avi',
       'video/quicktime', 'video/x-ms-wmv', 'video/x-ms-asf', 'video/x-matroska',
+      'video/x-ms-vob',
       // Audio
       'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/wave', 'audio/x-wav',
-      'audio/flac', 'audio/aac', 'audio/ogg', 'audio/webm', 'audio/x-m4a',
+      'audio/flac', 'audio/aac', 'audio/ogg', 'audio/webm', 'audio/x-m4a', 'audio/mp4',
+      'audio/opus', 'audio/midi', 'audio/x-midi', 'audio/x-ms-wma',
       // PDF
       'application/pdf'
     ]);
@@ -55,6 +58,46 @@ class FileHandler {
   async init() {
     this.loadFromStorage();
     this.setupEventListeners();
+  }
+
+  /**
+   * Load files from a directory handle
+   * @param {FileSystemDirectoryHandle} dirHandle - Directory handle
+   * @returns {Promise<Array>} Loaded files
+   */
+  async loadFromDirectory(dirHandle) {
+    const files = [];
+    
+    try {
+      for await (const entry of dirHandle.values()) {
+        if (entry.kind === 'file') {
+          try {
+            const file = await entry.getFile();
+            // Pass the handle to processFile so we can save back to it later
+            const result = await this.processFile(file, entry);
+            if (result) {
+              files.push(result);
+            }
+          } catch (e) {
+            console.warn('Error processing file entry:', entry.name, e);
+          }
+        }
+      }
+      
+      // Sort files by name by default to ensure consistent order
+      files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+      // Update internal state
+      this.files = files;
+      this.applyFilters();
+      this.saveToStorage();
+      
+      return files;
+    } catch (error) {
+      console.error('Error loading from directory:', error);
+      this.showToast('Erreur lors du chargement du dossier', 'error');
+      return [];
+    }
   }
 
   /**
@@ -214,7 +257,14 @@ class FileHandler {
       
       // Last resort check by extension
       const ext = GalleryUtils.getFileExtension(file.name);
-      const knownExtensions = ['mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', '3gp', 'mpg', 'mpeg', 'm4v', 'ts', 'mts', 'm2ts', 'vob', 'ogv', 'divx', 'xvid', 'hevc', 'h264', 'h265'];
+      const knownExtensions = [
+        // Video
+        'mp4', 'mkv', 'avi', 'mov', 'wmv', 'flv', 'webm', '3gp', '3g2', 'mpg', 'mpeg', 'm4v', 'ts', 'mts', 'm2ts', 'vob', 'ogv', 'divx', 'xvid', 'hevc', 'h264', 'h265',
+        // Audio
+        'mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'opus', 'wma', 'mid', 'midi', 'kar', 'm4b',
+        // Image
+        'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tiff', 'tif', 'ico', 'heic', 'heif', 'avif', 'jfif', 'pjpeg', 'pjp', 'apng', 'cur'
+      ];
       
       if (knownExtensions.includes(ext)) {
         console.log(`Allowing file based on extension: ${file.name} (${file.type})`);
@@ -931,6 +981,16 @@ class FileHandler {
 
     document.addEventListener('drop', async (e) => {
       e.preventDefault();
+
+      // Check if any viewer is open
+      const isViewerOpen = (window.fullscreenViewer && window.fullscreenViewer.isViewerOpen()) ||
+                           (window.pdfViewer && window.pdfViewer.isOpen) ||
+                           (window.audioPlayer && window.audioPlayer.elements && window.audioPlayer.elements.container && !window.audioPlayer.elements.container.classList.contains('hidden'));
+
+      if (isViewerOpen) {
+        console.log('Drop blocked because viewer is open');
+        return;
+      }
       
       // Try to get handles if supported
       const items = e.dataTransfer.items;
