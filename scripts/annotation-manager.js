@@ -125,7 +125,7 @@ class AnnotationManager {
       // Restore content if saved
       if (this.savedContent.has(id)) {
           const saved = this.savedContent.get(id);
-          const ctx = canvas.getContext('2d');
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
           // Ensure dimensions match (scale if needed?)
           // For now assume dimensions match or drawImage handles it
           ctx.drawImage(saved, 0, 0, canvas.width, canvas.height);
@@ -158,7 +158,7 @@ class AnnotationManager {
       const tempCanvas = document.createElement('canvas');
       tempCanvas.width = page.canvas.width;
       tempCanvas.height = page.canvas.height;
-      tempCanvas.getContext('2d').drawImage(page.canvas, 0, 0);
+      tempCanvas.getContext('2d', { willReadFrequently: true }).drawImage(page.canvas, 0, 0);
       this.savedContent.set(id, tempCanvas);
       
       // Save text wrappers
@@ -778,7 +778,7 @@ class AnnotationManager {
           // Helper to get context (active or saved)
           const getCtx = (pid) => {
               if (this.pages.has(pid)) return this.pages.get(pid).ctx;
-              if (this.savedContent.has(pid)) return this.savedContent.get(pid).getContext('2d');
+              if (this.savedContent.has(pid)) return this.savedContent.get(pid).getContext('2d', { willReadFrequently: true });
               return null;
           };
           
@@ -813,7 +813,7 @@ class AnnotationManager {
           
           const getCtx = (pid) => {
               if (this.pages.has(pid)) return this.pages.get(pid).ctx;
-              if (this.savedContent.has(pid)) return this.savedContent.get(pid).getContext('2d');
+              if (this.savedContent.has(pid)) return this.savedContent.get(pid).getContext('2d', { willReadFrequently: true });
               return null;
           };
           
@@ -1501,7 +1501,7 @@ class AnnotationManager {
           const tempCanvas = document.createElement('canvas');
           tempCanvas.width = page.canvas.width;
           tempCanvas.height = page.canvas.height;
-          tempCanvas.getContext('2d').drawImage(page.canvas, 0, 0);
+          tempCanvas.getContext('2d', { willReadFrequently: true }).drawImage(page.canvas, 0, 0);
           this.savedContent.set(id, tempCanvas);
       });
       
