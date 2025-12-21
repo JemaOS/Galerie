@@ -483,7 +483,11 @@ class FullscreenViewer {
                       // Restore properties UI if it was overwritten (e.g. by Adjust tool)
                       this.annotationManager.renderProperties(this.elements.propertiesContainer);
                   } else {
-                      this.annotationManager.start(this.elements.media, img, {
+                      this.annotationManager.start([{
+                          container: this.elements.media,
+                          target: img,
+                          id: 'main'
+                      }], null, {
                           propertiesContainer: this.elements.propertiesContainer,
                           onAction: () => {
                               this.addToHistory({
@@ -814,7 +818,11 @@ class FullscreenViewer {
                         if (this.isEditMode) {
                             // Re-initialize annotation manager
                             if (this.annotationManager) {
-                                this.annotationManager.start(this.elements.media, newImg, {
+                                this.annotationManager.start([{
+                                    container: this.elements.media,
+                                    target: newImg,
+                                    id: 'main'
+                                }], null, {
                                     propertiesContainer: this.elements.propertiesContainer,
                                     onAction: () => {
                                         this.addToHistory({

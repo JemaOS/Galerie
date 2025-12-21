@@ -525,7 +525,8 @@ class PdfViewer {
                 if (canvas) {
                   targets.push({
                     container: wrapper,
-                    target: canvas
+                    target: canvas,
+                    id: parseInt(wrapper.dataset.pageNumber)
                   });
                 }
               }
@@ -1362,6 +1363,10 @@ class PdfViewer {
           wrapper.dataset.loaded = 'true';
           delete wrapper.dataset.rendering;
           
+          if (this.isEditMode && this.annotationManager) {
+              this.annotationManager.addPage(num, wrapper, canvas);
+          }
+
       } catch (error) {
           if (error.name !== 'RenderingCancelledException') {
               console.error(`Error rendering page ${num}:`, error);
@@ -1376,6 +1381,10 @@ class PdfViewer {
    */
   unloadPageContent(wrapper) {
       const num = parseInt(wrapper.dataset.pageNumber);
+
+      if (this.isEditMode && this.annotationManager) {
+          this.annotationManager.removePage(num);
+      }
 
       if (this.activeRenderTasks.has(num)) {
           try {
