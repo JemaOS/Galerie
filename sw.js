@@ -16,7 +16,7 @@
  */
 
 // Service Worker for JemaOS Gallery PWA
-const CACHE_NAME = 'jemaos-gallery-v1.0.0';
+const CACHE_NAME = 'jemaos-gallery-v1.1.7';
 const urlsToCache = [
   './',
   './index.html',
@@ -25,6 +25,7 @@ const urlsToCache = [
   './styles/fullscreen.css',
   './styles/responsive.css',
   './styles/pdf-viewer.css',
+  './styles/pdf-text-editor.css',
   './styles/audio-player.css',
   './styles/video-player.css',
   './styles/annotation.css',
@@ -34,6 +35,7 @@ const urlsToCache = [
   './scripts/ui-controller.js',
   './scripts/fullscreen-viewer.js',
   './scripts/pdf-viewer.js',
+  './scripts/pdf-text-editor.js',
   './scripts/audio-player.js',
   './scripts/video-player.js',
   './scripts/annotation-manager.js',
@@ -58,7 +60,7 @@ self.addEventListener('install', event => {
       })
       .then(() => {
         console.log('[SW] App shell cached successfully');
-        return self.skipWaiting();
+        // return self.skipWaiting(); // Wait for user to confirm update
       })
       .catch(error => {
         console.error('[SW] Failed to cache app shell:', error);

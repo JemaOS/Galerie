@@ -1,4 +1,4 @@
-/* PDF Text Editor Styles */
+/* PDF Text Editor Styles - Adobe Acrobat DC Level Precision */
 
 .pdf-text-layer {
     position: absolute;
@@ -11,33 +11,92 @@
     line-height: 1.0;
     pointer-events: none; /* Allow clicks to pass through to canvas unless on text */
     z-index: 10;
+    /* Prevent text selection artifacts */
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 .pdf-text-item {
     position: absolute;
-    transform-origin: 0% 0%;
-    white-space: pre;
+    transform-origin: left bottom;
+    white-space: nowrap;
     cursor: text;
     pointer-events: auto;
     color: transparent; /* Hide text initially, show on hover/edit */
-    border: 1px solid transparent;
+    /* Use outline instead of border to avoid layout shift */
+    border: none;
+    outline: none;
     box-sizing: border-box;
-    transition: background-color 0.2s, border-color 0.2s;
+    transition: background-color 0.15s ease, outline-color 0.15s ease, box-shadow 0.15s ease;
+    /* Improve text rendering */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    /* Ensure text fits within bounds */
+    overflow: visible;
+    text-overflow: clip;
+    /* Padding for better click target */
+    padding: 0;
+    margin: 0;
 }
 
 .pdf-text-item:hover {
     background-color: rgba(101, 105, 208, 0.1);
-    border-color: rgba(101, 105, 208, 0.3);
+    outline: 1px solid rgba(101, 105, 208, 0.4);
+    outline-offset: 0px;
+    /* Show text on hover for preview */
+    color: inherit;
+}
+
+.pdf-text-item[data-is-bold="true"] {
+    /* Use inline style for precise weight (e.g. 600 vs 700) */
+    /* font-weight: bold !important; - Removed to allow specific weights */
 }
 
 .pdf-text-item.editing {
-    color: black; /* Or original color */
-    background-color: white;
-    border: 1px solid #6569d0;
-    outline: none;
+    /* Color will be set dynamically based on detected text color */
+    /* Use outline instead of border to avoid layout shift */
+    border: none !important;
+    outline: 2px solid #6569d0;
+    outline-offset: 0px;
+    border-radius: 2px;
     z-index: 20;
-    min-width: 10px;
+    min-width: 20px;
     overflow: visible;
+    white-space: pre;
+    box-shadow: 0 2px 8px rgba(101, 105, 208, 0.3);
+    /* Enable text selection when editing */
+    -webkit-user-select: text;
+    user-select: text;
+    /* Smooth caret */
+    caret-color: #6569d0;
+    /* Allow text to expand when editing */
+    width: auto !important;
+    min-height: 1em;
+}
+
+/* Defensive styles to prevent unwanted markers */
+.pdf-text-item::before,
+.pdf-text-item::after,
+.pdf-text-item.editing::before,
+.pdf-text-item.editing::after {
+    content: none !important;
+    display: none !important;
+    border: none !important;
+    background: none !important;
+}
+
+.pdf-text-item.modified {
+    /* Visual indicator for modified text */
+    /* border-left removed as requested */
+    width: auto !important;
+}
+
+.pdf-text-item.modified:not(.editing) {
+    /* Show modified text with subtle highlight */
+    /* background-color removed to avoid green tint */
+    /* Show the modified text */
+    color: inherit;
 }
 
 /* Ensure the text editor indicator is visible */
