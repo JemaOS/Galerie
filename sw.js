@@ -16,7 +16,7 @@
  */
 
 // Service Worker for JemaOS Gallery PWA
-const CACHE_NAME = 'jemaos-gallery-v1.2.15';
+const CACHE_NAME = 'jemaos-gallery-v1.2.17';
 const urlsToCache = [
   './',
   './index.html',

@@ -122,17 +122,11 @@ class AnnotationManager {
       
       const canvas = this.createCanvas(container, target);
       
-      // Restore content if saved
-      if (this.savedContent.has(id)) {
-          const saved = this.savedContent.get(id);
-          const ctx = canvas.getContext('2d', { willReadFrequently: true });
-          // Ensure dimensions match (scale if needed?)
-          // For now assume dimensions match or drawImage handles it
-          ctx.drawImage(saved, 0, 0, canvas.width, canvas.height);
-      }
-      
       const page = { canvas, ctx: canvas.getContext('2d', { willReadFrequently: true }), id, container };
       this.pages.set(id, page);
+      
+      // Replay history
+      this.redrawPage(id);
       
       // Attach listeners to canvas
       this.attachCanvasListeners(canvas);
@@ -154,13 +148,9 @@ class AnnotationManager {
       
       const page = this.pages.get(id);
       
-      // Save canvas content
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = page.canvas.width;
-      tempCanvas.height = page.canvas.height;
-      tempCanvas.getContext('2d', { willReadFrequently: true }).drawImage(page.canvas, 0, 0);
-      this.savedContent.set(id, tempCanvas);
-      
+      // Detach listeners
+      this.detachCanvasListeners(page.canvas);
+
       // Save text wrappers
       const pageTexts = this.textWrappers.filter(w => w.parentElement === page.container);
       const textStates = pageTexts.map(w => this.serializeTextWrapper(w));
@@ -544,6 +534,15 @@ class AnnotationManager {
     canvas.addEventListener('pointerleave', this.handlePointerLeave);
   }
 
+  detachCanvasListeners(canvas) {
+    canvas.removeEventListener('pointerdown', this.handlePointerDown);
+    canvas.removeEventListener('pointermove', this.handlePointerMove);
+    canvas.removeEventListener('pointerup', this.handlePointerUp);
+    canvas.removeEventListener('pointerout', this.handlePointerUp);
+    canvas.removeEventListener('pointerenter', this.handlePointerEnter);
+    canvas.removeEventListener('pointerleave', this.handlePointerLeave);
+  }
+
   handleDocumentMouseDown(e) {
       if (!this.isActive) return;
       if (e.target.closest('.text-input-wrapper')) return;
@@ -653,14 +652,31 @@ class AnnotationManager {
         return;
     }
     
-    this.tempState = this.ctx.getImageData(0, 0, this.activeCanvas.width, this.activeCanvas.height);
+    // this.tempState = this.ctx.getImageData(0, 0, this.activeCanvas.width, this.activeCanvas.height); // No longer needed
     this.isDrawing = true;
+    
+    // Setup context for drawing
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
+    
+    if (this.currentTool === 'eraser') {
+      this.ctx.globalCompositeOperation = 'destination-out';
+      this.ctx.strokeStyle = 'rgba(0,0,0,1)';
+    } else if (this.currentTool === 'marker') {
+      this.ctx.globalCompositeOperation = 'multiply';
+      this.ctx.strokeStyle = this.hexToRgba(this.currentColor, 0.5);
+      this.ctx.lineWidth = this.currentSize * 2;
+    } else {
+      this.ctx.globalCompositeOperation = 'source-over';
+      this.ctx.strokeStyle = this.currentColor;
+    }
+
     this.ctx.beginPath();
     this.ctx.moveTo(this.lastPoint.x, this.lastPoint.y);
     this.draw(this.lastPoint);
-    this.points = [];
+    
+    this.strokePoints = [this.lastPoint]; // Store full stroke
+    this.pendingPoints = []; // For render loop
     this.renderLoop();
   }
 
@@ -694,18 +710,20 @@ class AnnotationManager {
     events.forEach(event => {
         const x = (event.clientX - this.canvasRect.left - this.offsetX) * this.scaleX;
         const y = (event.clientY - this.canvasRect.top - this.offsetY) * this.scaleY;
-        this.points.push({ x, y, pressure: event.pressure || 0.5 });
+        const point = { x, y, pressure: event.pressure || 0.5 };
+        this.strokePoints.push(point);
+        this.pendingPoints.push(point);
     });
   }
 
   renderLoop() {
     if (!this.isDrawing) return;
-    if (this.points.length > 0) {
-        for (const point of this.points) {
+    if (this.pendingPoints.length > 0) {
+        for (const point of this.pendingPoints) {
             this.draw(point);
             this.lastPoint = point;
         }
-        this.points = [];
+        this.pendingPoints = [];
     }
     requestAnimationFrame(this.renderLoop);
   }
@@ -731,16 +749,16 @@ class AnnotationManager {
 
     if (this.isDrawing) {
         this.isDrawing = false;
-        if (this.points && this.points.length > 0) {
-            for (const point of this.points) {
+        if (this.pendingPoints && this.pendingPoints.length > 0) {
+            for (const point of this.pendingPoints) {
                 this.draw(point);
                 this.lastPoint = point;
             }
-            this.points = [];
+            this.pendingPoints = [];
         }
         if (this.ctx) {
             this.ctx.closePath();
-            const newState = this.ctx.getImageData(0, 0, this.activeCanvas.width, this.activeCanvas.height);
+            
             // Find pageId
             let pageId = null;
             for (const [id, page] of this.pages) {
@@ -751,11 +769,16 @@ class AnnotationManager {
             }
             if (pageId) {
                 this.addAction({
+                    type: 'drawing',
                     pageId: pageId,
-                    before: this.tempState,
-                    after: newState
+                    tool: this.currentTool,
+                    color: this.currentColor,
+                    size: this.currentSize,
+                    points: this.strokePoints,
+                    scale: this.scaleX || 1
                 });
             }
+            this.strokePoints = [];
         }
     }
   }
@@ -775,31 +798,25 @@ class AnnotationManager {
           const action = this.history[this.historyStep];
           const pageId = action.pageId;
           
-          // Helper to get context (active or saved)
-          const getCtx = (pid) => {
-              if (this.pages.has(pid)) return this.pages.get(pid).ctx;
-              if (this.savedContent.has(pid)) return this.savedContent.get(pid).getContext('2d', { willReadFrequently: true });
-              return null;
-          };
-          
-          const ctx = getCtx(pageId);
-
           if (!action.type || action.type === 'drawing') {
-              if (ctx) ctx.putImageData(action.before, 0, 0);
-          } else if (action.type === 'text-add') {
-              const wrapper = this.textWrappers.find(w => w.id === action.id);
-              if (wrapper) this.removeTextWrapper(wrapper);
-          } else if (action.type === 'text-remove') {
-              // Need page container to restore
-              if (this.pages.has(pageId)) {
-                  this.restoreTextWrapper(action.state, this.pages.get(pageId));
+              this.historyStep--;
+              this.redrawPage(pageId);
+          } else {
+              if (action.type === 'text-add') {
+                  const wrapper = this.textWrappers.find(w => w.id === action.id);
+                  if (wrapper) this.removeTextWrapper(wrapper);
+              } else if (action.type === 'text-remove') {
+                  // Need page container to restore
+                  if (this.pages.has(pageId)) {
+                      this.restoreTextWrapper(action.state, this.pages.get(pageId));
+                  }
+              } else if (action.type === 'text-modify') {
+                  const wrapper = this.textWrappers.find(w => w.id === action.id);
+                  if (wrapper) this.applyTextState(wrapper, action.before);
               }
-          } else if (action.type === 'text-modify') {
-              const wrapper = this.textWrappers.find(w => w.id === action.id);
-              if (wrapper) this.applyTextState(wrapper, action.before);
+              this.historyStep--;
           }
           
-          this.historyStep--;
           this.isRestoring = false;
       }
   }
@@ -811,26 +828,20 @@ class AnnotationManager {
           const action = this.history[this.historyStep];
           const pageId = action.pageId;
           
-          const getCtx = (pid) => {
-              if (this.pages.has(pid)) return this.pages.get(pid).ctx;
-              if (this.savedContent.has(pid)) return this.savedContent.get(pid).getContext('2d', { willReadFrequently: true });
-              return null;
-          };
-          
-          const ctx = getCtx(pageId);
-
           if (!action.type || action.type === 'drawing') {
-              if (ctx) ctx.putImageData(action.after, 0, 0);
-          } else if (action.type === 'text-add') {
-              if (this.pages.has(pageId)) {
-                  this.restoreTextWrapper(action.state, this.pages.get(pageId));
+              this.redrawPage(pageId);
+          } else {
+              if (action.type === 'text-add') {
+                  if (this.pages.has(pageId)) {
+                      this.restoreTextWrapper(action.state, this.pages.get(pageId));
+                  }
+              } else if (action.type === 'text-remove') {
+                  const wrapper = this.textWrappers.find(w => w.id === action.id);
+                  if (wrapper) this.removeTextWrapper(wrapper);
+              } else if (action.type === 'text-modify') {
+                  const wrapper = this.textWrappers.find(w => w.id === action.id);
+                  if (wrapper) this.applyTextState(wrapper, action.after);
               }
-          } else if (action.type === 'text-remove') {
-              const wrapper = this.textWrappers.find(w => w.id === action.id);
-              if (wrapper) this.removeTextWrapper(wrapper);
-          } else if (action.type === 'text-modify') {
-              const wrapper = this.textWrappers.find(w => w.id === action.id);
-              if (wrapper) this.applyTextState(wrapper, action.after);
           }
           
           this.isRestoring = false;
@@ -1340,19 +1351,12 @@ class AnnotationManager {
   draw(point) {
     if (!this.ctx) return;
     const scale = this.scaleX || 1;
-    this.ctx.lineWidth = this.currentSize * (point.pressure * 2) * scale;
-    if (this.ctx.lineWidth < 1) this.ctx.lineWidth = 1;
-    if (this.currentTool === 'eraser') {
-      this.ctx.globalCompositeOperation = 'destination-out';
-      this.ctx.strokeStyle = 'rgba(0,0,0,1)';
-    } else if (this.currentTool === 'marker') {
-      this.ctx.globalCompositeOperation = 'multiply';
-      this.ctx.strokeStyle = this.hexToRgba(this.currentColor, 0.5);
-      this.ctx.lineWidth = this.currentSize * 2;
-    } else {
-      this.ctx.globalCompositeOperation = 'source-over';
-      this.ctx.strokeStyle = this.currentColor;
+    
+    if (this.currentTool !== 'marker') {
+        this.ctx.lineWidth = this.currentSize * (point.pressure * 2) * scale;
+        if (this.ctx.lineWidth < 1) this.ctx.lineWidth = 1;
     }
+    
     this.ctx.lineTo(point.x, point.y);
     this.ctx.stroke();
     this.ctx.beginPath();
@@ -1529,6 +1533,77 @@ class AnnotationManager {
 
   restore(state) {
       // Not implemented for full persistence yet, relies on savedContent/savedText
+  }
+
+  drawStroke(ctx, points, color, size, tool, scale = 1) {
+      if (!points || points.length === 0) return;
+      
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      
+      if (tool === 'eraser') {
+          ctx.globalCompositeOperation = 'destination-out';
+          ctx.strokeStyle = 'rgba(0,0,0,1)';
+      } else if (tool === 'marker') {
+          ctx.globalCompositeOperation = 'multiply';
+          ctx.strokeStyle = this.hexToRgba(color, 0.5);
+      } else {
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.strokeStyle = color;
+      }
+      
+      let lastPoint = points[0];
+      
+      // Draw first point (dot)
+      ctx.beginPath();
+      ctx.moveTo(lastPoint.x, lastPoint.y);
+      ctx.lineTo(lastPoint.x, lastPoint.y);
+      
+      if (tool === 'marker') {
+          ctx.lineWidth = size * 2;
+      } else {
+          ctx.lineWidth = size * (lastPoint.pressure * 2) * scale;
+          if (ctx.lineWidth < 1) ctx.lineWidth = 1;
+      }
+      ctx.stroke();
+      
+      // Draw rest
+      for (let i = 1; i < points.length; i++) {
+          const point = points[i];
+          
+          ctx.beginPath();
+          ctx.moveTo(lastPoint.x, lastPoint.y);
+          ctx.lineTo(point.x, point.y);
+          
+          if (tool === 'marker') {
+              ctx.lineWidth = size * 2;
+          } else {
+              ctx.lineWidth = size * (point.pressure * 2) * scale;
+              if (ctx.lineWidth < 1) ctx.lineWidth = 1;
+          }
+          
+          ctx.stroke();
+          lastPoint = point;
+      }
+      
+      ctx.restore();
+  }
+
+  redrawPage(pageId) {
+      const page = this.pages.get(pageId);
+      if (!page) return;
+      
+      const ctx = page.ctx;
+      ctx.clearRect(0, 0, page.canvas.width, page.canvas.height);
+      
+      // Replay history
+      for (let i = 0; i <= this.historyStep; i++) {
+          const action = this.history[i];
+          if (action.pageId === pageId && (!action.type || action.type === 'drawing')) {
+              this.drawStroke(ctx, action.points, action.color, action.size, action.tool, action.scale);
+          }
+      }
   }
   
   clear() {
