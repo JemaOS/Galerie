@@ -122,7 +122,7 @@ class AnnotationManager {
       
       const canvas = this.createCanvas(container, target);
       
-      const page = { canvas, ctx: canvas.getContext('2d', { willReadFrequently: true }), id, container };
+      const page = { canvas, ctx: canvas.getContext('2d'), id, container };
       this.pages.set(id, page);
       
       // Replay history
