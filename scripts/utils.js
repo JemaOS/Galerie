@@ -526,7 +526,12 @@ class GalleryUtils {
       }
       return true;
     } catch (error) {
-      console.error('Failed to enter fullscreen:', error);
+      // Ignore permission errors which can happen if not triggered by user interaction
+      if (error.name === 'NotAllowedError' || error.message.includes('Permissions check failed')) {
+        console.warn('Fullscreen request denied (likely due to lack of user interaction):', error);
+      } else {
+        console.error('Failed to enter fullscreen:', error);
+      }
       return false;
     }
   }

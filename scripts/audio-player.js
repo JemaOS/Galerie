@@ -223,19 +223,29 @@ class AudioPlayer {
      * Play audio
      */
     play() {
-        this.audio.play()
-            .then(() => {
-                this.isPlaying = true;
-                this.updatePlayPauseIcon();
-            })
-            .catch(err => console.error('Playback failed:', err));
+        const playPromise = this.audio.play();
+        
+        if (playPromise !== undefined) {
+            playPromise
+                .then(() => {
+                    this.isPlaying = true;
+                    this.updatePlayPauseIcon();
+                })
+                .catch(err => {
+                    if (err.name !== 'AbortError') {
+                        console.error('Playback failed:', err);
+                    }
+                });
+        }
     }
 
     /**
      * Pause audio
      */
     pause() {
-        this.audio.pause();
+        if (!this.audio.paused) {
+            this.audio.pause();
+        }
         this.isPlaying = false;
         this.updatePlayPauseIcon();
     }

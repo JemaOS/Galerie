@@ -327,11 +327,22 @@ class VideoPlayer {
     }
 
     play() {
-        this.video.play();
+        const playPromise = this.video.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                // Ignore AbortError which happens when pause() is called before play() finishes
+                if (error.name !== 'AbortError') {
+                    console.warn('Video playback prevented:', error);
+                }
+            });
+        }
     }
 
     pause() {
-        this.video.pause();
+        // Only pause if not already paused to avoid unnecessary events
+        if (!this.video.paused) {
+            this.video.pause();
+        }
     }
 
     togglePlayPause() {
