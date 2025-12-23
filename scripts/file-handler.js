@@ -30,7 +30,7 @@ class FileHandler {
     this.currentSort = { field: 'name', order: 'asc' };
     this.searchQuery = '';
     this.thumbnails = new Map(); // Cache for thumbnails
-    this.maxFileSize = 2 * 1024 * 1024 * 1024; // 2GB limit
+    this.maxFileSize = Infinity; // No file size limit - browser handles large files via streaming
     this.supportedTypes = new Set([
       // Images
       'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp',
