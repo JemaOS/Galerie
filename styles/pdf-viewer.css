@@ -130,26 +130,61 @@
 .pdf-page-nav {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
     font-size: 13px;
     color: var(--on-surface-variant);
     background-color: var(--background-variant);
-    padding: 4px 8px;
-    border-radius: 4px;
+    padding: 4px;
+    border-radius: 20px; /* Pill shape */
+    border: 1px solid var(--border-color);
+}
+
+.pdf-nav-btn {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: none;
+    color: var(--on-surface-variant);
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+    padding: 0;
+}
+
+.pdf-nav-btn:hover {
+    background-color: var(--surface-variant);
+    color: var(--on-surface);
+}
+
+.pdf-nav-btn i {
+    font-size: 18px;
 }
 
 #pdf-page-num {
-    width: 30px;
+    width: 40px;
     border: none;
-    background: none;
-    text-align: right;
+    background: transparent;
+    text-align: center;
     font-size: 13px;
     color: var(--on-surface);
     font-weight: 500;
+    padding: 2px 0;
+    -moz-appearance: textfield; /* Firefox */
+}
+
+#pdf-page-num::-webkit-outer-spin-button,
+#pdf-page-num::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 #pdf-page-num:focus {
     outline: none;
+    background-color: var(--surface-variant);
+    border-radius: 4px;
 }
 
 /* Main Container */

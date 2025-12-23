@@ -114,6 +114,8 @@ class PdfViewer {
       container: document.getElementById('pdf-canvas-container'),
       filename: document.getElementById('pdf-filename'),
       pageNum: document.getElementById('pdf-page-num'),
+      prevPageBtn: document.getElementById('pdf-prev-page'),
+      nextPageBtn: document.getElementById('pdf-next-page'),
       pageCount: document.getElementById('pdf-page-count'),
       zoomLevel: document.getElementById('pdf-zoom-level'),
       
@@ -218,6 +220,14 @@ class PdfViewer {
         this.elements.pageNum.value = this.pageNum;
       }
     });
+
+    if (this.elements.prevPageBtn) {
+        this.elements.prevPageBtn.addEventListener('click', () => this.onPrevPage());
+    }
+
+    if (this.elements.nextPageBtn) {
+        this.elements.nextPageBtn.addEventListener('click', () => this.onNextPage());
+    }
 
     // Window resize
     window.addEventListener('resize', () => {
