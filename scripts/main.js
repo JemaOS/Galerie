@@ -67,29 +67,6 @@ class JemaOSGallery {
       
       console.log('✅ JemaOS Gallery initialized successfully');
       
-      // Show welcome message only if no files are loaded initially
-      // This prevents the welcome toast from appearing when opening a file directly
-      if (this.fileHandler.files.length === 0) {
-        this.showWelcomeMessage();
-        // Show empty state if no files
-        const emptyState = document.getElementById('empty-state');
-        if (emptyState) {
-            emptyState.classList.remove('hidden');
-            const topBar = emptyState.querySelector('.landing-top-bar');
-            const header = emptyState.querySelector('.landing-header');
-            const grid = emptyState.querySelector('.landing-grid');
-            if (topBar) topBar.style.display = '';
-            if (header) header.style.display = '';
-            if (grid) grid.style.display = '';
-        }
-      } else {
-        // If files are loaded, ensure empty state is hidden
-        const emptyState = document.getElementById('empty-state');
-        if (emptyState) {
-            emptyState.classList.add('hidden');
-        }
-      }
-      
     } catch (error) {
       console.error('❌ Failed to initialize JemaOS Gallery:', error);
       this.showError('Échec de l\'initialisation de la galerie. Veuillez rafraîchir la page.');
@@ -336,20 +313,6 @@ class JemaOSGallery {
     if (loadingScreen && app) {
       loadingScreen.classList.toggle('hidden', !show);
       app.classList.toggle('hidden', show);
-    }
-  }
-
-  /**
-   * Show welcome message
-   */
-  showWelcomeMessage() {
-    const hasUsedBefore = localStorage.getItem('gallery-welcome-shown');
-    
-    if (!hasUsedBefore) {
-      setTimeout(() => {
-        this.uiController.showToast('Bienvenue dans Galerie ! Ajoutez des fichiers pour commencer.', 'info', 5000);
-        localStorage.setItem('gallery-welcome-shown', 'true');
-      }, 1000);
     }
   }
 

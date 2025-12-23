@@ -82,29 +82,6 @@
       "purpose": "maskable"
     }
   ],
-  "screenshots": [
-    {
-      "src": "screenshots/desktop-wide.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Galerie desktop view with media grid"
-    },
-    {
-      "src": "screenshots/desktop-pdf.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "PDF viewer with annotations"
-    },
-    {
-      "src": "screenshots/mobile-narrow.png",
-      "sizes": "540x720",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Galerie mobile view"
-    }
-  ],
   "file_handlers": [
     {
       "action": "./",

@@ -70,14 +70,6 @@ class UIController {
       // Main content
       fileGrid: document.getElementById('file-grid'),
       dropZone: document.getElementById('drop-zone'),
-      emptyState: document.getElementById('empty-state'),
-      
-      // Landing page buttons
-      landingOpenBtn: document.getElementById('landing-open-btn'),
-      cardImages: document.getElementById('card-images'),
-      cardPdf: document.getElementById('card-pdf'),
-      cardVideo: document.getElementById('card-video'),
-      cardAudio: document.getElementById('card-audio'),
       
       // File input
       fileInput: document.getElementById('file-input'),
@@ -121,27 +113,6 @@ class UIController {
 
     // File input
     this.elements.fileInput.addEventListener('change', this.handleFileSelect.bind(this));
-    
-    // Landing page buttons
-    if (this.elements.landingOpenBtn) {
-      this.elements.landingOpenBtn.addEventListener('click', () => this.triggerFileInput('all'));
-    }
-    
-    if (this.elements.cardImages) {
-      this.elements.cardImages.addEventListener('click', () => this.triggerFileInput('image'));
-    }
-    
-    if (this.elements.cardPdf) {
-      this.elements.cardPdf.addEventListener('click', () => this.triggerFileInput('pdf'));
-    }
-    
-    if (this.elements.cardVideo) {
-      this.elements.cardVideo.addEventListener('click', () => this.triggerFileInput('video'));
-    }
-    
-    if (this.elements.cardAudio) {
-      this.elements.cardAudio.addEventListener('click', () => this.triggerFileInput('audio'));
-    }
     
     // Drag and drop
     this.setupDragDrop();
@@ -305,15 +276,6 @@ class UIController {
    * Render files in the grid
    */
   renderFiles() {
-    // Home page and grid are disabled as per request
-    // But we need to show the empty state if no files are loaded so the user can open a file
-    if (this.fileHandler.files.length === 0) {
-      this.elements.emptyState.classList.remove('hidden');
-      this.elements.emptyState.style.display = 'flex';
-    } else {
-      this.elements.emptyState.classList.add('hidden');
-      this.elements.emptyState.style.display = 'none';
-    }
     this.elements.fileGrid.style.display = 'none';
     
     // If we have files but no viewer is open, open the first file immediately
