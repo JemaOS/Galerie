@@ -15,6 +15,11 @@ async function generateIcons() {
       input: 'icons/icon-512x512.svg',
       output: 'icons/icon-512x512.png',
       size: 512
+    },
+    {
+      input: 'icons/icon.svg',
+      output: 'icons/icon-256x256.png',
+      size: 256
     }
   ];
 
