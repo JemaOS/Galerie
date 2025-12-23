@@ -75,6 +75,13 @@ class PdfViewer {
     this.activeRenderTasks = new Map();
     this.activeThumbnailRenderTasks = new Map();
     
+    // Optimization: Track loaded pages for memory cleanup
+    this.loadedPages = new Map();
+    
+    // Optimization: Render queue
+    this.renderQueue = new Set();
+    this.isProcessingQueue = false;
+
     // Page dimensions at scale=1.0 (base dimensions)
     this.basePageHeights = [];
     this.basePageWidths = [];
@@ -1061,6 +1068,11 @@ class PdfViewer {
           });
           this.activeRenderTasks.clear();
       }
+      
+      // Clear pending queue
+      if (this.renderQueue) {
+          this.renderQueue.clear();
+      }
   }
 
   /**
@@ -1409,6 +1421,11 @@ class PdfViewer {
       try {
           const page = await this.pdfDoc.getPage(num);
           
+          // Store page proxy for cleanup
+          if (this.loadedPages) {
+              this.loadedPages.set(num, page);
+          }
+          
           let viewport = page.getViewport({ scale: renderScale, rotation: this.rotation });
           
           // Double check dimensions with actual viewport (in case cached dims were wrong)
@@ -1606,6 +1623,17 @@ class PdfViewer {
           this.activeRenderTasks.delete(num);
       }
       
+      // Cleanup PDF page resources
+      if (this.loadedPages && this.loadedPages.has(num)) {
+          try {
+              const page = this.loadedPages.get(num);
+              page.cleanup();
+              this.loadedPages.delete(num);
+          } catch (e) {
+              console.warn(`Error cleaning up page ${num}:`, e);
+          }
+      }
+      
       delete wrapper.dataset.rendering;
 
       const allCanvases = wrapper.querySelectorAll('canvas');
@@ -1702,6 +1730,73 @@ class PdfViewer {
   }
 
   /**
+   * Process the render queue sequentially
+   * Prioritizes pages closest to the center of the viewport
+   */
+  async processRenderQueue() {
+      if (this.isProcessingQueue) return;
+      this.isProcessingQueue = true;
+
+      const main = document.getElementById('pdf-main');
+      if (!main) {
+          this.isProcessingQueue = false;
+          return;
+      }
+
+      try {
+          while (this.renderQueue.size > 0) {
+              // If fast scrolling started, stop processing
+              if (this.isFastScrolling) {
+                  this.renderQueue.clear();
+                  break;
+              }
+
+              // Calculate center point for prioritization
+              const scrollTop = main.scrollTop / this.scale;
+              const clientHeight = main.clientHeight / this.scale;
+              const centerPoint = scrollTop + (clientHeight / 2);
+
+              // Convert Set to Array for sorting
+              const queueArray = Array.from(this.renderQueue);
+              
+              // Sort by distance to center
+              queueArray.sort((a, b) => {
+                  const topA = this.getPageTop(a);
+                  const topB = this.getPageTop(b);
+                  const heightA = this.basePageHeights[a];
+                  const heightB = this.basePageHeights[b];
+                  
+                  const centerA = topA + (heightA / 2);
+                  const centerB = topB + (heightB / 2);
+                  
+                  return Math.abs(centerA - centerPoint) - Math.abs(centerB - centerPoint);
+              });
+
+              // Pick the best candidate
+              const pageNum = queueArray[0];
+              this.renderQueue.delete(pageNum);
+
+              const wrapper = this.pageWrappers[pageNum];
+              if (wrapper && wrapper.dataset.loaded === 'false' && wrapper.dataset.rendering !== 'true') {
+                  await this.renderPageContent(wrapper);
+                  
+                  // Small delay to yield to main thread
+                  await new Promise(resolve => setTimeout(resolve, 0));
+              }
+          }
+      } catch (error) {
+          console.error('Error processing render queue:', error);
+      } finally {
+          this.isProcessingQueue = false;
+          
+          // If queue is not empty (e.g. added during processing), restart
+          if (this.renderQueue.size > 0 && !this.isFastScrolling) {
+              this.processRenderQueue();
+          }
+      }
+  }
+
+  /**
    * Binary search to find page index for a given position
    * @param {number} position - Scroll position (or center point)
    * @returns {number} Page index (1-based)
@@ -1762,18 +1857,20 @@ class PdfViewer {
                   wrapper.remove();
               }
               delete this.pageWrappers[pageNum];
+              // Remove from render queue if pending
+              this.renderQueue.delete(pageNum);
           }
       });
 
-      // Add/render pages in range
-      const renderPromises = [];
-
+      // Add pages in range
       for (let i = startIndex; i <= endIndex; i++) {
           let wrapper = this.pageWrappers[i];
           
           if (!wrapper) {
               wrapper = document.createElement('div');
               wrapper.className = 'pdf-page-wrapper';
+              // Optimization: CSS containment for performance
+              wrapper.style.contain = 'content';
               wrapper.dataset.pageNumber = i;
               wrapper.dataset.loaded = 'false';
               
@@ -1792,10 +1889,13 @@ class PdfViewer {
           if (wrapper.dataset.loaded === 'false' && wrapper.dataset.rendering !== 'true') {
               // Only render content if NOT fast scrolling
               if (!this.isFastScrolling) {
-                  renderPromises.push(this.renderPageContent(wrapper));
+                  this.renderQueue.add(i);
               }
           }
       }
+
+      // Process the queue
+      this.processRenderQueue();
 
       // Update current page number
       const centerPoint = scrollTop + (clientHeight / 2);
@@ -1805,10 +1905,6 @@ class PdfViewer {
           this.pageNum = currentPage;
           this.elements.pageNum.value = currentPage;
           this.updateActiveThumbnail(currentPage);
-      }
-
-      if (renderPromises.length > 0) {
-          await Promise.all(renderPromises);
       }
   }
 
