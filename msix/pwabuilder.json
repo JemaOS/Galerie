@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json.schemastore.org/pwabuilder.json",
+  "name": "Galerie",
+  "description": "Une galerie de JemaOS pour visualiser des images, des vidéos et des fichiers audio",
+  "publisher": {
+    "displayName": "JemaOS",
+    "commonName": "CN=JemaOS"
+  },
+  "version": "1.0.0.0",
+  "classicPackage": {
+    "generate": false
+  },
+  "resourceLanguage": "fr-FR",
+  "targetDeviceFamilies": [
+    "Desktop"
+  ],
+  "capabilities": [
+    "internetClient"
+  ],
+  "fileTypeAssociations": [
+    {
+      "name": "galerie-images",
+      "displayName": "Galerie Image",
+      "logo": "icons/filetypes/image.ico",
+      "supportedFileTypes": [
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".webp",
+        ".svg",
+        ".bmp",
+        ".tiff",
+        ".tif",
+        ".ico",
+        ".heic",
+        ".heif",
+        ".avif",
+        ".apng"
+      ]
+    },
+    {
+      "name": "galerie-videos",
+      "displayName": "Galerie Video",
+      "logo": "icons/filetypes/video.ico",
+      "supportedFileTypes": [
+        ".mp4",
+        ".m4v",
+        ".webm",
+        ".mkv",
+        ".avi",
+        ".mov",
+        ".3gp",
+        ".3g2",
+        ".ts",
+        ".m2ts",
+        ".mts",
+        ".mpeg",
+        ".mpg",
+        ".ogv"
+      ]
+    },
+    {
+      "name": "galerie-audio",
+      "displayName": "Galerie Audio",
+      "logo": "icons/filetypes/audio.ico",
+      "supportedFileTypes": [
+        ".mp3",
+        ".wav",
+        ".ogg",
+        ".flac",
+        ".aac",
+        ".weba",
+        ".m4a",
+        ".m4b",
+        ".opus",
+        ".mid",
+        ".midi"
+      ]
+    },
+    {
+      "name": "galerie-pdf",
+      "displayName": "Galerie PDF",
+      "logo": "icons/filetypes/pdf.ico",
+      "supportedFileTypes": [
+        ".pdf"
+      ]
+    }
+  ]
+}

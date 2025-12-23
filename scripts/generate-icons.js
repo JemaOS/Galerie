@@ -4,7 +4,7 @@ const fs = require('fs');
 
 /**
  * Generate PNG icons from SVG sources at various sizes
- * Also generates ICO file for Windows file association support
+ * Also generates ICO files for Windows file association support
  */
 async function generateIcons() {
   const browser = await chromium.launch();
@@ -55,6 +55,9 @@ async function generateIcons() {
   
   // Generate ICO file for Windows
   await generateIcoFile();
+  
+  // Generate file type icons for MSIX packaging
+  await generateFileTypeIcons();
 }
 
 /**
@@ -102,6 +105,102 @@ async function generateIcoFile() {
       console.log('\nThen run this script again.');
     } else {
       console.error('Error generating ICO file:', err);
+    }
+  }
+}
+
+/**
+ * Generate file type icons with Galerie branding for MSIX packaging
+ * These icons are used for Windows file associations in the packaged app
+ */
+async function generateFileTypeIcons() {
+  console.log('\n=== Generating File Type Icons for MSIX ===\n');
+  
+  const browser = await chromium.launch();
+  const context = await browser.newContext();
+  
+  // File type icons to generate
+  const fileTypes = [
+    { name: 'pdf', svg: 'icons/filetypes/pdf-icon.svg' },
+    { name: 'audio', svg: 'icons/filetypes/audio-icon.svg' },
+    { name: 'video', svg: 'icons/filetypes/video-icon.svg' },
+    { name: 'image', svg: 'icons/filetypes/image-icon.svg' }
+  ];
+  
+  // Windows icon sizes needed for file associations
+  const sizes = [16, 24, 32, 48, 64, 128, 256];
+  
+  // Ensure output directory exists
+  const outputDir = path.resolve(process.cwd(), 'icons/filetypes');
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+  
+  for (const fileType of fileTypes) {
+    const svgPath = path.resolve(process.cwd(), fileType.svg);
+    
+    // Check if SVG exists
+    if (!fs.existsSync(svgPath)) {
+      console.log(`⚠ SVG not found: ${fileType.svg}, skipping...`);
+      continue;
+    }
+    
+    console.log(`Processing ${fileType.name} icons...`);
+    
+    const pngFiles = [];
+    
+    for (const size of sizes) {
+      const page = await context.newPage();
+      const outputPath = path.resolve(outputDir, `${fileType.name}-${size}x${size}.png`);
+      
+      // Load the SVG file
+      await page.goto(`file://${svgPath}`);
+      
+      // Set viewport to match icon size
+      await page.setViewportSize({ width: size, height: size });
+      
+      // Take screenshot with transparency
+      await page.screenshot({ path: outputPath, omitBackground: true });
+      
+      console.log(`  ✓ Generated ${fileType.name}-${size}x${size}.png`);
+      pngFiles.push(outputPath);
+      
+      await page.close();
+    }
+    
+    // Generate ICO file for this file type
+    await generateFileTypeIco(fileType.name, pngFiles);
+  }
+  
+  await browser.close();
+  console.log('\nFile type icon generation complete!');
+}
+
+/**
+ * Generate ICO file for a specific file type
+ */
+async function generateFileTypeIco(fileTypeName, pngFiles) {
+  try {
+    const { default: pngToIco } = require('png-to-ico');
+    
+    // Verify all source files exist
+    const existingFiles = pngFiles.filter(f => fs.existsSync(f));
+    if (existingFiles.length === 0) {
+      console.log(`  ⚠ No PNG files found for ${fileTypeName} ICO generation`);
+      return;
+    }
+    
+    const buf = await pngToIco(existingFiles);
+    const icoPath = path.resolve(process.cwd(), `icons/filetypes/${fileTypeName}.ico`);
+    fs.writeFileSync(icoPath, buf);
+    
+    console.log(`  ✓ Generated icons/filetypes/${fileTypeName}.ico`);
+    
+  } catch (err) {
+    if (err.code === 'MODULE_NOT_FOUND') {
+      console.log(`  ⚠ png-to-ico not available, skipping ${fileTypeName}.ico`);
+    } else {
+      console.error(`  ✗ Error generating ${fileTypeName}.ico:`, err.message);
     }
   }
 }

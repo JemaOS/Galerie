@@ -44,6 +44,31 @@ This project is a static web application that can be served using any static fil
     npm start
     ```
 
+5.  **Generate icons (including file type icons):**
+    ```bash
+    npm run generate-icons
+    ```
+
+## Windows MSIX Packaging
+
+For custom file type icons in Windows Explorer, Galerie can be packaged as an MSIX application. This allows files associated with Galerie to display branded icons.
+
+### Why MSIX?
+
+PWAs cannot control how Windows Explorer displays file icons. The `file_handlers` in the web manifest only affects the "Open With" dialog. MSIX packaging enables:
+
+- Custom icons for associated file types (images, videos, audio, PDFs)
+- Galerie branding visible in Windows Explorer
+- Microsoft Store distribution
+
+### Quick Start
+
+1. Generate icons: `npm run generate-icons`
+2. Use [PWABuilder](https://pwabuilder.com) to create the MSIX package
+3. Upload the configuration from `msix/pwabuilder.json`
+
+See [`msix/README.md`](msix/README.md) for detailed packaging instructions.
+
 ## Technologies Used
 
 - **HTML5**

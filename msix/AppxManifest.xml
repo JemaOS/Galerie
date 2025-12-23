@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AppxManifest.xml template for Galerie PWA MSIX package
+  
+  This file defines the Windows package configuration including:
+  - Application identity and branding
+  - File type associations with custom icons
+  - Capabilities and permissions
+  
+  To use this template:
+  1. Generate icons using: npm run generate-icons
+  2. Use PWABuilder (https://pwabuilder.com) to package the PWA
+  3. Or manually build MSIX using Windows SDK tools
+  
+  Note: Replace placeholder values (CN=..., Publisher ID) with your actual values
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 rescap">
+
+  <Identity
+    Name="JemaOS.Galerie"
+    Publisher="CN=JemaOS, O=JemaOS, C=FR"
+    Version="1.0.0.0"
+    ProcessorArchitecture="neutral" />
+
+  <Properties>
+    <DisplayName>Galerie</DisplayName>
+    <PublisherDisplayName>JemaOS</PublisherDisplayName>
+    <Logo>icons\icon-48x48.png</Logo>
+    <Description>Une galerie de JemaOS pour visualiser des images, des vidéos et des fichiers audio</Description>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="fr-FR" />
+    <Resource Language="en-US" />
+  </Resources>
+
+  <Applications>
+    <Application Id="Galerie" Executable="Galerie.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="Galerie"
+        Description="Galerie - Visualiseur de médias"
+        BackgroundColor="#202124"
+        Square150x150Logo="icons\icon-192x192.png"
+        Square44x44Logo="icons\icon-48x48.png">
+        <uap:DefaultTile Wide310x150Logo="icons\icon-256x256.png" Square310x310Logo="icons\icon-256x256.png" />
+        <uap:SplashScreen Image="icons\icon-512x512.png" BackgroundColor="#202124" />
+      </uap:VisualElements>
+
+      <Extensions>
+        <!-- Image File Type Association -->
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="galerie-images">
+            <uap:DisplayName>Galerie Image</uap:DisplayName>
+            <uap:Logo>icons\filetypes\image.ico</uap:Logo>
+            <uap:InfoTip>Open with Galerie</uap:InfoTip>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.jpg</uap:FileType>
+              <uap:FileType>.jpeg</uap:FileType>
+              <uap:FileType>.png</uap:FileType>
+              <uap:FileType>.gif</uap:FileType>
+              <uap:FileType>.webp</uap:FileType>
+              <uap:FileType>.svg</uap:FileType>
+              <uap:FileType>.bmp</uap:FileType>
+              <uap:FileType>.tiff</uap:FileType>
+              <uap:FileType>.tif</uap:FileType>
+              <uap:FileType>.ico</uap:FileType>
+              <uap:FileType>.heic</uap:FileType>
+              <uap:FileType>.heif</uap:FileType>
+              <uap:FileType>.avif</uap:FileType>
+              <uap:FileType>.apng</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+
+        <!-- Video File Type Association -->
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="galerie-videos">
+            <uap:DisplayName>Galerie Video</uap:DisplayName>
+            <uap:Logo>icons\filetypes\video.ico</uap:Logo>
+            <uap:InfoTip>Open with Galerie</uap:InfoTip>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.mp4</uap:FileType>
+              <uap:FileType>.m4v</uap:FileType>
+              <uap:FileType>.webm</uap:FileType>
+              <uap:FileType>.mkv</uap:FileType>
+              <uap:FileType>.avi</uap:FileType>
+              <uap:FileType>.mov</uap:FileType>
+              <uap:FileType>.3gp</uap:FileType>
+              <uap:FileType>.3g2</uap:FileType>
+              <uap:FileType>.ts</uap:FileType>
+              <uap:FileType>.m2ts</uap:FileType>
+              <uap:FileType>.mts</uap:FileType>
+              <uap:FileType>.mpeg</uap:FileType>
+              <uap:FileType>.mpg</uap:FileType>
+              <uap:FileType>.ogv</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+
+        <!-- Audio File Type Association -->
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="galerie-audio">
+            <uap:DisplayName>Galerie Audio</uap:DisplayName>
+            <uap:Logo>icons\filetypes\audio.ico</uap:Logo>
+            <uap:InfoTip>Open with Galerie</uap:InfoTip>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.mp3</uap:FileType>
+              <uap:FileType>.wav</uap:FileType>
+              <uap:FileType>.ogg</uap:FileType>
+              <uap:FileType>.flac</uap:FileType>
+              <uap:FileType>.aac</uap:FileType>
+              <uap:FileType>.weba</uap:FileType>
+              <uap:FileType>.m4a</uap:FileType>
+              <uap:FileType>.m4b</uap:FileType>
+              <uap:FileType>.opus</uap:FileType>
+              <uap:FileType>.mid</uap:FileType>
+              <uap:FileType>.midi</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+
+        <!-- PDF File Type Association -->
+        <uap:Extension Category="windows.fileTypeAssociation">
+          <uap:FileTypeAssociation Name="galerie-pdf">
+            <uap:DisplayName>Galerie PDF</uap:DisplayName>
+            <uap:Logo>icons\filetypes\pdf.ico</uap:Logo>
+            <uap:InfoTip>Open with Galerie</uap:InfoTip>
+            <uap:SupportedFileTypes>
+              <uap:FileType>.pdf</uap:FileType>
+            </uap:SupportedFileTypes>
+          </uap:FileTypeAssociation>
+        </uap:Extension>
+
+        <!-- Protocol Handler for PWA -->
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="web+galerie">
+            <uap:DisplayName>Galerie Protocol</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

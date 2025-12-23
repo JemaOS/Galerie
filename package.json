@@ -6,7 +6,10 @@
   "scripts": {
     "start": "npx serve .",
     "dev": "npx live-server .",
-    "build": "echo 'No build process needed for vanilla JavaScript PWA'"
+    "build": "echo 'No build process needed for vanilla JavaScript PWA'",
+    "generate-icons": "node scripts/generate-icons.js",
+    "test": "jest",
+    "test:e2e": "npx playwright test"
   },
   "keywords": [
     "gallery",
