@@ -25,6 +25,7 @@
     "jest-environment-jsdom": "^30.2.0",
     "live-server": "^1.2.0",
     "pdf-lib": "^1.17.1",
+    "png-to-ico": "^3.0.1",
     "serve": "^14.2.1"
   },
   "overrides": {
