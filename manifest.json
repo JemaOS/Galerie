@@ -1,11 +1,20 @@
 {
   "name": "Galerie",
   "short_name": "Galerie",
-  "description": "Une galerie de JemaOS pour visualiser des images, des vidéos et des fichiers audio",
-  "start_url": "./",
+  "description": "A multimedia gallery app for viewing PDFs, images, audio, and video files",
+  "start_url": "/",
+  "id": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "any",
   "background_color": "#202124",
   "theme_color": "#202124",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["multimedia", "productivity", "utilities"],
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
   "icons": [
     {
       "src": "icons/icon-16x16.png",
@@ -71,6 +80,29 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshots/desktop-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Galerie desktop view with media grid"
+    },
+    {
+      "src": "screenshots/desktop-pdf.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "PDF viewer with annotations"
+    },
+    {
+      "src": "screenshots/mobile-narrow.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Galerie mobile view"
     }
   ],
   "file_handlers": [

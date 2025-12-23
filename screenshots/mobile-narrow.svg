@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="540" height="720" viewBox="0 0 540 720">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="100%" style="stop-color:#202124"/>
+    </linearGradient>
+  </defs>
+  <rect width="540" height="720" fill="url(#bg)"/>
+  
+  <!-- Header -->
+  <rect x="0" y="0" width="540" height="60" fill="#16213e"/>
+  <text x="20" y="38" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="#e94560">Galerie</text>
+  <text x="520" y="38" font-family="Arial" font-size="24" fill="#ffffff" text-anchor="end">☰</text>
+  
+  <!-- Grid of media items (2 columns for mobile) -->
+  <g transform="translate(20, 80)">
+    <!-- Row 1 -->
+    <rect x="0" y="0" width="240" height="160" rx="8" fill="#2d2d44"/>
+    <rect x="260" y="0" width="240" height="160" rx="8" fill="#2d2d44"/>
+    
+    <!-- Row 2 -->
+    <rect x="0" y="180" width="240" height="160" rx="8" fill="#2d2d44"/>
+    <rect x="260" y="180" width="240" height="160" rx="8" fill="#2d2d44"/>
+    
+    <!-- Row 3 -->
+    <rect x="0" y="360" width="240" height="160" rx="8" fill="#2d2d44"/>
+    <rect x="260" y="360" width="240" height="160" rx="8" fill="#2d2d44"/>
+    
+    <!-- Row 4 -->
+    <rect x="0" y="540" width="240" height="160" rx="8" fill="#2d2d44"/>
+    <rect x="260" y="540" width="240" height="160" rx="8" fill="#2d2d44"/>
+    
+    <!-- Media icons -->
+    <text x="120" y="90" font-family="Arial" font-size="40" fill="#e94560" text-anchor="middle">🖼️</text>
+    <text x="380" y="90" font-family="Arial" font-size="40" fill="#e94560" text-anchor="middle">🎬</text>
+    
+    <text x="120" y="270" font-family="Arial" font-size="40" fill="#e94560" text-anchor="middle">🎵</text>
+    <text x="380" y="270" font-family="Arial" font-size="40" fill="#e94560" text-anchor="middle">📄</text>
+    
+    <text x="120" y="450" font-family="Arial" font-size="40" fill="#e94560" text-anchor="middle">🖼️</text>
+    <text x="380" y="450" font-family="Arial" font-size="40" fill="#e94560" text-anchor="middle">🎬</text>
+    
+    <text x="120" y="630" font-family="Arial" font-size="40" fill="#e94560" text-anchor="middle">🎵</text>
+    <text x="380" y="630" font-family="Arial" font-size="40" fill="#e94560" text-anchor="middle">📄</text>
+  </g>
+</svg>
