@@ -56,23 +56,6 @@ class UIController {
     this.updateUI();
     this.showLoadingScreen(false);
 
-    // Auto-trigger file picker if no files are loaded
-    // Note: File chooser dialog can only be shown with user activation (click/keypress)
-    // We cannot programmatically trigger it without user interaction
-    if (this.fileHandler.files.length === 0) {
-      // Show a message and wait for user click to open file picker
-      this.showToast('Cliquez n\'importe où pour ouvrir un fichier', 'info');
-      
-      // Add a one-time click listener to the body to trigger the file input
-      const openHandler = (e) => {
-        // Only trigger if not clicking on an interactive element
-        if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'A') {
-          this.triggerFileInput('all');
-        }
-        document.body.removeEventListener('click', openHandler);
-      };
-      document.body.addEventListener('click', openHandler);
-    }
   }
 
   /**
@@ -323,7 +306,14 @@ class UIController {
    */
   renderFiles() {
     // Home page and grid are disabled as per request
-    this.elements.emptyState.classList.add('hidden');
+    // But we need to show the empty state if no files are loaded so the user can open a file
+    if (this.fileHandler.files.length === 0) {
+      this.elements.emptyState.classList.remove('hidden');
+      this.elements.emptyState.style.display = 'flex';
+    } else {
+      this.elements.emptyState.classList.add('hidden');
+      this.elements.emptyState.style.display = 'none';
+    }
     this.elements.fileGrid.style.display = 'none';
     
     // If we have files but no viewer is open, open the first file immediately
