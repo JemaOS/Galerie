@@ -193,8 +193,21 @@ class FileHandler {
     }
 
     const fileType = GalleryUtils.getFileType(file.name, file.type);
-    const blobUrl = URL.createObjectURL(file);
-    console.log('[FileHandler] Created blob URL:', blobUrl, 'for file:', file.name);
+    
+    // For large video files (>500MB), don't create blob URL immediately
+    // Instead, store the file reference and create URL on-demand
+    // This prevents memory issues with very large files (4GB+)
+    const isLargeFile = file.size > 500 * 1024 * 1024; // 500MB threshold
+    const isStreamableType = fileType === 'video' || fileType === 'audio';
+    
+    let blobUrl = null;
+    if (!isLargeFile || !isStreamableType) {
+      // For smaller files or non-streamable types, create blob URL immediately
+      blobUrl = URL.createObjectURL(file);
+      console.log('[FileHandler] Created blob URL:', blobUrl, 'for file:', file.name);
+    } else {
+      console.log('[FileHandler] Large streamable file detected, deferring blob URL creation:', file.name, 'size:', GalleryUtils.formatFileSize(file.size));
+    }
     
     const fileObject = {
       id: GalleryUtils.generateId(),
@@ -207,7 +220,8 @@ class FileHandler {
       lastModified: file.lastModified,
       url: blobUrl,
       extension: GalleryUtils.getFileExtension(file.name),
-      added: Date.now()
+      added: Date.now(),
+      isLargeFile: isLargeFile && isStreamableType
     };
 
     // Generate thumbnail based on file type

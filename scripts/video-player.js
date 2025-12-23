@@ -40,13 +40,31 @@ class VideoPlayer {
         this.container.innerHTML = '';
         this.container.className = 'video-player-container';
         
-        console.log('[VideoPlayer] Initializing with file:', this.file.name, 'URL:', this.file.url);
+        console.log('[VideoPlayer] Initializing with file:', this.file.name, 'URL:', this.file.url, 'isLargeFile:', this.file.isLargeFile);
         
         // Create video element
         this.video = document.createElement('video');
         this.video.className = 'video-element';
         this.video.playsInline = true;
-        this.video.src = this.file.url;
+        
+        // For large files, use the File object directly as source
+        // This allows the browser to stream the file instead of loading it all into memory
+        if (this.file.isLargeFile && this.file.file) {
+            console.log('[VideoPlayer] Using File object directly for large file streaming');
+            // Create a temporary blob URL just for this video element
+            // The browser will stream from the file, not load it all into memory
+            const tempUrl = URL.createObjectURL(this.file.file);
+            this.video.src = tempUrl;
+            this.tempBlobUrl = tempUrl; // Store for cleanup
+        } else if (this.file.url) {
+            this.video.src = this.file.url;
+        } else if (this.file.file) {
+            // Fallback: create blob URL from file
+            const tempUrl = URL.createObjectURL(this.file.file);
+            this.video.src = tempUrl;
+            this.tempBlobUrl = tempUrl;
+        }
+        
         this.video.preload = 'metadata';
         
         // Create UI
@@ -412,6 +430,11 @@ class VideoPlayer {
             this.video.pause();
             this.video.src = '';
             this.video.load();
+        }
+        // Clean up temporary blob URL if we created one
+        if (this.tempBlobUrl) {
+            URL.revokeObjectURL(this.tempBlobUrl);
+            this.tempBlobUrl = null;
         }
         this.container.innerHTML = '';
     }

@@ -1075,8 +1075,20 @@ class FullscreenViewer {
    * @param {Object} file - Audio file
    */
   async loadAudio(file) {
+    // For large files, create blob URL on-demand from the File object
+    let audioSrc = file.url;
+    if (file.isLargeFile && file.file) {
+      console.log('[FullscreenViewer] Using File object directly for large audio file streaming');
+      audioSrc = URL.createObjectURL(file.file);
+      this.tempAudioBlobUrl = audioSrc; // Store for cleanup
+    } else if (!file.url && file.file) {
+      // Fallback: create blob URL from file
+      audioSrc = URL.createObjectURL(file.file);
+      this.tempAudioBlobUrl = audioSrc;
+    }
+    
     const audio = GalleryUtils.createElement('audio', {
-      src: file.url,
+      src: audioSrc,
       controls: true,
       className: 'viewer-audio',
       style: 'width: 80%; max-width: 600px; margin: auto; display: block;'
@@ -1422,6 +1434,12 @@ class FullscreenViewer {
     const media = this.elements.media.querySelector('audio');
     if (media) {
       media.pause();
+    }
+    
+    // Clean up temp audio blob URL if exists
+    if (this.tempAudioBlobUrl) {
+      URL.revokeObjectURL(this.tempAudioBlobUrl);
+      this.tempAudioBlobUrl = null;
     }
     
     // Clear media container

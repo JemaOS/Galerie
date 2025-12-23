@@ -151,6 +151,12 @@ class AudioPlayer {
         this.isPlaying = false;
         this.updatePlayPauseIcon();
 
+        // Clean up temp blob URL if exists
+        if (this.tempBlobUrl) {
+            URL.revokeObjectURL(this.tempBlobUrl);
+            this.tempBlobUrl = null;
+        }
+
         // If we only have one file, return to home page (landing state)
         // BUT skip this if we're just switching viewers
         if (!skipFileRemoval && window.galleryUI && window.galleryUI.fileHandler) {
@@ -175,8 +181,25 @@ class AudioPlayer {
         this.currentIndex = index;
         const file = this.playlist[index];
 
+        // Clean up previous temp blob URL if exists
+        if (this.tempBlobUrl) {
+            URL.revokeObjectURL(this.tempBlobUrl);
+            this.tempBlobUrl = null;
+        }
+
         // Update Audio Source
-        this.audio.src = file.url;
+        // For large files, create blob URL on-demand from the File object
+        if (file.isLargeFile && file.file) {
+            console.log('[AudioPlayer] Using File object directly for large file streaming');
+            this.tempBlobUrl = URL.createObjectURL(file.file);
+            this.audio.src = this.tempBlobUrl;
+        } else if (file.url) {
+            this.audio.src = file.url;
+        } else if (file.file) {
+            // Fallback: create blob URL from file
+            this.tempBlobUrl = URL.createObjectURL(file.file);
+            this.audio.src = this.tempBlobUrl;
+        }
         this.audio.load();
 
         // Update UI
