@@ -14,16 +14,16 @@ async function generateIcons() {
   // Windows requires: 16, 24, 32, 48, 64, 256 for proper file association icons
   const icons = [
     // Small sizes for Windows file associations
-    { input: 'icons/icon.svg', output: 'icons/icon-16x16.png', size: 16 },
-    { input: 'icons/icon.svg', output: 'icons/icon-24x24.png', size: 24 },
-    { input: 'icons/icon.svg', output: 'icons/icon-32x32.png', size: 32 },
-    { input: 'icons/icon.svg', output: 'icons/icon-48x48.png', size: 48 },
-    { input: 'icons/icon.svg', output: 'icons/icon-64x64.png', size: 64 },
-    { input: 'icons/icon.svg', output: 'icons/icon-128x128.png', size: 128 },
+    { input: 'icons/icon-512x512.svg', output: 'icons/icon-16x16.png', size: 16 },
+    { input: 'icons/icon-512x512.svg', output: 'icons/icon-24x24.png', size: 24 },
+    { input: 'icons/icon-512x512.svg', output: 'icons/icon-32x32.png', size: 32 },
+    { input: 'icons/icon-512x512.svg', output: 'icons/icon-48x48.png', size: 48 },
+    { input: 'icons/icon-512x512.svg', output: 'icons/icon-64x64.png', size: 64 },
+    { input: 'icons/icon-512x512.svg', output: 'icons/icon-128x128.png', size: 128 },
     
     // Standard PWA sizes
-    { input: 'icons/icon-192x192.svg', output: 'icons/icon-192x192.png', size: 192 },
-    { input: 'icons/icon.svg', output: 'icons/icon-256x256.png', size: 256 },
+    { input: 'icons/icon-512x512.svg', output: 'icons/icon-192x192.png', size: 192 },
+    { input: 'icons/icon-512x512.svg', output: 'icons/icon-256x256.png', size: 256 },
     { input: 'icons/icon-512x512.svg', output: 'icons/icon-512x512.png', size: 512 }
   ];
 
@@ -36,11 +36,42 @@ async function generateIcons() {
     
     console.log(`Converting ${icon.input} to ${icon.output} (${icon.size}x${icon.size})...`);
     
-    // Load the SVG file
-    await page.goto(`file://${inputPath}`);
+    // Read the SVG content
+    const svgContent = fs.readFileSync(inputPath, 'utf8');
+    
+    // Create an HTML page that properly scales the SVG to fill the viewport
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      width: ${icon.size}px;
+      height: ${icon.size}px;
+      overflow: hidden;
+    }
+    svg {
+      width: ${icon.size}px;
+      height: ${icon.size}px;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  ${svgContent}
+</body>
+</html>`;
     
     // Set viewport to match icon size
     await page.setViewportSize({ width: icon.size, height: icon.size });
+    
+    // Load the HTML content with embedded SVG
+    await page.setContent(html);
     
     // Take screenshot
     // omitBackground: true is used to preserve transparency if the SVG has a transparent background
@@ -147,17 +178,48 @@ async function generateFileTypeIcons() {
     
     console.log(`Processing ${fileType.name} icons...`);
     
+    // Read the SVG content
+    const svgContent = fs.readFileSync(svgPath, 'utf8');
+    
     const pngFiles = [];
     
     for (const size of sizes) {
       const page = await context.newPage();
       const outputPath = path.resolve(outputDir, `${fileType.name}-${size}x${size}.png`);
       
-      // Load the SVG file
-      await page.goto(`file://${svgPath}`);
+      // Create an HTML page that properly scales the SVG to fill the viewport
+      const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html, body {
+      width: ${size}px;
+      height: ${size}px;
+      overflow: hidden;
+    }
+    svg {
+      width: ${size}px;
+      height: ${size}px;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  ${svgContent}
+</body>
+</html>`;
       
       // Set viewport to match icon size
       await page.setViewportSize({ width: size, height: size });
+      
+      // Load the HTML content with embedded SVG
+      await page.setContent(html);
       
       // Take screenshot with transparency
       await page.screenshot({ path: outputPath, omitBackground: true });

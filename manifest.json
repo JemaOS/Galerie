@@ -124,22 +124,27 @@
       },
       "icons": [
         {
-          "src": "/icons/icon-16x16.png",
+          "src": "/icons/filetypes/image.ico",
+          "sizes": "16x16 24x24 32x32 48x48 64x64 128x128 256x256",
+          "type": "image/x-icon"
+        },
+        {
+          "src": "/icons/filetypes/image-16x16.png",
           "sizes": "16x16",
           "type": "image/png"
         },
         {
-          "src": "/icons/icon-32x32.png",
+          "src": "/icons/filetypes/image-32x32.png",
           "sizes": "32x32",
           "type": "image/png"
         },
         {
-          "src": "/icons/icon-48x48.png",
+          "src": "/icons/filetypes/image-48x48.png",
           "sizes": "48x48",
           "type": "image/png"
         },
         {
-          "src": "/icons/icon-256x256.png",
+          "src": "/icons/filetypes/image-256x256.png",
           "sizes": "256x256",
           "type": "image/png"
         }
@@ -161,22 +166,27 @@
       },
       "icons": [
         {
-          "src": "/icons/icon-16x16.png",
+          "src": "/icons/filetypes/video.ico",
+          "sizes": "16x16 24x24 32x32 48x48 64x64 128x128 256x256",
+          "type": "image/x-icon"
+        },
+        {
+          "src": "/icons/filetypes/video-16x16.png",
           "sizes": "16x16",
           "type": "image/png"
         },
         {
-          "src": "/icons/icon-32x32.png",
+          "src": "/icons/filetypes/video-32x32.png",
           "sizes": "32x32",
           "type": "image/png"
         },
         {
-          "src": "/icons/icon-48x48.png",
+          "src": "/icons/filetypes/video-48x48.png",
           "sizes": "48x48",
           "type": "image/png"
         },
         {
-          "src": "/icons/icon-256x256.png",
+          "src": "/icons/filetypes/video-256x256.png",
           "sizes": "256x256",
           "type": "image/png"
         }
@@ -197,22 +207,27 @@
       },
       "icons": [
         {
-          "src": "/icons/icon-16x16.png",
+          "src": "/icons/filetypes/audio.ico",
+          "sizes": "16x16 24x24 32x32 48x48 64x64 128x128 256x256",
+          "type": "image/x-icon"
+        },
+        {
+          "src": "/icons/filetypes/audio-16x16.png",
           "sizes": "16x16",
           "type": "image/png"
         },
         {
-          "src": "/icons/icon-32x32.png",
+          "src": "/icons/filetypes/audio-32x32.png",
           "sizes": "32x32",
           "type": "image/png"
         },
         {
-          "src": "/icons/icon-48x48.png",
+          "src": "/icons/filetypes/audio-48x48.png",
           "sizes": "48x48",
           "type": "image/png"
         },
         {
-          "src": "/icons/icon-256x256.png",
+          "src": "/icons/filetypes/audio-256x256.png",
           "sizes": "256x256",
           "type": "image/png"
         }
@@ -225,22 +240,27 @@
       },
       "icons": [
         {
-          "src": "/icons/icon-16x16.png",
+          "src": "/icons/filetypes/pdf.ico",
+          "sizes": "16x16 24x24 32x32 48x48 64x64 128x128 256x256",
+          "type": "image/x-icon"
+        },
+        {
+          "src": "/icons/filetypes/pdf-16x16.png",
           "sizes": "16x16",
           "type": "image/png"
         },
         {
-          "src": "/icons/icon-32x32.png",
+          "src": "/icons/filetypes/pdf-32x32.png",
           "sizes": "32x32",
           "type": "image/png"
         },
         {
-          "src": "/icons/icon-48x48.png",
+          "src": "/icons/filetypes/pdf-48x48.png",
           "sizes": "48x48",
           "type": "image/png"
         },
         {
-          "src": "/icons/icon-256x256.png",
+          "src": "/icons/filetypes/pdf-256x256.png",
           "sizes": "256x256",
           "type": "image/png"
         }
