@@ -508,5 +508,20 @@
     <script src="scripts/ui-controller.js" defer></script>
     <script src="scripts/fullscreen-viewer.js" defer></script>
     <script src="scripts/main.js" defer></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js', { scope: '/' })
+                    .then(function(registration) {
+                        console.log('[App] Service Worker registered with scope:', registration.scope);
+                    })
+                    .catch(function(error) {
+                        console.error('[App] Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
 </body>
 </html>
