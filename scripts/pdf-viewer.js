@@ -91,6 +91,8 @@ class PdfViewer {
 
     // Debounce timer for quality re-render
     this.qualityRenderTimeout = null;
+    this.zoomRenderTimeout = null;
+    this.isZooming = false;
 
     // Fast scroll optimization
     this.isFastScrolling = false;
@@ -1224,6 +1226,9 @@ class PdfViewer {
       const main = this.elements.main;
       if (!main) return;
       
+      // 3. Clear Queue: Cancel any pending renders immediately
+      this.cancelAllPageRenders();
+      
       const oldScale = this.scale;
       this.scale = newScale;
       
@@ -1233,7 +1238,7 @@ class PdfViewer {
           this.elements.editZoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
       }
       
-      // Apply CSS transform (instant, no re-render)
+      // 1. CSS Scaling: Apply CSS transform (instant, no re-render)
       this.applyZoomTransform();
       
       // Adjust scroll to keep focal point under mouse
@@ -1251,16 +1256,16 @@ class PdfViewer {
           this.qualityRenderTimeout = null;
       }
       
-      // Schedule quality re-render if zoom is significantly different from render scale
+      // 2. Debounce: Schedule quality re-render
       // Canvases are rendered at BASE_RENDER_SCALE, so check if visual quality is degraded
       const qualityRatio = this.scale / PdfViewer.BASE_RENDER_SCALE;
-      if (qualityRatio > 1.5 || qualityRatio < 0.3) {
+      if (qualityRatio > 1.2 || qualityRatio < 0.8) {
           // Quality is degraded, schedule re-render after zoom stops
           this.qualityRenderTimeout = setTimeout(() => {
               this.qualityRenderTimeout = null;
               // Re-render visible pages at current scale for better quality
               this.rerenderForQuality();
-          }, 500);
+          }, 300);
       }
   }
 
@@ -1682,6 +1687,8 @@ class PdfViewer {
       const FAST_SCROLL_THRESHOLD = 2.5;
 
       this.scrollHandler = () => {
+          if (this.isZooming) return;
+
           const now = Date.now();
           const scrollTop = main.scrollTop;
           const dt = now - lastScrollTime;
@@ -2040,6 +2047,10 @@ class PdfViewer {
       
       const main = document.getElementById('pdf-main');
       if (!main) return;
+
+      // 3. Clear Queue: Cancel any pending renders immediately
+      this.cancelAllPageRenders();
+      this.isZooming = true;
       
       // Get page width - prefer cached value, fallback to fetching from PDF
       let pageWidth = this.basePageWidths?.[this.pageNum] || this.basePageWidths?.[1];
@@ -2051,7 +2062,10 @@ class PdfViewer {
           pageWidth = viewport.width;
       }
       
-      if (!pageWidth) return;
+      if (!pageWidth) {
+          this.isZooming = false;
+          return;
+      }
       
       // Available width minus padding for scrollbar and margins
       const availableWidth = main.clientWidth - 48;
@@ -2068,15 +2082,10 @@ class PdfViewer {
       console.log(`[PDF] fitToWidth: pageWidth=${pageWidth}, availableWidth=${availableWidth}, newScale=${newScale}`);
       
       this.scale = newScale;
+      // 1. CSS Scaling: Apply CSS transform immediately
       this.applyZoomTransform();
       
       // Center horizontally
-      // If the container is wider than the viewport (because of other wider pages),
-      // we need to scroll to center the current page.
-      // The container width is maxBaseWidth * scale.
-      // The current page is centered in the container.
-      // So we want to scroll to (containerWidth - viewportWidth) / 2.
-      
       const maxBaseWidth = Math.max(...this.basePageWidths.slice(1));
       const visualContainerWidth = maxBaseWidth * this.scale;
       const viewportWidth = main.clientWidth;
@@ -2091,8 +2100,18 @@ class PdfViewer {
       if (this.elements.editZoomLevel) {
           this.elements.editZoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
       }
+
+      // 2. Debounce: Schedule update and re-render
+      if (this.zoomRenderTimeout) clearTimeout(this.zoomRenderTimeout);
+      this.zoomRenderTimeout = setTimeout(() => {
+          this.isZooming = false;
+          this.updateVisiblePages();
+          this.rerenderForQuality();
+      }, 200);
+
     } catch (error) {
       console.error('Error fitting to width:', error);
+      this.isZooming = false;
     }
   }
 
@@ -2105,6 +2124,10 @@ class PdfViewer {
       
       const main = document.getElementById('pdf-main');
       if (!main) return;
+
+      // 3. Clear Queue
+      this.cancelAllPageRenders();
+      this.isZooming = true;
       
       // Get page dimensions - prefer cached values, fallback to fetching from PDF
       let pageWidth = this.basePageWidths?.[this.pageNum] || this.basePageWidths?.[1];
@@ -2118,7 +2141,10 @@ class PdfViewer {
           pageHeight = viewport.height;
       }
       
-      if (!pageWidth || !pageHeight) return;
+      if (!pageWidth || !pageHeight) {
+          this.isZooming = false;
+          return;
+      }
       
       // Available space minus padding
       const availableWidth = main.clientWidth - 48;
@@ -2140,6 +2166,7 @@ class PdfViewer {
       console.log(`[PDF] fitToPage: pageWidth=${pageWidth}, pageHeight=${pageHeight}, newScale=${newScale}`);
       
       this.scale = newScale;
+      // 1. CSS Scaling
       this.applyZoomTransform();
       
       // Center horizontally
@@ -2153,22 +2180,24 @@ class PdfViewer {
           main.scrollLeft = 0;
       }
       
-      // Center vertically on the current page
-      // We need to scroll to the top of the current page minus half the available vertical space
-      // But scrollToPage handles this better usually.
-      // For fitToPage, we usually want to see the whole page, so scrolling to the top of the page is best.
-      // However, if we just zoomed out to fit the page, we might want to center it vertically if there's space.
-      // applyZoomTransform handles vertical centering via marginTop if the content is smaller than viewport.
-      // If content is larger (multiple pages), we should scroll to the current page.
-      
       this.scrollToPage(this.pageNum);
       
       this.elements.zoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
       if (this.elements.editZoomLevel) {
           this.elements.editZoomLevel.textContent = `${Math.round(this.scale * 100)}%`;
       }
+
+      // 2. Debounce
+      if (this.zoomRenderTimeout) clearTimeout(this.zoomRenderTimeout);
+      this.zoomRenderTimeout = setTimeout(() => {
+          this.isZooming = false;
+          this.updateVisiblePages();
+          this.rerenderForQuality();
+      }, 200);
+
     } catch (error) {
       console.error('Error fitting to page:', error);
+      this.isZooming = false;
     }
   }
 
