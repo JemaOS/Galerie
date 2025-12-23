@@ -133,6 +133,12 @@ class FileHandler {
               handle = item;
               file = await item.getFile();
             } catch (e) {
+              // Silently ignore NotFoundError - file handle is stale/invalid
+              // This commonly happens when restoring handles from IndexedDB for files that were moved/deleted
+              if (e.name === 'NotFoundError') {
+                console.warn(`[FileHandler] Skipping stale file handle: ${item.name || 'unknown'} - file no longer exists`);
+                continue;
+              }
               console.error('Error getting file from handle:', e);
               errors.push(`${item.name} : Échec de la lecture du fichier`);
               continue;

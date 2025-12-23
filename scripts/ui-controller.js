@@ -57,27 +57,21 @@ class UIController {
     this.showLoadingScreen(false);
 
     // Auto-trigger file picker if no files are loaded
-    // Note: This might be blocked by browser autoplay policies if not triggered by user interaction
-    // We'll try, but if it fails, the user will need to click the "Open" button (if visible) or drag & drop
+    // Note: File chooser dialog can only be shown with user activation (click/keypress)
+    // We cannot programmatically trigger it without user interaction
     if (this.fileHandler.files.length === 0) {
-      setTimeout(() => {
-        if (this.fileHandler.files.length === 0) {
-          // Check if we have user activation or if we can show the picker
-          try {
-             this.triggerFileInput('all');
-          } catch (e) {
-             console.warn('Auto-open file picker failed:', e);
-             this.showToast('Cliquez n\'importe où pour ouvrir un fichier', 'info');
-             
-             // Add a one-time click listener to the body to trigger the file input
-             const openHandler = () => {
-               this.triggerFileInput('all');
-               document.body.removeEventListener('click', openHandler);
-             };
-             document.body.addEventListener('click', openHandler);
-          }
+      // Show a message and wait for user click to open file picker
+      this.showToast('Cliquez n\'importe où pour ouvrir un fichier', 'info');
+      
+      // Add a one-time click listener to the body to trigger the file input
+      const openHandler = (e) => {
+        // Only trigger if not clicking on an interactive element
+        if (e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'A') {
+          this.triggerFileInput('all');
         }
-      }, 500);
+        document.body.removeEventListener('click', openHandler);
+      };
+      document.body.addEventListener('click', openHandler);
     }
   }
 
