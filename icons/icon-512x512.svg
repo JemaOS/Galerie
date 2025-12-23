@@ -4,12 +4,17 @@
       <stop offset="0%" style="stop-color:#8286E0;stop-opacity:1" />
       <stop offset="100%" style="stop-color:#6569D0;stop-opacity:1" />
     </linearGradient>
+    <clipPath id="round-corners">
+      <rect x="0" y="0" width="512" height="512" rx="115" ry="115"/>
+    </clipPath>
   </defs>
-  <!-- Background fills entire viewBox - no rounded corners for Windows icons -->
-  <rect x="0" y="0" width="512" height="512" fill="url(#bgGradient)"/>
+  <!-- Background with rounded corners -->
+  <rect x="0" y="0" width="512" height="512" rx="115" ry="115" fill="url(#bgGradient)"/>
   <!-- Sun - positioned proportionally -->
   <circle cx="380" cy="120" r="60" fill="#FFFFFF" opacity="0.9"/>
   <!-- Mountains - scaled to fill the space edge to edge -->
-  <path d="M0 512 L180 180 L360 512 Z" fill="#FFFFFF" opacity="0.8"/>
-  <path d="M180 512 L380 220 L512 420 L512 512 Z" fill="#FFFFFF" opacity="1.0"/>
+  <g clip-path="url(#round-corners)">
+    <path d="M0 512 L180 180 L360 512 Z" fill="#FFFFFF" opacity="0.8"/>
+    <path d="M180 512 L380 220 L512 420 L512 512 Z" fill="#FFFFFF" opacity="1.0"/>
+  </g>
 </svg>
