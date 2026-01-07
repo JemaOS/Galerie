@@ -251,7 +251,12 @@ class FullscreenViewer {
       }
     });
     
-    // Wheel for zoom (images)
+    // Wheel for zoom (images) - optimized with requestAnimationFrame
+    let wheelRafId = null;
+    let accumulatedDelta = 0;
+    let lastWheelX = 0;
+    let lastWheelY = 0;
+
     this.elements.media.addEventListener('wheel', (e) => {
       if (this.currentFile?.type === 'image') {
         e.preventDefault();
@@ -260,7 +265,7 @@ class FullscreenViewer {
         
         // Normalize deltaMode (1 = lines, 2 = pages)
         if (e.deltaMode === 1) {
-            deltaY *= 40;
+            deltaY *= 16; // More reasonable multiplier for line mode
         } else if (e.deltaMode === 2) {
             deltaY *= 800;
         }
@@ -270,8 +275,19 @@ class FullscreenViewer {
         // Pinch gesture (ctrlKey) needs higher sensitivity
         const sensitivity = e.ctrlKey ? 0.01 : 0.001;
         
-        const delta = -deltaY * sensitivity;
-        this.setZoom(this.zoomLevel + delta);
+        accumulatedDelta += -deltaY * sensitivity;
+        lastWheelX = e.clientX;
+        lastWheelY = e.clientY;
+        
+        // Use requestAnimationFrame to batch updates for smooth 60fps
+        if (!wheelRafId) {
+            wheelRafId = requestAnimationFrame(() => {
+                const newZoom = this.zoomLevel + accumulatedDelta;
+                this.setZoom(newZoom, lastWheelX, lastWheelY);
+                accumulatedDelta = 0;
+                wheelRafId = null;
+            });
+        }
       }
     }, { passive: false });
     
@@ -322,14 +338,71 @@ class FullscreenViewer {
    * Setup touch gestures
    */
   setupTouchGestures() {
-      // Basic swipe support
+      // Pinch-to-zoom state
+      let initialPinchDistance = null;
+      let initialScale = 1;
+      let pinchCenterX = 0;
+      let pinchCenterY = 0;
+      let isPinching = false;
+      let pinchRafId = null;
+
       this.elements.viewer.addEventListener('touchstart', (e) => {
-          this.touchStartX = e.changedTouches[0].screenX;
-          this.touchStartY = e.changedTouches[0].screenY;
+          // Handle pinch-to-zoom (2 fingers)
+          if (e.touches.length === 2) {
+              isPinching = true;
+              initialPinchDistance = this.getDistance(e.touches[0], e.touches[1]);
+              initialScale = this.zoomLevel;
+              pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+              pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+              
+              // Add zooming class to disable CSS transitions during gesture
+              const img = this.elements.media.querySelector('img');
+              if (img) img.classList.add('zooming');
+          } else {
+              // Single touch - swipe support
+              this.touchStartX = e.changedTouches[0].screenX;
+              this.touchStartY = e.changedTouches[0].screenY;
+          }
       }, { passive: true });
 
+      this.elements.viewer.addEventListener('touchmove', (e) => {
+          if (isPinching && e.touches.length === 2) {
+              e.preventDefault();
+              
+              const currentDistance = this.getDistance(e.touches[0], e.touches[1]);
+              const scale = (currentDistance / initialPinchDistance) * initialScale;
+              const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+              const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+              
+              // Use requestAnimationFrame for smooth 60fps updates
+              if (!pinchRafId) {
+                  pinchRafId = requestAnimationFrame(() => {
+                      this.setZoom(scale, newCenterX, newCenterY);
+                      pinchRafId = null;
+                  });
+              }
+          }
+      }, { passive: false });
+
       this.elements.viewer.addEventListener('touchend', (e) => {
-          if (this.zoomLevel > 1 || this.isEditMode) return;
+          if (isPinching && e.touches.length < 2) {
+              isPinching = false;
+              initialPinchDistance = null;
+              
+              // Remove zooming class to restore CSS transitions
+              const img = this.elements.media.querySelector('img');
+              if (img) img.classList.remove('zooming');
+              
+              // Cancel any pending animation frame
+              if (pinchRafId) {
+                  cancelAnimationFrame(pinchRafId);
+                  pinchRafId = null;
+              }
+              return;
+          }
+
+          // Handle swipe gestures (single touch)
+          if (this.zoomLevel > 1 || this.isEditMode || isPinching) return;
 
           const touchEndX = e.changedTouches[0].screenX;
           const touchEndY = e.changedTouches[0].screenY;
@@ -343,6 +416,18 @@ class FullscreenViewer {
               }
           }
       }, { passive: true });
+  }
+
+  /**
+   * Calculate distance between two touch points
+   * @param {Touch} touch1 - First touch point
+   * @param {Touch} touch2 - Second touch point
+   * @returns {number} Distance in pixels
+   */
+  getDistance(touch1, touch2) {
+      const dx = touch1.clientX - touch2.clientX;
+      const dy = touch1.clientY - touch2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
   }
 
   setupSplitButton() {
@@ -1268,17 +1353,42 @@ class FullscreenViewer {
   }
 
   /**
-   * Set zoom level
+   * Set zoom level with optional focus point
    * @param {number} level - Zoom level
+   * @param {number} [focusX] - X coordinate of focus point (client coordinates)
+   * @param {number} [focusY] - Y coordinate of focus point (client coordinates)
    */
-  setZoom(level) {
+  setZoom(level, focusX, focusY) {
+    const oldZoom = this.zoomLevel;
     this.zoomLevel = Math.max(0.1, Math.min(5, level));
     this.transform.scale = this.zoomLevel;
     
     // Reset translation if zoomed out to 1
-    if (this.zoomLevel === 1) {
+    if (this.zoomLevel <= 1) {
         this.transform.x = 0;
         this.transform.y = 0;
+    } else if (focusX !== undefined && focusY !== undefined && oldZoom !== this.zoomLevel) {
+        // Calculate zoom towards focus point (cursor/finger position)
+        const img = this.elements.media.querySelector('img');
+        if (img) {
+            const rect = this.elements.media.getBoundingClientRect();
+            
+            // Get the center of the media container
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            
+            // Calculate the offset from center to focus point
+            const offsetX = focusX - centerX;
+            const offsetY = focusY - centerY;
+            
+            // Calculate the scale ratio
+            const scaleRatio = this.zoomLevel / oldZoom;
+            
+            // Adjust transform to keep the focus point stationary
+            // The formula: newTransform = oldTransform - offset * (scaleRatio - 1)
+            this.transform.x = this.transform.x - offsetX * (scaleRatio - 1);
+            this.transform.y = this.transform.y - offsetY * (scaleRatio - 1);
+        }
     }
     
     this.applyTransform();

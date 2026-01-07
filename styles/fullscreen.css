@@ -155,6 +155,10 @@
   object-fit: contain;
   transition: transform var(--transition-normal);
   cursor: grab;
+  /* GPU acceleration for smooth zoom/pan */
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
 }
 
 .viewer-media img:active {
@@ -167,6 +171,11 @@
 
 .viewer-media img.zoomed:active {
   cursor: grabbing;
+}
+
+/* Disable transitions during active zoom gestures for 60fps performance */
+.viewer-media img.zooming {
+  transition: none !important;
 }
 
 /* Video Viewer */
