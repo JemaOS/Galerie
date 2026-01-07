@@ -66,6 +66,10 @@ class FullscreenViewer {
     // History
     this.history = [];
     this.historyStep = -1;
+    
+    // Zoom optimization timeouts
+    this.filterUpdateTimeout = null;
+    this.zoomingClassTimeout = null;
   }
 
   /**
@@ -251,43 +255,39 @@ class FullscreenViewer {
       }
     });
     
-    // Wheel for zoom (images) - optimized with requestAnimationFrame
-    let wheelRafId = null;
-    let accumulatedDelta = 0;
-    let lastWheelX = 0;
-    let lastWheelY = 0;
-
+    // Wheel for zoom (images) - optimized with exponential factor
     this.elements.media.addEventListener('wheel', (e) => {
       if (this.currentFile?.type === 'image') {
         e.preventDefault();
+        
+        const img = this.elements.media.querySelector('img');
+        if (img && !img.classList.contains('zooming')) {
+            img.classList.add('zooming');
+        }
         
         let deltaY = e.deltaY;
         
         // Normalize deltaMode (1 = lines, 2 = pages)
         if (e.deltaMode === 1) {
-            deltaY *= 16; // More reasonable multiplier for line mode
+            deltaY *= 16;
         } else if (e.deltaMode === 2) {
             deltaY *= 800;
         }
 
-        // Determine sensitivity
-        // Mouse wheel typically sends ~100, trackpad sends smaller values
-        // Pinch gesture (ctrlKey) needs higher sensitivity
-        const sensitivity = e.ctrlKey ? 0.01 : 0.001;
+        // Facteur exponentiel (comme PDF viewer) - plus naturel
+        const delta = -deltaY;
+        const factor = Math.pow(1.002, delta);
+        const newZoom = this.zoomLevel * factor;
         
-        accumulatedDelta += -deltaY * sensitivity;
-        lastWheelX = e.clientX;
-        lastWheelY = e.clientY;
+        this.setZoom(newZoom, e.clientX, e.clientY);
         
-        // Use requestAnimationFrame to batch updates for smooth 60fps
-        if (!wheelRafId) {
-            wheelRafId = requestAnimationFrame(() => {
-                const newZoom = this.zoomLevel + accumulatedDelta;
-                this.setZoom(newZoom, lastWheelX, lastWheelY);
-                accumulatedDelta = 0;
-                wheelRafId = null;
-            });
+        // Retirer la classe zooming après un délai
+        if (this.zoomingClassTimeout) {
+            clearTimeout(this.zoomingClassTimeout);
         }
+        this.zoomingClassTimeout = setTimeout(() => {
+            if (img) img.classList.remove('zooming');
+        }, 150);
       }
     }, { passive: false });
     
@@ -1360,14 +1360,19 @@ class FullscreenViewer {
    */
   setZoom(level, focusX, focusY) {
     const oldZoom = this.zoomLevel;
-    this.zoomLevel = Math.max(0.1, Math.min(5, level));
+    const newZoom = Math.max(0.1, Math.min(5, level));
+    
+    // Seuil minimum - éviter les micro-changements
+    if (Math.abs(newZoom - oldZoom) < 0.001) return;
+    
+    this.zoomLevel = newZoom;
     this.transform.scale = this.zoomLevel;
     
     // Reset translation if zoomed out to 1
     if (this.zoomLevel <= 1) {
         this.transform.x = 0;
         this.transform.y = 0;
-    } else if (focusX !== undefined && focusY !== undefined && oldZoom !== this.zoomLevel) {
+    } else if (focusX !== undefined && focusY !== undefined) {
         // Calculate zoom towards focus point (cursor/finger position)
         const img = this.elements.media.querySelector('img');
         if (img) {
@@ -1391,12 +1396,60 @@ class FullscreenViewer {
         }
     }
     
-    this.applyTransform();
+    // RAPIDE: Uniquement transform CSS (pas de filtres)
+    this.applyZoomTransformOnly();
     
     // Update zoom level display
     const zoomLevelDisplay = this.elements.viewer.querySelector('.zoom-level');
     if (zoomLevelDisplay) {
       zoomLevelDisplay.textContent = `${Math.round(this.zoomLevel * 100)}%`;
+    }
+    
+    // DEBOUNCE: Appliquer les filtres complets APRÈS le zoom (150ms)
+    if (this.filterUpdateTimeout) {
+        clearTimeout(this.filterUpdateTimeout);
+    }
+    this.filterUpdateTimeout = setTimeout(() => {
+        this.filterUpdateTimeout = null;
+        // Appliquer les filtres seulement si des ajustements sont actifs
+        if (this.hasActiveAdjustments()) {
+            this.applyTransform();
+        }
+    }, 150);
+  }
+
+  /**
+   * Check if any image adjustments are active
+   */
+  hasActiveAdjustments() {
+    if (!this.adjustments) return false;
+    return this.adjustments.brightness !== 0 ||
+           this.adjustments.contrast !== 0 ||
+           this.adjustments.exposure !== 0 ||
+           this.adjustments.saturation !== 0 ||
+           this.adjustments.shadows !== 0 ||
+           this.adjustments.highlights !== 0 ||
+           this.adjustments.temperature !== 0 ||
+           this.adjustments.tint !== 0 ||
+           this.adjustments.vignette !== 0;
+  }
+
+  /**
+   * Apply only zoom/pan/rotation transform - LIGHTWEIGHT for smooth zooming
+   * Does NOT update filters/adjustments
+   */
+  applyZoomTransformOnly() {
+    const img = this.elements.media.querySelector('img');
+    const annotationCanvas = this.elements.media.querySelector('.annotation-canvas');
+    const transform = `translate(${this.transform.x}px, ${this.transform.y}px) rotate(${this.rotation}deg) scale(${this.transform.scale})`;
+    
+    if (img) {
+        img.style.transform = transform;
+        img.style.cursor = this.transform.scale > 1 && (!this.annotationManager || !this.annotationManager.isActive) ? 'grab' : 'default';
+    }
+    
+    if (annotationCanvas) {
+        annotationCanvas.style.transform = transform;
     }
   }
 
