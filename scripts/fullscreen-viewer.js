@@ -276,7 +276,7 @@ class FullscreenViewer {
 
         // Facteur exponentiel (comme PDF viewer) - plus naturel
         const delta = -deltaY;
-        const factor = Math.pow(1.002, delta);
+        const factor = Math.pow(1.01, delta);
         const newZoom = this.zoomLevel * factor;
         
         this.setZoom(newZoom, e.clientX, e.clientY);
