@@ -1135,6 +1135,7 @@ class FullscreenViewer {
         isDragging = true;
         dragStart = { x: e.clientX - this.transform.x, y: e.clientY - this.transform.y };
         img.style.cursor = 'grabbing';
+        img.classList.add('zooming');  // Disable CSS transitions during drag
         e.preventDefault();
       }
     });
@@ -1143,14 +1144,20 @@ class FullscreenViewer {
       if (isDragging && this.zoomLevel > 1) {
         this.transform.x = e.clientX - dragStart.x;
         this.transform.y = e.clientY - dragStart.y;
-        this.applyTransform();
+        this.applyZoomTransformOnly();  // Lightweight transform (no filters)
       }
     });
     
     document.addEventListener('mouseup', () => {
-      isDragging = false;
-      if (this.zoomLevel > 1 && (!this.annotationManager || !this.annotationManager.isActive)) {
-          img.style.cursor = 'grab';
+      if (isDragging) {
+        isDragging = false;
+        img.style.cursor = this.zoomLevel > 1 ? 'grab' : 'default';
+        img.classList.remove('zooming');  // Restore CSS transitions
+        
+        // Apply full filters after drag if adjustments are active
+        if (this.hasActiveAdjustments()) {
+          this.applyTransform();
+        }
       }
     });
   }
