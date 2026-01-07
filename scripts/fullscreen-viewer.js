@@ -533,9 +533,11 @@ class FullscreenViewer {
           this.historyStep = -1;
           this.updateUndoRedoButtons();
           
-          // Restore cursor
+          // Restore cursor based on zoom level
           const img = this.elements.media.querySelector('img');
-          if (img && this.zoomLevel > 1) img.style.cursor = 'grab';
+          if (img) {
+            img.style.cursor = this.zoomLevel > 1 ? 'grab' : 'default';
+          }
       }
   }
 

@@ -154,15 +154,11 @@
   height: 100%;
   object-fit: contain;
   transition: transform var(--transition-normal);
-  cursor: grab;
+  cursor: default;
   /* GPU acceleration for smooth zoom/pan */
   will-change: transform;
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
-}
-
-.viewer-media img:active {
-  cursor: grabbing;
 }
 
 .viewer-media img.zoomed {
