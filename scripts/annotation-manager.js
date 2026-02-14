@@ -981,6 +981,7 @@ class AnnotationManager {
   createTextInput(x, y, width, height) {
       const container = this.activeCanvas.parentElement;
       const wrapper = document.createElement('div');
+      // Math.random for generating unique element IDs - not cryptographic
       wrapper.id = `text-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       wrapper.className = 'text-input-wrapper';
       wrapper.style.position = 'absolute';

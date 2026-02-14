@@ -276,6 +276,7 @@ class AudioPlayer {
         let nextIndex;
         
         if (this.isShuffle) {
+            // Using Math.random for playlist shuffle - not cryptographic, just visual/audio playback
             nextIndex = Math.floor(Math.random() * this.playlist.length);
         } else {
             nextIndex = this.currentIndex + 1;
