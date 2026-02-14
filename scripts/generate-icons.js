@@ -268,11 +268,7 @@ async function generateFileTypeIco(fileTypeName, pngFiles) {
 }
 
 // Main execution
-(async () => {
-  try {
-    await generateIcons();
-  } catch (err) {
-    console.error('Error generating icons:', err);
-    process.exit(1);
-  }
-})();
+generateIcons().catch(err => {
+  console.error('Error generating icons:', err);
+  process.exit(1);
+});

@@ -281,9 +281,9 @@ class UIController {
     // If we have files but no viewer is open, open the first file immediately
     // This prevents showing a blank screen or the hidden home page
     if (this.fileHandler.files.length > 0 &&
-        (!globalThis.fullscreenViewer || !globalThis.fullscreenViewer?.isViewerOpen()) &&
-        (!globalThis.pdfViewer || !globalThis.pdfViewer?.isOpen) &&
-        (!globalThis.audioPlayer || !globalThis.audioPlayer?.elements?.container || globalThis.audioPlayer.elements.container.classList.contains('hidden'))) {
+        !globalThis.fullscreenViewer?.isViewerOpen() &&
+        !globalThis.pdfViewer?.isOpen &&
+        (!globalThis.audioPlayer?.elements?.container || globalThis.audioPlayer.elements.container.classList.contains('hidden'))) {
         
         // Use requestAnimationFrame to ensure this runs after the current call stack
         // but before the next repaint, making it feel instant
