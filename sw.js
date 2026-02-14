@@ -185,7 +185,7 @@ function doBackgroundSync() {
   // Handle background file operations
   return new Promise((resolve) => {
     console.log('[SW] Background sync completed');
-    resolve();
+    resolve('sync-completed');
   });
 }
 
@@ -236,7 +236,7 @@ if (self.registration && 'periodicSync' in self.registration) {
 function syncGalleryData() {
   return new Promise((resolve) => {
     console.log('[SW] Periodic sync completed');
-    resolve();
+    resolve('gallery-synced');
   });
 }
 
