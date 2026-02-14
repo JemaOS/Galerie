@@ -786,8 +786,8 @@ class UIController {
       
       // Notify PDF viewer
       if (globalThis.pdfViewer?.isOpen && globalThis.pdfViewer?.currentFile) {
-          if (fileIds.includes(window.pdfViewer.currentFile.id)) {
-              window.pdfViewer.close();
+          if (fileIds.includes(globalThis.pdfViewer.currentFile.id)) {
+              globalThis.pdfViewer.close();
           }
       }
     }
