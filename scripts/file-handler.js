@@ -179,7 +179,7 @@ class FileHandler {
   /**
    * Get file from FileSystemFileHandle
    * @private
-   * @returns {Object|null} Object with file and handle, or null if failed
+   * @returns {Promise<Object|null>} Object with file and handle, or null if failed
    */
   async _getFileFromHandle(handleItem, errors) {
     try {
@@ -278,17 +278,7 @@ class FileHandler {
 
     // Get metadata for specific file types
     // Optimization: Skip metadata pre-loading to reduce latency
-    /*
-    if (fileType === 'image') {
-      fileObject.metadata = await this.getImageMetadata(file);
-    } else if (fileType === 'video') {
-      fileObject.metadata = await this.getVideoMetadata(file);
-    } else if (fileType === 'audio') {
-      fileObject.metadata = await this.getAudioMetadata(file);
-    } else if (fileType === 'pdf') {
-      // PDF metadata could be extracted here if needed
-    }
-    */
+
     fileObject.metadata = {};
 
     return fileObject;
@@ -402,11 +392,9 @@ class FileHandler {
               height = (height * maxSize) / width;
               width = maxSize;
             }
-          } else {
-            if (height > maxSize) {
-              width = (width * maxSize) / height;
-              height = maxSize;
-            }
+          } else if (height > maxSize) {
+            width = (width * maxSize) / height;
+            height = maxSize;
           }
 
           canvas.width = width;
@@ -947,7 +935,7 @@ class FileHandler {
               a.download = originalFile.name;
               document.body.appendChild(a);
               a.click();
-              document.body.removeChild(a);
+              a.remove();
               URL.revokeObjectURL(url);
               return null; // Can't get file object back from download
           }
@@ -1056,9 +1044,9 @@ class FileHandler {
    * @returns {boolean} True if any viewer is open
    */
   _isAnyViewerOpen() {
-    return (window.fullscreenViewer && window.fullscreenViewer.isViewerOpen()) ||
-           (window.pdfViewer && window.pdfViewer.isOpen) ||
-           (window.audioPlayer && window.audioPlayer.elements && window.audioPlayer.elements.container && !window.audioPlayer.elements.container.classList.contains('hidden'));
+    return (window.fullscreenViewer?.isViewerOpen()) ||
+           (window.pdfViewer?.isOpen) ||
+           (window.audioPlayer?.elements?.container && !window.audioPlayer.elements.container.classList.contains('hidden'));
   }
 
   /**
@@ -1090,7 +1078,6 @@ class FileHandler {
    */
   async _tryLoadFromHandles(items) {
     const handles = [];
-    const files = [];
     let hasHandles = false;
 
     for (const item of items) {
@@ -1100,9 +1087,6 @@ class FileHandler {
       if (handle) {
         handles.push(handle);
         hasHandles = true;
-      } else if (!hasHandles) {
-        const file = item.getAsFile();
-        if (file) files.push(file);
       }
     }
 

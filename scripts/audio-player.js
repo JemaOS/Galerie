@@ -114,7 +114,7 @@ class AudioPlayer {
         this.elements.shuffleBtn.addEventListener('click', this.toggleShuffle);
         this.elements.repeatBtn.addEventListener('click', this.toggleRepeat);
         this.elements.volumeSlider.addEventListener('input', this.handleVolume);
-        // this.elements.backBtn.addEventListener('click', this.close);
+
         this.elements.backBtn.style.display = 'none';
 
         // Progress Bar
@@ -159,7 +159,7 @@ class AudioPlayer {
 
         // If we only have one file, return to home page (landing state)
         // BUT skip this if we're just switching viewers
-        if (!skipFileRemoval && window.galleryUI && window.galleryUI.fileHandler) {
+        if (!skipFileRemoval && window.galleryUI?.fileHandler) {
             if (window.galleryUI.fileHandler.files.length === 1) {
                 const files = window.galleryUI.fileHandler.files;
                 if (files.length > 0) {
@@ -332,7 +332,7 @@ class AudioPlayer {
         const current = this.audio.currentTime;
         const duration = this.audio.duration;
         
-        if (isNaN(duration)) return;
+        if (Number.isNaN(duration)) return;
 
         const percent = (current / duration) * 100;
         this.elements.progressFill.style.width = `${percent}%`;
@@ -433,7 +433,7 @@ class AudioPlayer {
      * @returns {string}
      */
     formatTime(seconds) {
-        if (isNaN(seconds)) return '0:00';
+        if (Number.isNaN(seconds)) return '0:00';
         const m = Math.floor(seconds / 60);
         const s = Math.floor(seconds % 60);
         return `${m}:${s.toString().padStart(2, '0')}`;

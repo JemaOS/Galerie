@@ -352,8 +352,6 @@ class FullscreenViewer {
               isPinching = true;
               initialPinchDistance = this.getDistance(e.touches[0], e.touches[1]);
               initialScale = this.zoomLevel;
-              pinchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-              pinchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
               
               // Add zooming class to disable CSS transitions during gesture
               const img = this.elements.media.querySelector('img');
@@ -472,13 +470,13 @@ class FullscreenViewer {
       // Close dropdowns when clicking outside
       document.addEventListener('click', (e) => {
           // Sidebar Dropdown
-          if (this.elements.saveDropdown && this.elements.saveDropdown.classList.contains('show')) {
+          if (this.elements.saveDropdown?.classList.contains('show')) {
               if (!this.elements.saveOptionsBtn.contains(e.target) && !this.elements.saveDropdown.contains(e.target)) {
                   this.elements.saveDropdown.classList.remove('show');
               }
           }
           // Toolbar Dropdown
-          if (this.elements.toolbarSaveDropdown && this.elements.toolbarSaveDropdown.classList.contains('show')) {
+          if (this.elements.toolbarSaveDropdown?.classList.contains('show')) {
               if (!this.elements.toolbarSaveOptionsBtn.contains(e.target) && !this.elements.toolbarSaveDropdown.contains(e.target)) {
                   this.elements.toolbarSaveDropdown.classList.remove('show');
               }
@@ -658,15 +656,15 @@ class FullscreenViewer {
               });
 
               slider.addEventListener('input', (e) => {
-                  const val = parseInt(e.target.value);
+                  const val = Number.parseInt(e.target.value);
                   this.adjustments[adj.id] = val;
                   valueDisplay.textContent = val;
                   this.applyAdjustments();
               });
 
               slider.addEventListener('change', (e) => {
-                  const newVal = parseInt(e.target.value);
-                  const oldVal = parseInt(slider.dataset.startValue);
+                  const newVal = Number.parseInt(e.target.value);
+                  const oldVal = Number.parseInt(slider.dataset.startValue);
                   if (newVal !== oldVal) {
                       this.addAdjustmentToHistory(adj.id, oldVal, newVal);
                   }
@@ -760,7 +758,7 @@ class FullscreenViewer {
       if (!img) return null;
 
       // Finalize any active text input
-      if (this.annotationManager && this.annotationManager.activeInput) {
+      if (this.annotationManager?.activeInput) {
           this.annotationManager.finalizeTextInput();
       }
 
@@ -841,7 +839,7 @@ class FullscreenViewer {
    * Save changes
    */
   async save() {
-    if (!this.currentFile || this.currentFile.type !== 'image') return;
+    if (this.currentFile?.type !== 'image') return;
 
     try {
         this.showLoading(true);
@@ -936,7 +934,7 @@ class FullscreenViewer {
    * Save As
    */
   async saveAs(blob = null) {
-      if (!this.currentFile || this.currentFile.type !== 'image') return;
+      if (this.currentFile?.type !== 'image') return;
 
       try {
           this.showLoading(true);
@@ -999,7 +997,7 @@ class FullscreenViewer {
       
       this.files.splice(index, 1);
       
-      if (!this.currentFile || this.currentFile.id !== fileId) {
+      if (this.currentFile?.id !== fileId) {
           // Deleted file was not the current one, just adjust index if needed
           if (index < this.currentIndex) {
               this.currentIndex--;
@@ -1119,7 +1117,7 @@ class FullscreenViewer {
     // Mouse events for dragging
     // We attach to media container to capture events even if clicking on canvas
     this.elements.media.addEventListener('mousedown', (e) => {
-      if (this.zoomLevel > 1 && (!this.annotationManager || !this.annotationManager.isActive)) {
+      if (this.zoomLevel > 1 && !this.annotationManager?.isActive) {
         isDragging = true;
         dragStart = { x: e.clientX - this.transform.x, y: e.clientY - this.transform.y };
         img.style.cursor = 'grabbing';
@@ -1440,7 +1438,7 @@ class FullscreenViewer {
     
     if (img) {
         img.style.transform = transform;
-        img.style.cursor = this.transform.scale > 1 && (!this.annotationManager || !this.annotationManager.isActive) ? 'grab' : 'default';
+          img.style.cursor = this.transform.scale > 1 && !this.annotationManager?.isActive ? 'grab' : 'default';
     }
     
     if (annotationCanvas) {
@@ -1455,7 +1453,7 @@ class FullscreenViewer {
       
       if (img) {
           img.style.transform = transform;
-          img.style.cursor = this.transform.scale > 1 && (!this.annotationManager || !this.annotationManager.isActive) ? 'grab' : 'default';
+          img.style.cursor = this.transform.scale > 1 && !this.annotationManager?.isActive ? 'grab' : 'default';
           this.applyImageFilters(img);
       }
       

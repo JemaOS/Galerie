@@ -214,7 +214,7 @@ class JemaOSGallery {
       
       navigator.serviceWorker.addEventListener('message', async (event) => {
         if (event.data.type === 'SHARED_FILES') {
-          const { files, title, text } = event.data;
+          const { files } = event.data;
           const loadedFiles = await this.fileHandler.loadFiles(files);
           this.uiController.showToast(`Fichiers partagés : ${files.length}`, 'success');
 
@@ -337,7 +337,7 @@ class JemaOSGallery {
     ]);
     
     toast.addEventListener('click', () => {
-      if (registration && registration.waiting) {
+      if (registration?.waiting) {
         registration.waiting.postMessage({ type: 'SKIP_WAITING' });
         
         // Wait for the new service worker to take control
@@ -547,7 +547,7 @@ window.galleryAppDebug = {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     // Pause any playing media
-    if (window.fullscreenViewer && window.fullscreenViewer.isOpen) {
+    if (window.fullscreenViewer?.isOpen) {
       const media = document.querySelector('#viewer-media video, #viewer-media audio');
       if (media && !media.paused) {
         media.pause();

@@ -362,7 +362,7 @@ class AnnotationManager {
         fontSizeSelect.appendChild(option);
     });
     fontSizeSelect.addEventListener('change', (e) => {
-        this.currentFontSize = parseInt(e.target.value);
+        this.currentFontSize = Number.parseInt(e.target.value);
         this.updateActiveInputStyle();
     });
     fontControls.appendChild(fontSizeSelect);
@@ -502,7 +502,7 @@ class AnnotationManager {
     rangeSlider.max = '100';
     rangeSlider.value = this.currentSize;
     rangeSlider.addEventListener('input', (e) => {
-        const size = parseInt(e.target.value);
+        const size = Number.parseInt(e.target.value);
         this.setSize(size);
         sliderValue.textContent = size;
     });
@@ -547,7 +547,7 @@ class AnnotationManager {
       if (!this.isActive) return;
       if (e.target.closest('.text-input-wrapper')) return;
       if (e.target.classList.contains('annotation-canvas')) return;
-      if (this.propertiesContainer && this.propertiesContainer.contains(e.target)) return;
+      if (this.propertiesContainer?.contains(e.target)) return;
       if (e.target.closest('.pdf-toolbar') || e.target.closest('.viewer-toolbar')) return;
       if (e.target.closest('.context-menu')) return;
       if (this.activeWrapper) {
@@ -558,7 +558,7 @@ class AnnotationManager {
   handleKeyDown(e) {
       if (!this.isActive) return;
       if (e.key === 'Delete' || e.key === 'Backspace') {
-          if (this.activeWrapper && this.activeWrapper.classList.contains('selected')) {
+          if (this.activeWrapper?.classList.contains('selected')) {
               if (document.activeElement === this.activeInput) return;
               e.preventDefault();
               this.cancelTextInput();
@@ -652,7 +652,7 @@ class AnnotationManager {
         return;
     }
     
-    // this.tempState = this.ctx.getImageData(0, 0, this.activeCanvas.width, this.activeCanvas.height); // No longer needed
+
     this.isDrawing = true;
     
     // Setup context for drawing
@@ -745,10 +745,10 @@ class AnnotationManager {
     this.isCreatingText = false;
     if (!this.selectionBox) return;
     
-    const width = parseFloat(this.selectionBox.style.width);
-    const height = parseFloat(this.selectionBox.style.height);
-    const left = parseFloat(this.selectionBox.style.left);
-    const top = parseFloat(this.selectionBox.style.top);
+    const width = Number.parseFloat(this.selectionBox.style.width);
+    const height = Number.parseFloat(this.selectionBox.style.height);
+    const left = Number.parseFloat(this.selectionBox.style.left);
+    const top = Number.parseFloat(this.selectionBox.style.top);
     this.selectionBox.remove();
     this.selectionBox = null;
     
@@ -850,9 +850,7 @@ class AnnotationManager {
   }
 
   undoTextRemove(action) {
-      if (this.pages.has(action.pageId)) {
-          this.restoreTextWrapper(action.state, this.pages.get(action.pageId));
-      }
+      this._restoreWrapperFromAction(action);
   }
 
   undoTextModify(action) {
@@ -893,9 +891,7 @@ class AnnotationManager {
   }
 
   redoTextAdd(action) {
-      if (this.pages.has(action.pageId)) {
-          this.restoreTextWrapper(action.state, this.pages.get(action.pageId));
-      }
+      this._restoreWrapperFromAction(action);
   }
 
   redoTextRemove(action) {
@@ -931,11 +927,11 @@ class AnnotationManager {
       return {
           id: wrapper.id,
           pageId: pageId,
-          x: parseFloat(wrapper.style.left),
-          y: parseFloat(wrapper.style.top),
-          width: parseFloat(wrapper.style.width),
-          height: parseFloat(wrapper.style.height),
-          rotation: parseFloat(wrapper.dataset.rotation || 0),
+          x: Number.parseFloat(wrapper.style.left),
+          y: Number.parseFloat(wrapper.style.top),
+          width: Number.parseFloat(wrapper.style.width),
+          height: Number.parseFloat(wrapper.style.height),
+          rotation: Number.parseFloat(wrapper.dataset.rotation || 0),
           text: input.value,
           styles: {
               fontFamily: input.style.fontFamily,
@@ -1177,8 +1173,8 @@ class AnnotationManager {
       e.preventDefault();
       const startX = e.clientX;
       const startY = e.clientY;
-      const initialLeft = parseFloat(wrapper.style.left);
-      const initialTop = parseFloat(wrapper.style.top);
+      const initialLeft = Number.parseFloat(wrapper.style.left);
+      const initialTop = Number.parseFloat(wrapper.style.top);
       const onMouseMove = (e) => {
           const dx = e.clientX - startX;
           const dy = e.clientY - startY;
@@ -1188,19 +1184,7 @@ class AnnotationManager {
       const onMouseUp = () => {
           document.removeEventListener('mousemove', onMouseMove);
           document.removeEventListener('mouseup', onMouseUp);
-          if (this.initialTextState && !this.isRestoring) {
-              const currentState = this.serializeTextWrapper(wrapper);
-              if (JSON.stringify(this.initialTextState) !== JSON.stringify(currentState)) {
-                  this.addAction({
-                      type: 'text-modify',
-                      id: wrapper.id,
-                      pageId: currentState.pageId,
-                      before: this.initialTextState,
-                      after: currentState
-                  });
-                  this.initialTextState = currentState;
-              }
-          }
+          this._handleInteractionEnd(wrapper);
       };
       document.addEventListener('mousemove', onMouseMove);
       document.addEventListener('mouseup', onMouseUp);
@@ -1212,10 +1196,10 @@ class AnnotationManager {
           e.stopPropagation();
           const startX = e.clientX;
           const startY = e.clientY;
-          const initialWidth = parseFloat(wrapper.style.width);
-          const initialHeight = parseFloat(wrapper.style.height);
-          const initialLeft = parseFloat(wrapper.style.left);
-          const initialTop = parseFloat(wrapper.style.top);
+          const initialWidth = Number.parseFloat(wrapper.style.width);
+          const initialHeight = Number.parseFloat(wrapper.style.height);
+          const initialLeft = Number.parseFloat(wrapper.style.left);
+          const initialTop = Number.parseFloat(wrapper.style.top);
           const onMouseMove = (e) => {
               const dx = e.clientX - startX;
               const dy = e.clientY - startY;
@@ -1230,23 +1214,11 @@ class AnnotationManager {
               if (newWidth > 20) { wrapper.style.width = `${newWidth}px`; wrapper.style.left = `${newLeft}px`; }
               if (newHeight > 20) { wrapper.style.height = `${newHeight}px`; wrapper.style.top = `${newTop}px`; }
           };
-          const onMouseUp = () => {
-              document.removeEventListener('mousemove', onMouseMove);
-              document.removeEventListener('mouseup', onMouseUp);
-              if (this.initialTextState && !this.isRestoring) {
-                  const currentState = this.serializeTextWrapper(wrapper);
-                  if (JSON.stringify(this.initialTextState) !== JSON.stringify(currentState)) {
-                      this.addAction({
-                          type: 'text-modify',
-                          id: wrapper.id,
-                          pageId: currentState.pageId,
-                          before: this.initialTextState,
-                          after: currentState
-                      });
-                      this.initialTextState = currentState;
-                  }
-              }
-          };
+      const onMouseUp = () => {
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+          this._handleInteractionEnd(wrapper);
+      };
           document.addEventListener('mousemove', onMouseMove);
           document.addEventListener('mouseup', onMouseUp);
       });
@@ -1266,23 +1238,11 @@ class AnnotationManager {
               wrapper.style.transform = `rotate(${angle}deg)`;
               wrapper.dataset.rotation = angle;
           };
-          const onMouseUp = () => {
-              document.removeEventListener('mousemove', onMouseMove);
-              document.removeEventListener('mouseup', onMouseUp);
-              if (this.initialTextState && !this.isRestoring) {
-                  const currentState = this.serializeTextWrapper(wrapper);
-                  if (JSON.stringify(this.initialTextState) !== JSON.stringify(currentState)) {
-                      this.addAction({
-                          type: 'text-modify',
-                          id: wrapper.id,
-                          pageId: currentState.pageId,
-                          before: this.initialTextState,
-                          after: currentState
-                      });
-                      this.initialTextState = currentState;
-                  }
-              }
-          };
+      const onMouseUp = () => {
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+          this._handleInteractionEnd(wrapper);
+      };
           document.addEventListener('mousemove', onMouseMove);
           document.addEventListener('mouseup', onMouseUp);
       });
@@ -1322,9 +1282,9 @@ class AnnotationManager {
           const canvasCenterY = centerY * scaleY;
           const canvasWidth = rect.width * scaleX;
           const canvasHeight = rect.height * scaleY;
-          const rotation = parseFloat(wrapper.dataset.rotation || 0);
+          const rotation = Number.parseFloat(wrapper.dataset.rotation || 0);
           const style = window.getComputedStyle(input);
-          const fontSize = parseFloat(style.fontSize) * scaleX;
+          const fontSize = Number.parseFloat(style.fontSize) * scaleX;
           const fontFamily = style.fontFamily;
           const color = style.color;
           const fontWeight = style.fontWeight;
@@ -1484,7 +1444,7 @@ class AnnotationManager {
   }
 
   updatePropertiesVisibility() {
-    if (!this.propertiesContainer || !this.propertiesContainer.querySelector) return;
+    if (!this.propertiesContainer?.querySelector) return;
     
     const groups = this.getPropertyGroups();
     this.hideAllPropertyGroups(groups);
@@ -1588,7 +1548,7 @@ class AnnotationManager {
     if (this.propertiesContainer) {
         const buttons = this.propertiesContainer.querySelectorAll('.size-btn');
         buttons.forEach(btn => {
-            if (parseInt(btn.dataset.size) === size) {
+            if (Number.parseInt(btn.dataset.size) === size) {
                 btn.classList.add('active');
             } else {
                 btn.classList.remove('active');
@@ -1602,9 +1562,9 @@ class AnnotationManager {
   }
   
   hexToRgba(hex, alpha) {
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
+    const r = Number.parseInt(hex.slice(1, 3), 16);
+    const g = Number.parseInt(hex.slice(3, 5), 16);
+    const b = Number.parseInt(hex.slice(5, 7), 16);
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
 
@@ -1719,6 +1679,28 @@ class AnnotationManager {
       }
   }
   
+  _restoreWrapperFromAction(action) {
+      if (this.pages.has(action.pageId)) {
+          this.restoreTextWrapper(action.state, this.pages.get(action.pageId));
+      }
+  }
+
+  _handleInteractionEnd(wrapper) {
+      if (this.initialTextState && !this.isRestoring) {
+          const currentState = this.serializeTextWrapper(wrapper);
+          if (JSON.stringify(this.initialTextState) !== JSON.stringify(currentState)) {
+              this.addAction({
+                  type: 'text-modify',
+                  id: wrapper.id,
+                  pageId: currentState.pageId,
+                  before: this.initialTextState,
+                  after: currentState
+              });
+              this.initialTextState = currentState;
+          }
+      }
+  }
+
   clear() {
       this.pages.forEach(p => {
           const ctx = p.canvas.getContext('2d');

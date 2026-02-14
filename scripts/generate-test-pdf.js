@@ -1,11 +1,11 @@
 const { PDFDocument, rgb, StandardFonts } = require('pdf-lib');
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
 async function createTestPdf() {
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([600, 400]);
-  const { width, height } = page.getSize();
+
 
   // 1. Blue background rectangle
   page.drawRectangle({
@@ -67,4 +67,6 @@ async function createTestPdf() {
   console.log('Created test/fixtures/test-bg.pdf');
 }
 
-createTestPdf();
+(async () => {
+  await createTestPdf();
+})();

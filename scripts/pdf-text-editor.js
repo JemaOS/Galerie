@@ -571,36 +571,40 @@ class PdfTextEditor {
      * @returns {Object} Map of item index to color info
      */
     extractColorsFromOperatorList(operatorList, textItems) {
+        const filledRects = this._collectFilledRects(operatorList);
+        console.log('[PDF-TextEditor] Found', filledRects.length, 'filled rectangles');
+        
+        const { colorState, textItemIndex } = this._processOperatorColors(operatorList, textItems, filledRects);
+        
+        // Fill remaining items with defaults
+        for (let i = textItemIndex; i < textItems.length; i++) {
+            if (!colorState[i]) {
+                colorState[i] = {
+                    fillColor: [0, 0, 0],
+                    strokeColor: [0, 0, 0],
+                    bgColor: [255, 255, 255]
+                };
+            }
+        }
+        
+        console.log('[PDF-TextEditor] Extracted colors for', textItemIndex, 'text operations');
+        
+        return colorState;
+    }
+
+    /**
+     * Helper: Collect filled rectangles from operator list
+     * @private
+     */
+    _collectFilledRects(operatorList) {
         const OPS = pdfjsLib.OPS;
-        const colorState = {};
-        
-        // Current graphics state
-        let currentFillColor = [0, 0, 0]; // Default black
-        let currentStrokeColor = [0, 0, 0];
-        
-        // Track filled rectangles (potential backgrounds)
         const filledRects = [];
         let pendingRect = null;
-        
-        // Graphics state stack for save/restore
-        const stateStack = [];
-        
-        // Track text positions for background matching
-        const textPositions = textItems.map(item => ({
-            x: item.transform[4],
-            y: item.transform[5],
-            width: item.width,
-            height: Math.abs(item.transform[3]) || 12
-        }));
-        
-        // Track text item index
-        let textItemIndex = 0;
+        let tempFillColor = [0, 0, 0];
         
         const ops = operatorList.fnArray;
         const args = operatorList.argsArray;
         
-        // First pass: collect all filled rectangles
-        let tempFillColor = [0, 0, 0];
         for (let i = 0; i < ops.length; i++) {
             const op = ops[i];
             const opArgs = args[i];
@@ -627,14 +631,34 @@ class PdfTextEditor {
                         pendingRect = null;
                     }
                     break;
-                default:
-                    break;
             }
         }
+        return filledRects;
+    }
+
+    /**
+     * Helper: Process operators to extract text colors
+     * @private
+     */
+    _processOperatorColors(operatorList, textItems, filledRects) {
+        const OPS = pdfjsLib.OPS;
+        const colorState = {};
+        const stateStack = [];
         
-        console.log('[PDF-TextEditor] Found', filledRects.length, 'filled rectangles');
+        let currentFillColor = [0, 0, 0];
+        let currentStrokeColor = [0, 0, 0];
+        let textItemIndex = 0;
         
-        // Second pass: extract text colors and match with backgrounds
+        const textPositions = textItems.map(item => ({
+            x: item.transform[4],
+            y: item.transform[5],
+            width: item.width,
+            height: Math.abs(item.transform[3]) || 12
+        }));
+        
+        const ops = operatorList.fnArray;
+        const args = operatorList.argsArray;
+        
         for (let i = 0; i < ops.length; i++) {
             const op = ops[i];
             const opArgs = args[i];
@@ -646,7 +670,6 @@ class PdfTextEditor {
                         strokeColor: [...currentStrokeColor]
                     });
                     break;
-                    
                 case OPS.restore:
                     if (stateStack.length > 0) {
                         const state = stateStack.pop();
@@ -654,31 +677,24 @@ class PdfTextEditor {
                         currentStrokeColor = state.strokeColor;
                     }
                     break;
-                    
                 case OPS.setFillRGBColor:
                     currentFillColor = this._extractRgbColor(opArgs);
                     break;
-                    
                 case OPS.setStrokeRGBColor:
                     currentStrokeColor = this._extractRgbColor(opArgs);
                     break;
-                    
                 case OPS.setFillGray:
                     currentFillColor = this._extractGrayColor(opArgs);
                     break;
-                    
                 case OPS.setStrokeGray:
                     currentStrokeColor = this._extractGrayColor(opArgs);
                     break;
-                    
                 case OPS.setFillCMYKColor:
                     currentFillColor = this._extractCmykColor(opArgs);
                     break;
-                    
                 case OPS.setStrokeCMYKColor:
                     currentStrokeColor = this._extractCmykColor(opArgs);
                     break;
-                    
                 case OPS.showText:
                 case OPS.showSpacedText:
                 case OPS.nextLineShowText:
@@ -697,25 +713,10 @@ class PdfTextEditor {
                         textItemIndex++;
                     }
                     break;
-                default:
-                    break;
             }
         }
         
-        // Fill remaining items with defaults
-        for (let i = textItemIndex; i < textItems.length; i++) {
-            if (!colorState[i]) {
-                colorState[i] = {
-                    fillColor: [0, 0, 0],
-                    strokeColor: [0, 0, 0],
-                    bgColor: [255, 255, 255]
-                };
-            }
-        }
-        
-        console.log('[PDF-TextEditor] Extracted colors for', textItemIndex, 'text operations');
-        
-        return colorState;
+        return { colorState, textItemIndex };
     }
 
     /**
@@ -912,12 +913,37 @@ class PdfTextEditor {
      * @private
      */
     _determineBgAndTextColors(sortedColors) {
-        // STRATEGY: The LIGHTEST color with significant count is the background
-        // The DARKEST color with significant count is the text
-        
         const totalPixels = sortedColors.reduce((sum, c) => sum + c.count, 0);
         const minCountThreshold = totalPixels * 0.02; // At least 2% of pixels
         
+        let { bgCandidate, textCandidate } = this._findColorCandidates(sortedColors, minCountThreshold);
+        
+        if (!bgCandidate && sortedColors.length > 0) {
+            bgCandidate = sortedColors[0];
+        }
+        
+        // Refine text candidate (check for color)
+        const coloredTextCandidate = this._findColoredTextCandidate(sortedColors, minCountThreshold, bgCandidate);
+        if (coloredTextCandidate) {
+            textCandidate = coloredTextCandidate;
+        }
+        
+        // Ensure valid text candidate and contrast
+        const result = this._ensureContrast(bgCandidate, textCandidate);
+        bgCandidate = result.bg;
+        textCandidate = result.text;
+        
+        return {
+            background: [bgCandidate.r, bgCandidate.g, bgCandidate.b],
+            text: [textCandidate.r, textCandidate.g, textCandidate.b]
+        };
+    }
+
+    /**
+     * Helper: Find initial background and text candidates based on luminance
+     * @private
+     */
+    _findColorCandidates(sortedColors, minCountThreshold) {
         let bgCandidate = null;
         let textCandidate = null;
         let maxLuminance = -1;
@@ -938,38 +964,51 @@ class PdfTextEditor {
                 textCandidate = color;
             }
         }
-        
-        // Fallback if no candidates found
-        if (!bgCandidate) {
-            bgCandidate = sortedColors[0];
+        return { bgCandidate, textCandidate };
+    }
+
+    /**
+     * Helper: Find colored text candidate
+     * @private
+     */
+    _findColoredTextCandidate(sortedColors, minCountThreshold, bgCandidate) {
+        for (const color of sortedColors) {
+            if (color.count < minCountThreshold) continue;
+            const [h, s, l] = this.rgbToHsl(color.r, color.g, color.b);
+            if (s > 0.25 && color !== bgCandidate) {
+                return color;
+            }
         }
-        if (!textCandidate) {
-            textCandidate = bgCandidate.luminance > 128
+        return null;
+    }
+
+    /**
+     * Helper: Ensure contrast between background and text
+     * @private
+     */
+    _ensureContrast(bgCandidate, textCandidate) {
+        if (!bgCandidate) {
+             return {
+                bg: { r: 255, g: 255, b: 255 },
+                text: { r: 0, g: 0, b: 0 }
+            };
+        }
+        
+        let finalText = textCandidate;
+
+        if (!finalText) {
+            finalText = bgCandidate.luminance > 128
                 ? { r: 0, g: 0, b: 0 }
                 : { r: 255, g: 255, b: 255 };
         }
         
         // If bg and text are the same, use contrasting color for text
-        if (bgCandidate === textCandidate) {
-            textCandidate = bgCandidate.luminance > 128
+        if (bgCandidate === finalText) {
+            finalText = bgCandidate.luminance > 128
                 ? { r: 0, g: 0, b: 0 }
                 : { r: 255, g: 255, b: 255 };
         }
-        
-        // Check for colored text (saturation > 0.2)
-        for (const color of sortedColors) {
-            if (color.count < minCountThreshold) continue;
-            const [h, s, l] = this.rgbToHsl(color.r, color.g, color.b);
-            if (s > 0.25 && color !== bgCandidate) {
-                textCandidate = color;
-                break;
-            }
-        }
-        
-        return {
-            background: [bgCandidate.r, bgCandidate.g, bgCandidate.b],
-            text: [textCandidate.r, textCandidate.g, textCandidate.b]
-        };
+        return { bg: bgCandidate, text: finalText };
     }
 
     /**
@@ -1357,8 +1396,8 @@ class PdfTextEditor {
         
         // Some PDFs encode weight in the font descriptor
         if (style.fontWeight) {
-            const w = parseInt(style.fontWeight);
-            if (!isNaN(w)) {
+            const w = Number.parseInt(style.fontWeight);
+            if (!Number.isNaN(w)) {
                 return { isBold: w >= 600, weight: w };
             }
             // Handle string values like 'bold'
@@ -1503,7 +1542,7 @@ class PdfTextEditor {
         const style = styles[item.fontName];
 
         // Check styles for real font name
-        if (style && style.fontFamily) {
+        if (style?.fontFamily) {
             fontFamily = style.fontFamily;
         }
 
@@ -1628,8 +1667,8 @@ class PdfTextEditor {
      * @private
      */
     _mergeTextColor(current, item) {
-        const [h1, s1, l1] = this.rgbToHsl(item.color[0], item.color[1], item.color[2]);
-        const [h2, s2, l2] = this.rgbToHsl(current.color[0], current.color[1], current.color[2]);
+        const [, s1, l1] = this.rgbToHsl(item.color[0], item.color[1], item.color[2]);
+        const [, s2, l2] = this.rgbToHsl(current.color[0], current.color[1], current.color[2]);
         
         // If new item is significantly more saturated, take its color
         if (s1 > s2 + 0.1) {
@@ -1740,6 +1779,19 @@ class PdfTextEditor {
         textContent.items.forEach((item, idx) => {
             this._detectItemColors(item, idx, operatorColors, ctx, canvasViewport, dpr);
         });
+
+        const mergedItems = this.mergeTextItems(textContent.items, styles, renderingModes, spacingInfo);
+
+        mergedItems.forEach((item, index) => {
+            this._renderTextItem(item, index, pageNum, viewport, textLayer, styles);
+        });
+
+        // Swap layers
+        if (existingLayer) {
+            existingLayer.remove();
+        }
+        wrapper.appendChild(textLayer);
+        console.log('[PDF-TextEditor] renderTextLayer: page=' + pageNum + ', complete');
     }
 
     /**
@@ -1810,279 +1862,276 @@ class PdfTextEditor {
             }
 
             // If canvas found a colored text (not black), prefer it
-            const [h, s, l] = this.rgbToHsl(canvasText[0], canvasText[1], canvasText[2]);
+            const [, s] = this.rgbToHsl(canvasText[0], canvasText[1], canvasText[2]);
             if (s > 0.2) {
                 finalTextColor = canvasText;
             }
         }
 
         return { textColor: finalTextColor, bgColor: finalBgColor };
+    }
 
-        const mergedItems = this.mergeTextItems(textContent.items, styles, renderingModes, spacingInfo);
+    }
 
-        mergedItems.forEach((item, index) => {
-            // Use the viewport transform (scale 1.0) to convert PDF coordinates to CSS coordinates
-            const tx = pdfjsLib.Util.transform(
-                viewport.transform,
-                item.transform
-            );
+    /**
+     * Helper: Render a single text item
+     * @private
+     */
+    _renderTextItem(item, index, pageNum, viewport, textLayer, styles) {
+        // Use the viewport transform (scale 1.0) to convert PDF coordinates to CSS coordinates
+        const tx = pdfjsLib.Util.transform(
+            viewport.transform,
+            item.transform
+        );
 
-            // ADOBE-LEVEL: Calculate precise font metrics using advanced analysis
-            const fontHeight = Math.sqrt((tx[2] * tx[2]) + (tx[3] * tx[3]));
+        // ADOBE-LEVEL: Calculate precise font metrics using advanced analysis
+        const fontHeight = Math.sqrt((tx[2] * tx[2]) + (tx[3] * tx[3]));
 
-            if (index === 0) {
-                console.log('[PDF-TextEditor] Item 0 debug:', {
-                    str: item.str,
-                    tx,
-                    fontHeight,
-                    viewportScale: 1.0,
-                    viewerScale: this.viewer.scale,
-                    transform: item.transform
-                });
-            }
-
-            // Use advanced font metrics for more precise positioning if available
-            let ascent = fontHeight * 0.8;    // Default ascent ratio
-            let descent = fontHeight * 0.2;   // Default descent ratio
-            let leading = fontHeight * 0.1;   // Default leading
-
-            if (item.advancedMetrics) {
-                const metrics = item.advancedMetrics;
-                if (metrics.ascent > 0) ascent = metrics.ascent;
-                if (metrics.descent < 0) descent = Math.abs(metrics.descent);
-                if (metrics.leading > 0) leading = metrics.leading;
-            }
-
-            // Calculate the actual pixel width of the text
-            // item.width is in PDF units normalized to viewport scale
-            let pixelWidth = item.width;
-
-            // Adjust width for character spacing and horizontal scaling
-            if (item.spacingInfo) {
-                const spacing = item.spacingInfo;
-                if (spacing.horizontalScaling !== 100) {
-                    pixelWidth *= spacing.horizontalScaling / 100;
-                }
-                // Add character spacing (approximate)
-                if (spacing.charSpacing > 0) {
-                    pixelWidth += spacing.charSpacing * item.str.length;
-                }
-            }
-
-            // Create element (Wrapper)
-            const el = document.createElement('div');
-            el.className = 'pdf-text-item';
-            el.dataset.originalText = item.str;
-            el.dataset.id = `page-${pageNum}-item-${index}`;
-            el.dataset.pageNum = pageNum;
-            
-            // Create content span (Child)
-            const content = document.createElement('span');
-            content.className = 'pdf-text-content';
-            content.textContent = item.str;
-            el.appendChild(content);
-            
-            // Store color info
-            if (item.color) {
-                el.dataset.color = JSON.stringify(item.color);
-            }
-            if (item.bgColor) {
-                el.dataset.bgColor = JSON.stringify(item.bgColor);
-            }
-
-            // Check for pending changes
-            if (this.changes.has(pageNum) && this.changes.get(pageNum).has(el.dataset.id)) {
-                const change = this.changes.get(pageNum).get(el.dataset.id);
-                content.textContent = change.newText;
-                el.classList.add('modified');
-                
-                // Use stored color or black
-                if (change.color) {
-                    el.style.color = `rgb(${change.color[0]}, ${change.color[1]}, ${change.color[2]})`;
-                } else if (item.color) {
-                    el.style.color = `rgb(${item.color[0]}, ${item.color[1]}, ${item.color[2]})`;
-                } else {
-                    el.style.color = 'black';
-                }
-                
-                if (el.dataset.bgColor) {
-                    const bg = JSON.parse(el.dataset.bgColor);
-                    el.style.backgroundColor = `rgb(${bg[0]}, ${bg[1]}, ${bg[2]})`;
-                } else {
-                    el.style.backgroundColor = 'white';
-                }
-            }
-
-            // Store comprehensive original info for saving
-            el.dataset.pdfTransform = JSON.stringify(item.transform);
-            el.dataset.width = item.width;
-            el.dataset.height = item.height;
-            el.dataset.fontName = item.fontName;
-
-            // Store advanced metadata
-            if (item.advancedMetrics) {
-                el.dataset.advancedMetrics = JSON.stringify(item.advancedMetrics);
-            }
-            if (item.renderingMode) {
-                el.dataset.renderingMode = JSON.stringify(item.renderingMode);
-            }
-            if (item.spacingInfo) {
-                el.dataset.spacingInfo = JSON.stringify(item.spacingInfo);
-            }
-
-            // Apply font weight with numeric value for precision
-            // Force bold if detected, even if weight is missing
-            if (item.isBold || item.fontWeight > 400) {
-                // If isBold is true but weight is low/missing, force 700
-                const weight = (item.fontWeight && item.fontWeight >= 600) ? item.fontWeight : 700;
-                el.style.fontWeight = weight.toString();
-                el.dataset.fontWeight = weight.toString();
-                el.dataset.isBold = 'true';
-            } else {
-                el.style.fontWeight = '400';
-                el.dataset.fontWeight = '400';
-            }
-
-            // Apply font style
-            // Force italic if detected
-            if (item.isItalic || item.fontStyle === 'italic') {
-                el.style.fontStyle = 'italic';
-                el.dataset.fontStyle = 'italic';
-                el.dataset.isItalic = 'true';
-            } else {
-                el.style.fontStyle = 'normal';
-                el.dataset.fontStyle = 'normal';
-            }
-
-            // Position and size
-            // Calculate angle
-            const angle = Math.atan2(tx[1], tx[0]);
-            const degree = angle * (180 / Math.PI);
-
-            el.style.left = `${tx[4]}px`;
-
-            // ADOBE-LEVEL: Precise vertical positioning using advanced font metrics
-            // Calculate exact baseline position accounting for ascent, descent, and leading
-            const baselineY = tx[5];
-            const totalLineHeight = ascent + descent + leading;
-
-            // Position element so baseline aligns with PDF baseline
-            // Top of element = baseline - ascent - padding
-            const paddingTop = leading * 0.5;
-            const paddingBottom = leading * 0.5;
-            const elementTop = baselineY - ascent - paddingTop;
-
-            el.style.top = `${elementTop}px`;
-            el.style.paddingTop = `${paddingTop}px`;
-            el.style.paddingBottom = `${paddingBottom}px`;
-            
-            // Set explicit width to match PDF text width exactly
-            // Add a small buffer to width to prevent horizontal clipping of italic/wide chars
-            // NOTE: pixelWidth is the VISUAL width. We set the wrapper to this width.
-            el.style.width = `${pixelWidth + (fontHeight * 0.2)}px`;
-            el.style.paddingLeft = `${fontHeight * 0.1}px`;
-            el.style.paddingRight = `${fontHeight * 0.1}px`;
-            // Adjust left position to account for padding
-            el.style.left = `${tx[4] - (fontHeight * 0.1)}px`;
-            
-            // ADOBE-LEVEL: Precise height calculation using advanced metrics
-            const contentHeight = ascent + descent;
-            const totalHeight = contentHeight + paddingTop + paddingBottom;
-            el.style.minHeight = `${totalHeight}px`;
-            el.style.height = 'auto';
-
-            el.style.fontSize = `${fontHeight}px`;
-            el.style.lineHeight = `${contentHeight}px`; // Use actual content height for line-height
-
-            // Apply rendering mode effects (stroke, fill+stroke, etc.)
-            if (item.renderingMode) {
-                const mode = item.renderingMode;
-                if (mode.stroke && !mode.fill) {
-                    // Stroke-only text (outlined)
-                    el.style.webkitTextStroke = `1px ${el.style.color}`;
-                    el.style.color = 'transparent';
-                } else if (mode.stroke && mode.fill) {
-                    // Fill + stroke text
-                    el.style.webkitTextStroke = `0.5px ${this.getContrastingColor(item.color || [0,0,0])}`;
-                }
-                if (mode.invisible) {
-                    el.style.opacity = '0.3';
-                }
-            }
-            
-            // Use detected font family or fallback to style map or default
-            const finalFontFamily = item.fontFamily || (styles[item.fontName] ? styles[item.fontName].fontFamily : 'sans-serif');
-            el.style.fontFamily = finalFontFamily;
-            el.dataset.fontFamily = finalFontFamily;
-            
-            // Ensure text doesn't overflow and scales to fit
-            el.style.overflow = 'hidden';
-            el.style.whiteSpace = 'nowrap';
-            
-            // Standard block display for better text flow and alignment
-            el.style.display = 'block';
-
-            // ADOBE-LEVEL: Advanced matrix transformation handling
-            if (degree !== 0) {
-                // Handle rotation with proper transform origin
-                el.style.transform = `rotate(${degree}deg)`;
-                el.style.transformOrigin = 'left bottom';
-
-                // For rotated text, adjust positioning to account for rotation
-                const rad = degree * Math.PI / 180;
-                const cos = Math.cos(rad);
-                const sin = Math.sin(rad);
-
-                // Adjust position for rotation around baseline
-                const rotatedOffsetX = -ascent * sin;
-                const rotatedOffsetY = ascent * (1 - cos);
-
-                el.style.left = `${tx[4] + rotatedOffsetX}px`;
-                el.style.top = `${elementTop + rotatedOffsetY}px`;
-            }
-
-            // Handle horizontal/vertical scaling from matrix
-            const matrixScaleX = Math.sqrt(tx[0] * tx[0] + tx[1] * tx[1]);
-            const matrixScaleY = Math.sqrt(tx[2] * tx[2] + tx[3] * tx[3]);
-
-            // Normalize scales relative to the font size (which is set to fontHeight)
-            // This prevents double-scaling since fontHeight is already derived from matrixScaleY
-            const cssScaleX = fontHeight > 0 ? matrixScaleX / fontHeight : 1;
-            const cssScaleY = fontHeight > 0 ? matrixScaleY / fontHeight : 1;
-
-            // Apply scaling to the CONTENT span, not the wrapper
-            // This prevents the border/outline from being distorted
-            if (Math.abs(cssScaleX - 1) > 0.01 || Math.abs(cssScaleY - 1) > 0.01) {
-                content.style.transform = `scale(${cssScaleX}, ${cssScaleY})`;
-                content.style.transformOrigin = 'left top';
-                // Compensate width/height so the scaled content fits the wrapper
-                content.style.width = `${100 / cssScaleX}%`;
-                content.style.height = `${100 / cssScaleY}%`;
-                content.style.display = 'inline-block';
-            }
-
-            // Handle transparency/opacity
-            if (this.advancedConfig.enableTransparency && item.renderingMode && item.renderingMode.invisible) {
-                el.style.opacity = '0.5';
-            }
-            
-            // Interaction
-            el.addEventListener('click', (e) => this.handleTextClick(e, el));
-            el.addEventListener('blur', (e) => this.handleTextBlur(e, el));
-            el.addEventListener('keydown', (e) => this.handleKeyDown(e, el));
-            
-            // Re-enable pointer events for the text item
-            el.style.pointerEvents = 'auto';
-
-            textLayer.appendChild(el);
-        });
-
-        // Swap layers
-        if (existingLayer) {
-            existingLayer.remove();
+        if (index === 0) {
+            console.log('[PDF-TextEditor] Item 0 debug:', {
+                str: item.str,
+                tx,
+                fontHeight,
+                viewportScale: 1.0,
+                viewerScale: this.viewer.scale,
+                transform: item.transform
+            });
         }
-        wrapper.appendChild(textLayer);
-        console.log('[PDF-TextEditor] renderTextLayer: page=' + pageNum + ', complete');
+
+        // Use advanced font metrics for more precise positioning if available
+        let ascent = fontHeight * 0.8;    // Default ascent ratio
+        let descent = fontHeight * 0.2;   // Default descent ratio
+        let leading = fontHeight * 0.1;   // Default leading
+
+        if (item.advancedMetrics) {
+            const metrics = item.advancedMetrics;
+            if (metrics.ascent > 0) ascent = metrics.ascent;
+            if (metrics.descent < 0) descent = Math.abs(metrics.descent);
+            if (metrics.leading > 0) leading = metrics.leading;
+        }
+
+        // Calculate the actual pixel width of the text
+        // item.width is in PDF units normalized to viewport scale
+        let pixelWidth = item.width;
+
+        // Adjust width for character spacing and horizontal scaling
+        if (item.spacingInfo) {
+            const spacing = item.spacingInfo;
+            if (spacing.horizontalScaling !== 100) {
+                pixelWidth *= spacing.horizontalScaling / 100;
+            }
+            // Add character spacing (approximate)
+            if (spacing.charSpacing > 0) {
+                pixelWidth += spacing.charSpacing * item.str.length;
+            }
+        }
+
+        // Create element (Wrapper)
+        const el = document.createElement('div');
+        el.className = 'pdf-text-item';
+        el.dataset.originalText = item.str;
+        el.dataset.id = `page-${pageNum}-item-${index}`;
+        el.dataset.pageNum = pageNum;
+        
+        // Create content span (Child)
+        const content = document.createElement('span');
+        content.className = 'pdf-text-content';
+        content.textContent = item.str;
+        el.appendChild(content);
+        
+        // Store color info
+        if (item.color) {
+            el.dataset.color = JSON.stringify(item.color);
+        }
+        if (item.bgColor) {
+            el.dataset.bgColor = JSON.stringify(item.bgColor);
+        }
+
+        // Check for pending changes
+        if (this.changes.has(pageNum) && this.changes.get(pageNum).has(el.dataset.id)) {
+            const change = this.changes.get(pageNum).get(el.dataset.id);
+            content.textContent = change.newText;
+            el.classList.add('modified');
+            
+            // Use stored color or black
+            if (change.color) {
+                el.style.color = `rgb(${change.color[0]}, ${change.color[1]}, ${change.color[2]})`;
+            } else if (item.color) {
+                el.style.color = `rgb(${item.color[0]}, ${item.color[1]}, ${item.color[2]})`;
+            } else {
+                el.style.color = 'black';
+            }
+            
+            if (el.dataset.bgColor) {
+                const bg = JSON.parse(el.dataset.bgColor);
+                el.style.backgroundColor = `rgb(${bg[0]}, ${bg[1]}, ${bg[2]})`;
+            } else {
+                el.style.backgroundColor = 'white';
+            }
+        }
+
+        // Store comprehensive original info for saving
+        el.dataset.pdfTransform = JSON.stringify(item.transform);
+        el.dataset.width = item.width;
+        el.dataset.height = item.height;
+        el.dataset.fontName = item.fontName;
+
+        // Store advanced metadata
+        if (item.advancedMetrics) {
+            el.dataset.advancedMetrics = JSON.stringify(item.advancedMetrics);
+        }
+        if (item.renderingMode) {
+            el.dataset.renderingMode = JSON.stringify(item.renderingMode);
+        }
+        if (item.spacingInfo) {
+            el.dataset.spacingInfo = JSON.stringify(item.spacingInfo);
+        }
+
+        // Apply font weight with numeric value for precision
+        // Force bold if detected, even if weight is missing
+        if (item.isBold || item.fontWeight > 400) {
+            // If isBold is true but weight is low/missing, force 700
+            const weight = (item.fontWeight && item.fontWeight >= 600) ? item.fontWeight : 700;
+            el.style.fontWeight = weight.toString();
+            el.dataset.fontWeight = weight.toString();
+            el.dataset.isBold = 'true';
+        } else {
+            el.style.fontWeight = '400';
+            el.dataset.fontWeight = '400';
+        }
+
+        // Apply font style
+        // Force italic if detected
+        if (item.isItalic || item.fontStyle === 'italic') {
+            el.style.fontStyle = 'italic';
+            el.dataset.fontStyle = 'italic';
+            el.dataset.isItalic = 'true';
+        } else {
+            el.style.fontStyle = 'normal';
+            el.dataset.fontStyle = 'normal';
+        }
+
+        // Position and size
+        // Calculate angle
+        const angle = Math.atan2(tx[1], tx[0]);
+        const degree = angle * (180 / Math.PI);
+
+        el.style.left = `${tx[4]}px`;
+
+        // ADOBE-LEVEL: Precise vertical positioning using advanced font metrics
+        // Calculate exact baseline position accounting for ascent, descent, and leading
+        const baselineY = tx[5];
+        const totalLineHeight = ascent + descent + leading;
+
+        // Position element so baseline aligns with PDF baseline
+        // Top of element = baseline - ascent - padding
+        const paddingTop = leading * 0.5;
+        const paddingBottom = leading * 0.5;
+        const elementTop = baselineY - ascent - paddingTop;
+
+        el.style.top = `${elementTop}px`;
+        el.style.paddingTop = `${paddingTop}px`;
+        el.style.paddingBottom = `${paddingBottom}px`;
+        
+        // Set explicit width to match PDF text width exactly
+        // Add a small buffer to width to prevent horizontal clipping of italic/wide chars
+        // NOTE: pixelWidth is the VISUAL width. We set the wrapper to this width.
+        el.style.width = `${pixelWidth + (fontHeight * 0.2)}px`;
+        el.style.paddingLeft = `${fontHeight * 0.1}px`;
+        el.style.paddingRight = `${fontHeight * 0.1}px`;
+        // Adjust left position to account for padding
+        el.style.left = `${tx[4] - (fontHeight * 0.1)}px`;
+        
+        // ADOBE-LEVEL: Precise height calculation using advanced metrics
+        const contentHeight = ascent + descent;
+        const totalHeight = contentHeight + paddingTop + paddingBottom;
+        el.style.minHeight = `${totalHeight}px`;
+        el.style.height = 'auto';
+
+        el.style.fontSize = `${fontHeight}px`;
+        el.style.lineHeight = `${contentHeight}px`; // Use actual content height for line-height
+
+        // Apply rendering mode effects (stroke, fill+stroke, etc.)
+        if (item.renderingMode) {
+            const mode = item.renderingMode;
+            if (mode.stroke && !mode.fill) {
+                // Stroke-only text (outlined)
+                el.style.webkitTextStroke = `1px ${el.style.color}`;
+                el.style.color = 'transparent';
+            } else if (mode.stroke && mode.fill) {
+                // Fill + stroke text
+                el.style.webkitTextStroke = `0.5px ${this.getContrastingColor(item.color || [0,0,0])}`;
+            }
+            if (mode.invisible) {
+                el.style.opacity = '0.3';
+            }
+        }
+        
+        // Use detected font family or fallback to style map or default
+        const finalFontFamily = item.fontFamily || (styles[item.fontName] ? styles[item.fontName].fontFamily : 'sans-serif');
+        el.style.fontFamily = finalFontFamily;
+        el.dataset.fontFamily = finalFontFamily;
+        
+        // Ensure text doesn't overflow and scales to fit
+        el.style.overflow = 'hidden';
+        el.style.whiteSpace = 'nowrap';
+        
+        // Standard block display for better text flow and alignment
+        el.style.display = 'block';
+
+        // ADOBE-LEVEL: Advanced matrix transformation handling
+        if (degree !== 0) {
+            // Handle rotation with proper transform origin
+            el.style.transform = `rotate(${degree}deg)`;
+            el.style.transformOrigin = 'left bottom';
+
+            // For rotated text, adjust positioning to account for rotation
+            const rad = degree * Math.PI / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+
+            // Adjust position for rotation around baseline
+            const rotatedOffsetX = -ascent * sin;
+            const rotatedOffsetY = ascent * (1 - cos);
+
+            el.style.left = `${tx[4] + rotatedOffsetX}px`;
+            el.style.top = `${elementTop + rotatedOffsetY}px`;
+        }
+
+        // Handle horizontal/vertical scaling from matrix
+        const matrixScaleX = Math.sqrt(tx[0] * tx[0] + tx[1] * tx[1]);
+        const matrixScaleY = Math.sqrt(tx[2] * tx[2] + tx[3] * tx[3]);
+
+        // Normalize scales relative to the font size (which is set to fontHeight)
+        // This prevents double-scaling since fontHeight is already derived from matrixScaleY
+        const cssScaleX = fontHeight > 0 ? matrixScaleX / fontHeight : 1;
+        const cssScaleY = fontHeight > 0 ? matrixScaleY / fontHeight : 1;
+
+        // Apply scaling to the CONTENT span, not the wrapper
+        // This prevents the border/outline from being distorted
+        if (Math.abs(cssScaleX - 1) > 0.01 || Math.abs(cssScaleY - 1) > 0.01) {
+            content.style.transform = `scale(${cssScaleX}, ${cssScaleY})`;
+            content.style.transformOrigin = 'left top';
+            // Compensate width/height so the scaled content fits the wrapper
+            content.style.width = `${100 / cssScaleX}%`;
+            content.style.height = `${100 / cssScaleY}%`;
+            content.style.display = 'inline-block';
+        }
+
+        // Handle transparency/opacity
+        if (this.advancedConfig.enableTransparency && item.renderingMode?.invisible) {
+            el.style.opacity = '0.5';
+        }
+        
+        // Interaction
+        el.addEventListener('click', (e) => this.handleTextClick(e, el));
+        el.addEventListener('blur', (e) => this.handleTextBlur(e, el));
+        el.addEventListener('keydown', (e) => this.handleKeyDown(e, el));
+        
+        // Re-enable pointer events for the text item
+        el.style.pointerEvents = 'auto';
+
+        textLayer.appendChild(el);
     }
 
     /**
@@ -2220,7 +2269,7 @@ class PdfTextEditor {
      * @param {string} newText 
      */
     recordChange(el, newText, oldText = null) {
-        const pageNum = parseInt(el.dataset.pageNum);
+        const pageNum = Number.parseInt(el.dataset.pageNum);
         const id = el.dataset.id;
         
         // Add to history
@@ -2239,7 +2288,7 @@ class PdfTextEditor {
     }
 
     updateChangesMap(el, newText) {
-        const pageNum = parseInt(el.dataset.pageNum);
+        const pageNum = Number.parseInt(el.dataset.pageNum);
         const id = el.dataset.id;
         const originalText = el.dataset.originalText;
 
@@ -2298,8 +2347,8 @@ class PdfTextEditor {
     _parseFontWeight(fontWeightData) {
         if (!fontWeightData) return 400;
         
-        const parsed = parseInt(fontWeightData);
-        if (!isNaN(parsed)) return parsed;
+        const parsed = Number.parseInt(fontWeightData);
+        if (!Number.isNaN(parsed)) return parsed;
         
         return fontWeightData === 'bold' ? 700 : 400;
     }
@@ -2463,7 +2512,7 @@ class PdfTextEditor {
      * @private
      */
     async _applySingleChange(page, change, fonts, rgb) {
-        const [scaleX, skewY, skewX, scaleY, x, y] = change.transform;
+        const [scaleX, skewY, , , x, y] = change.transform;
         
         // Calculate rotation angle and font size
         const angleRad = Math.atan2(skewY, scaleX);
@@ -2471,18 +2520,21 @@ class PdfTextEditor {
         const fontSize = Math.sqrt((scaleX * scaleX) + (skewY * skewY));
         const textWidth = change.width || (fontSize * change.originalText.length * 0.5);
         
+        const metrics = { x, y, textWidth, fontSize, angleDeg };
+
         // Draw redaction rectangle
-        this._drawRedactionRectangle(page, change, x, y, textWidth, fontSize, angleDeg, rgb);
+        this._drawRedactionRectangle(page, change, metrics, rgb);
         
         // Draw the new text
-        this._drawNewText(page, change, x, y, fontSize, angleDeg, fonts, rgb);
+        this._drawNewText(page, change, metrics, fonts, rgb);
     }
 
     /**
      * Helper: Draw redaction rectangle
      * @private
      */
-    _drawRedactionRectangle(page, change, x, y, textWidth, fontSize, angleDeg, rgb) {
+    _drawRedactionRectangle(page, change, metrics, rgb) {
+        const { x, y, textWidth, fontSize, angleDeg } = metrics;
         const redactionColor = this._getRedactionColor(change, rgb);
         
         // Calculate precise redaction rectangle
@@ -2526,7 +2578,8 @@ class PdfTextEditor {
      * Helper: Draw new text on page
      * @private
      */
-    _drawNewText(page, change, x, y, fontSize, angleDeg, fonts, rgb) {
+    _drawNewText(page, change, metrics, fonts, rgb) {
+        const { x, y, fontSize, angleDeg } = metrics;
         const textColor = this._getTextColor(change, rgb);
         const selectedFont = this._selectFontForChange(change, fonts);
         

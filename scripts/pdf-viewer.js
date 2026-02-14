@@ -288,7 +288,7 @@ class PdfViewer {
    * Handle page number input change
    */
   handlePageNumChange(e) {
-    const num = parseInt(e.target.value);
+    const num = Number.parseInt(e.target.value);
     if (num >= 1 && num <= this.pdfDoc.numPages) {
       this.scrollToPage(num);
     } else {
@@ -604,12 +604,12 @@ class PdfViewer {
       }
       
       document.addEventListener('click', (e) => {
-          if (this.elements.saveDropdown && this.elements.saveDropdown.classList.contains('show')) {
+          if (this.elements.saveDropdown?.classList.contains('show')) {
               if (!this.elements.saveOptionsBtn.contains(e.target) && !this.elements.saveDropdown.contains(e.target)) {
                   this.elements.saveDropdown.classList.remove('show');
               }
           }
-          if (this.elements.toolbarSaveDropdown && this.elements.toolbarSaveDropdown.classList.contains('show')) {
+          if (this.elements.toolbarSaveDropdown?.classList.contains('show')) {
               if (!this.elements.toolbarSaveOptionsBtn.contains(e.target) && !this.elements.toolbarSaveDropdown.contains(e.target)) {
                   this.elements.toolbarSaveDropdown.classList.remove('show');
               }
@@ -721,7 +721,7 @@ class PdfViewer {
               targets.push({
                   container: wrapper,
                   target: canvas,
-                  id: parseInt(wrapper.dataset.pageNumber)
+                  id: Number.parseInt(wrapper.dataset.pageNumber)
               });
           }
       });
@@ -1038,8 +1038,8 @@ class PdfViewer {
    * Save changes if needed
    */
   async saveChangesIfNeeded() {
-    const hasTextChanges = this.textEditor && this.textEditor.hasChanges();
-    const hasAnnotationChanges = this.annotationManager && this.annotationManager.hasChanges();
+    const hasTextChanges = this.textEditor?.hasChanges();
+    const hasAnnotationChanges = this.annotationManager?.hasChanges();
     
     if (hasTextChanges || hasAnnotationChanges || this.rotation !== 0) {
       await this.save();
@@ -1136,7 +1136,7 @@ class PdfViewer {
    * Apply text editor changes
    */
   async applyTextChanges(pdfDoc) {
-      if (!this.textEditor || !this.textEditor.hasChanges()) return;
+      if (!this.textEditor?.hasChanges()) return;
       
       await this.textEditor.applyChangesToPdf(pdfDoc);
       this.textEditor.clearPendingChanges();
@@ -1146,7 +1146,7 @@ class PdfViewer {
    * Finalize annotation text input
    */
   finalizeAnnotationInput() {
-      if (this.annotationManager && this.annotationManager.activeInput) {
+      if (this.annotationManager?.activeInput) {
           this.annotationManager.finalizeTextInput();
       }
   }
@@ -1581,7 +1581,7 @@ class PdfViewer {
       // Iterate over all currently active (virtualized) wrappers
       for (const wrapper of Object.values(this.pageWrappers)) {
           // Check if this page needs higher quality
-          const currentRenderScale = parseFloat(wrapper.dataset.renderScale || 0);
+          const currentRenderScale = Number.parseFloat(wrapper.dataset.renderScale || 0);
           
           // If current render scale is significantly lower than current zoom level
           if (currentRenderScale < this.scale * 0.9) {
@@ -1659,7 +1659,7 @@ class PdfViewer {
       // Update positions of active wrappers
       if (this.pageWrappers) {
           Object.entries(this.pageWrappers).forEach(([key, wrapper]) => {
-              const pageNum = parseInt(key);
+              const pageNum = Number.parseInt(key);
               wrapper.style.top = `${this.getPageTop(pageNum)}px`;
               // Ensure width/height are correct
               wrapper.style.width = `${this.basePageWidths[pageNum]}px`;
@@ -1715,7 +1715,7 @@ class PdfViewer {
   isRenderQualitySufficient(wrapper, renderScale, dpr) {
       if (!wrapper.dataset.loaded === 'true') return false;
       
-      const currentRenderScale = parseFloat(wrapper.dataset.renderScale || 0);
+      const currentRenderScale = Number.parseFloat(wrapper.dataset.renderScale || 0);
       const effectiveLogicalScale = renderScale / dpr;
       
       return currentRenderScale >= effectiveLogicalScale * 0.95;
@@ -1811,7 +1811,7 @@ class PdfViewer {
    * @param {number|null} scaleOverride - Optional scale to render at (defaults to BASE_RENDER_SCALE)
    */
   async renderPageContent(wrapper, scaleOverride = null) {
-      const num = parseInt(wrapper.dataset.pageNumber);
+      const num = Number.parseInt(wrapper.dataset.pageNumber);
       
       if (this.shouldSkipRender(wrapper, scaleOverride)) return;
 
@@ -1960,7 +1960,7 @@ class PdfViewer {
    * Unload page content to free memory
    */
   unloadPageContent(wrapper) {
-      const num = parseInt(wrapper.dataset.pageNumber);
+      const num = Number.parseInt(wrapper.dataset.pageNumber);
 
       if (this.isEditMode && this.annotationManager) {
           this.annotationManager.removePage(num);
@@ -2201,7 +2201,7 @@ class PdfViewer {
       }
 
       Object.keys(this.pageWrappers).forEach(key => {
-          const pageNum = parseInt(key);
+          const pageNum = Number.parseInt(key);
           if (!pagesToKeep.has(pageNum)) {
               const wrapper = this.pageWrappers[pageNum];
               if (wrapper && wrapper.parentNode) {
@@ -2613,7 +2613,7 @@ class PdfViewer {
       this.thumbnailObserver = new IntersectionObserver((entries) => {
           entries.forEach(entry => {
               const wrapper = entry.target;
-              const num = parseInt(wrapper.dataset.pageNumber);
+              const num = Number.parseInt(wrapper.dataset.pageNumber);
 
               if (entry.isIntersecting) {
                   this.renderThumbnailContent(wrapper);
@@ -2667,7 +2667,7 @@ class PdfViewer {
   async renderThumbnailContent(wrapper) {
       if (wrapper.dataset.loaded === 'true') return;
       
-      const num = parseInt(wrapper.dataset.pageNumber);
+      const num = Number.parseInt(wrapper.dataset.pageNumber);
 
       // If already rendering/scheduled, don't schedule again
       if (this.activeThumbnailRenderTasks.has(num)) return;
