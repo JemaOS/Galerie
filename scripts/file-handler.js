@@ -111,78 +111,120 @@ class FileHandler {
 
     try {
       if (source instanceof FileList) {
-        // File input or drag and drop
-        for (let i = 0; i < source.length; i++) {
-          const file = source[i];
-          const result = await this.processFile(file);
-          if (result) {
-            files.push(result);
-          } else {
-            errors.push(`${file.name} : Fichier non supporté ou invalide`);
-          }
-        }
+        await this._processFileList(source, files, errors);
       } else if (Array.isArray(source)) {
-        // Array of files or FileSystemHandles
-        for (const item of source) {
-          let file = item;
-
-          // Handle FileSystemFileHandle (from launchQueue)
-          let handle = null;
-          if (item.kind === 'file' && typeof item.getFile === 'function') {
-            try {
-              handle = item;
-              file = await item.getFile();
-            } catch (e) {
-              // Silently ignore NotFoundError - file handle is stale/invalid
-              // This commonly happens when restoring handles from IndexedDB for files that were moved/deleted
-              if (e.name === 'NotFoundError') {
-                console.warn(`[FileHandler] Skipping stale file handle: ${item.name || 'unknown'} - file no longer exists`);
-                continue;
-              }
-              console.error('Error getting file from handle:', e);
-              errors.push(`${item.name} : Échec de la lecture du fichier`);
-              continue;
-            }
-          }
-
-          const result = await this.processFile(file, handle);
-          if (result) {
-            files.push(result);
-          } else {
-            errors.push(`${file.name || item.name} : Fichier non supporté ou invalide`);
-          }
-        }
+        await this._processFileArray(source, files, errors);
       } else if (source && typeof source === 'object') {
-        // FileSystem API
-        if (source.getFile) {
-          const file = await source.getFile();
-          const result = await this.processFile(file);
-          if (result) {
-            files.push(result);
-          } else {
-            errors.push(`${file.name} : Fichier non supporté ou invalide`);
-          }
-        }
+        await this._processFileSystemSource(source, files, errors);
       }
 
-      // Add files to collection
-      for (const file of files) {
-        this.addFile(file);
-      }
-
-      // Save to storage
-      this.saveToStorage();
-
-      // Show errors if any
-      if (errors.length > 0) {
-        this.showToast(`Certains fichiers n'ont pas pu être chargés : ${errors.join(', ')}`, 'warning');
-      }
-
+      this._finalizeFileLoading(files, errors);
       return files;
     } catch (error) {
       console.error('Error loading files:', error);
       this.showToast('Erreur lors du chargement des fichiers', 'error');
       return [];
+    }
+  }
+
+  /**
+   * Process FileList (from file input or drag and drop)
+   * @private
+   */
+  async _processFileList(fileList, files, errors) {
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      const result = await this.processFile(file);
+      if (result) {
+        files.push(result);
+      } else {
+        errors.push(`${file.name} : Fichier non supporté ou invalide`);
+      }
+    }
+  }
+
+  /**
+   * Process array of files or FileSystemHandles
+   * @private
+   */
+  async _processFileArray(sourceArray, files, errors) {
+    for (const item of sourceArray) {
+      await this._processFileArrayItem(item, files, errors);
+    }
+  }
+
+  /**
+   * Process a single item from file array
+   * @private
+   */
+  async _processFileArrayItem(item, files, errors) {
+    let file = item;
+    let handle = null;
+
+    if (item.kind === 'file' && typeof item.getFile === 'function') {
+      const fileResult = await this._getFileFromHandle(item, errors);
+      if (!fileResult) return;
+      file = fileResult.file;
+      handle = fileResult.handle;
+    }
+
+    const result = await this.processFile(file, handle);
+    if (result) {
+      files.push(result);
+    } else {
+      errors.push(`${file.name || item.name} : Fichier non supporté ou invalide`);
+    }
+  }
+
+  /**
+   * Get file from FileSystemFileHandle
+   * @private
+   * @returns {Object|null} Object with file and handle, or null if failed
+   */
+  async _getFileFromHandle(handleItem, errors) {
+    try {
+      const file = await handleItem.getFile();
+      return { file, handle: handleItem };
+    } catch (e) {
+      if (e.name === 'NotFoundError') {
+        console.warn(`[FileHandler] Skipping stale file handle: ${handleItem.name || 'unknown'} - file no longer exists`);
+        return null;
+      }
+      console.error('Error getting file from handle:', e);
+      errors.push(`${handleItem.name} : Échec de la lecture du fichier`);
+      return null;
+    }
+  }
+
+  /**
+   * Process FileSystem API source
+   * @private
+   */
+  async _processFileSystemSource(source, files, errors) {
+    if (!source.getFile) return;
+
+    const file = await source.getFile();
+    const result = await this.processFile(file);
+    if (result) {
+      files.push(result);
+    } else {
+      errors.push(`${file.name} : Fichier non supporté ou invalide`);
+    }
+  }
+
+  /**
+   * Finalize file loading - add to collection and show errors
+   * @private
+   */
+  _finalizeFileLoading(files, errors) {
+    for (const file of files) {
+      this.addFile(file);
+    }
+
+    this.saveToStorage();
+
+    if (errors.length > 0) {
+      this.showToast(`Certains fichiers n'ont pas pu être chargés : ${errors.join(', ')}`, 'warning');
     }
   }
 
@@ -1004,56 +1046,89 @@ class FileHandler {
     });
 
     document.addEventListener('drop', async (e) => {
-      e.preventDefault();
-
-      // Check if any viewer is open
-      const isViewerOpen = (window.fullscreenViewer && window.fullscreenViewer.isViewerOpen()) ||
-                           (window.pdfViewer && window.pdfViewer.isOpen) ||
-                           (window.audioPlayer && window.audioPlayer.elements && window.audioPlayer.elements.container && !window.audioPlayer.elements.container.classList.contains('hidden'));
-
-      if (isViewerOpen) {
-        console.log('Drop blocked because viewer is open');
-        return;
-      }
-      
-      // Try to get handles if supported
-      const items = e.dataTransfer.items;
-      if (items) {
-          const handles = [];
-          const files = [];
-          let hasHandles = false;
-
-          for (const item of items) {
-              if (item.kind === 'file') {
-                  if (item.getAsFileSystemHandle) {
-                      try {
-                          const handle = await item.getAsFileSystemHandle();
-                          if (handle && handle.kind === 'file') {
-                              handles.push(handle);
-                              hasHandles = true;
-                          }
-                      } catch (err) {
-                          console.warn('Failed to get handle:', err);
-                      }
-                  }
-                  
-                  if (!hasHandles) {
-                      const file = item.getAsFile();
-                      if (file) files.push(file);
-                  }
-              }
-          }
-
-          if (handles.length > 0) {
-              await this.loadFiles(handles);
-              return;
-          }
-      }
-
-      if (GalleryUtils.isValidDragData(e.dataTransfer)) {
-        await this.loadFiles(e.dataTransfer.files);
-      }
+      await this._handleDropEvent(e);
     });
+  }
+
+  /**
+   * Check if any viewer is currently open
+   * @private
+   * @returns {boolean} True if any viewer is open
+   */
+  _isAnyViewerOpen() {
+    return (window.fullscreenViewer && window.fullscreenViewer.isViewerOpen()) ||
+           (window.pdfViewer && window.pdfViewer.isOpen) ||
+           (window.audioPlayer && window.audioPlayer.elements && window.audioPlayer.elements.container && !window.audioPlayer.elements.container.classList.contains('hidden'));
+  }
+
+  /**
+   * Handle drop event
+   * @private
+   */
+  async _handleDropEvent(e) {
+    e.preventDefault();
+
+    if (this._isAnyViewerOpen()) {
+      console.log('Drop blocked because viewer is open');
+      return;
+    }
+
+    const items = e.dataTransfer.items;
+    if (items && await this._tryLoadFromHandles(items)) {
+      return;
+    }
+
+    if (GalleryUtils.isValidDragData(e.dataTransfer)) {
+      await this.loadFiles(e.dataTransfer.files);
+    }
+  }
+
+  /**
+   * Try to load files from FileSystemHandles
+   * @private
+   * @returns {Promise<boolean>} True if handles were loaded
+   */
+  async _tryLoadFromHandles(items) {
+    const handles = [];
+    const files = [];
+    let hasHandles = false;
+
+    for (const item of items) {
+      if (item.kind !== 'file') continue;
+
+      const handle = await this._getFileSystemHandle(item);
+      if (handle) {
+        handles.push(handle);
+        hasHandles = true;
+      } else if (!hasHandles) {
+        const file = item.getAsFile();
+        if (file) files.push(file);
+      }
+    }
+
+    if (handles.length > 0) {
+      await this.loadFiles(handles);
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Get FileSystemHandle from data transfer item
+   * @private
+   * @returns {Promise<FileSystemHandle|null>} The handle or null
+   */
+  async _getFileSystemHandle(item) {
+    if (!item.getAsFileSystemHandle) return null;
+
+    try {
+      const handle = await item.getAsFileSystemHandle();
+      return (handle && handle.kind === 'file') ? handle : null;
+    } catch (err) {
+      console.warn('Failed to get handle:', err);
+      return null;
+    }
   }
 
   /**
@@ -1061,25 +1136,58 @@ class FileHandler {
    */
   setupPasteListeners() {
     document.addEventListener('paste', async (e) => {
-      const items = e.clipboardData?.items;
-      if (items) {
-        const files = [];
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          if (item.kind === 'file') {
-            const file = item.getAsFile();
-            if (file && GalleryUtils.isSupportedFile(file)) {
-              files.push(file);
-            }
-          }
-        }
-        
-        if (files.length > 0) {
-          await this.loadFiles(files);
-          this.showToast(`${files.length} fichier${files.length !== 1 ? 's' : ''} collé${files.length !== 1 ? 's' : ''}`, 'success');
-        }
-      }
+      await this._handlePasteEvent(e);
     });
+  }
+
+  /**
+   * Handle paste event
+   * @private
+   */
+  async _handlePasteEvent(e) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const files = this._extractFilesFromClipboard(items);
+    if (files.length === 0) return;
+
+    await this.loadFiles(files);
+    this._showPasteSuccessToast(files.length);
+  }
+
+  /**
+   * Extract supported files from clipboard items
+   * @private
+   * @returns {Array<File>} Array of supported files
+   */
+  _extractFilesFromClipboard(items) {
+    const files = [];
+    for (let i = 0; i < items.length; i++) {
+      const file = this._getSupportedFileFromItem(items[i]);
+      if (file) files.push(file);
+    }
+    return files;
+  }
+
+  /**
+   * Get supported file from clipboard item
+   * @private
+   * @returns {File|null} The file or null
+   */
+  _getSupportedFileFromItem(item) {
+    if (item.kind !== 'file') return null;
+
+    const file = item.getAsFile();
+    return (file && GalleryUtils.isSupportedFile(file)) ? file : null;
+  }
+
+  /**
+   * Show paste success toast
+   * @private
+   */
+  _showPasteSuccessToast(count) {
+    const pluralSuffix = count !== 1 ? 's' : '';
+    this.showToast(`${count} fichier${pluralSuffix} collé${pluralSuffix}`, 'success');
   }
 
   /**

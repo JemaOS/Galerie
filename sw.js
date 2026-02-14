@@ -137,6 +137,18 @@ self.addEventListener('fetch', event => {
 
 // Handle file share target
 self.addEventListener('message', event => {
+  // Security: Verify the origin of the received message
+  // Only accept messages from the same origin or trusted origins
+  const allowedOrigins = [
+    self.location.origin,
+    // Add any additional trusted origins here if needed
+  ];
+  
+  if (!allowedOrigins.includes(event.origin)) {
+    console.warn('[SW] Security: Rejected message from untrusted origin:', event.origin);
+    return;
+  }
+  
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }

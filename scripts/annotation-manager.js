@@ -732,55 +732,71 @@ class AnnotationManager {
     if (!this.isActive) return;
     
     if (this.isCreatingText) {
-        this.isCreatingText = false;
-        if (this.selectionBox) {
-            const width = parseFloat(this.selectionBox.style.width);
-            const height = parseFloat(this.selectionBox.style.height);
-            const left = parseFloat(this.selectionBox.style.left);
-            const top = parseFloat(this.selectionBox.style.top);
-            this.selectionBox.remove();
-            this.selectionBox = null;
-            if (width > 10 && height > 10) {
-                this.createTextInput(left, top, width, height);
-            }
-        }
+        this.handleTextCreation();
         return;
     }
 
     if (this.isDrawing) {
-        this.isDrawing = false;
-        if (this.pendingPoints && this.pendingPoints.length > 0) {
-            for (const point of this.pendingPoints) {
-                this.draw(point);
-                this.lastPoint = point;
-            }
-            this.pendingPoints = [];
-        }
-        if (this.ctx) {
-            this.ctx.closePath();
-            
-            // Find pageId
-            let pageId = null;
-            for (const [id, page] of this.pages) {
-                if (page.canvas === this.activeCanvas) {
-                    pageId = id;
-                    break;
-                }
-            }
-            if (pageId) {
-                this.addAction({
-                    type: 'drawing',
-                    pageId: pageId,
-                    tool: this.currentTool,
-                    color: this.currentColor,
-                    size: this.currentSize,
-                    points: this.strokePoints,
-                    scale: this.scaleX || 1
-                });
-            }
-            this.strokePoints = [];
+        this.handleDrawingEnd();
+    }
+  }
+
+  handleTextCreation() {
+    this.isCreatingText = false;
+    if (!this.selectionBox) return;
+    
+    const width = parseFloat(this.selectionBox.style.width);
+    const height = parseFloat(this.selectionBox.style.height);
+    const left = parseFloat(this.selectionBox.style.left);
+    const top = parseFloat(this.selectionBox.style.top);
+    this.selectionBox.remove();
+    this.selectionBox = null;
+    
+    if (width > 10 && height > 10) {
+        this.createTextInput(left, top, width, height);
+    }
+  }
+
+  handleDrawingEnd() {
+    this.isDrawing = false;
+    this.flushPendingPoints();
+    
+    if (!this.ctx) return;
+    
+    this.ctx.closePath();
+    const pageId = this.findPageIdByCanvas(this.activeCanvas);
+    
+    if (pageId) {
+        this.addAction({
+            type: 'drawing',
+            pageId: pageId,
+            tool: this.currentTool,
+            color: this.currentColor,
+            size: this.currentSize,
+            points: this.strokePoints,
+            scale: this.scaleX || 1
+        });
+    }
+    this.strokePoints = [];
+  }
+
+  flushPendingPoints() {
+    if (!this.pendingPoints || this.pendingPoints.length === 0) return;
+    
+    for (const point of this.pendingPoints) {
+        this.draw(point);
+        this.lastPoint = point;
+    }
+    this.pendingPoints = [];
+  }
+
+  findPageIdByCanvas(canvas) {
+    for (const [id, page] of this.pages) {
+        if (page.canvas === canvas) {
+            return id;
         }
     }
+    return null;
   }
 
   addAction(action) {
@@ -793,59 +809,99 @@ class AnnotationManager {
   }
 
   undo() {
-      if (this.historyStep >= 0) {
-          this.isRestoring = true;
-          const action = this.history[this.historyStep];
-          const pageId = action.pageId;
-          
-          if (!action.type || action.type === 'drawing') {
-              this.historyStep--;
-              this.redrawPage(pageId);
-          } else {
-              if (action.type === 'text-add') {
-                  const wrapper = this.textWrappers.find(w => w.id === action.id);
-                  if (wrapper) this.removeTextWrapper(wrapper);
-              } else if (action.type === 'text-remove') {
-                  // Need page container to restore
-                  if (this.pages.has(pageId)) {
-                      this.restoreTextWrapper(action.state, this.pages.get(pageId));
-                  }
-              } else if (action.type === 'text-modify') {
-                  const wrapper = this.textWrappers.find(w => w.id === action.id);
-                  if (wrapper) this.applyTextState(wrapper, action.before);
-              }
-              this.historyStep--;
-          }
-          
-          this.isRestoring = false;
+      if (this.historyStep < 0) return;
+      
+      this.isRestoring = true;
+      const action = this.history[this.historyStep];
+      
+      if (!action.type || action.type === 'drawing') {
+          this.undoDrawingAction(action);
+      } else {
+          this.undoTextAction(action);
+      }
+      
+      this.historyStep--;
+      this.isRestoring = false;
+  }
+
+  undoDrawingAction(action) {
+      this.redrawPage(action.pageId);
+  }
+
+  undoTextAction(action) {
+      switch (action.type) {
+          case 'text-add':
+              this.undoTextAdd(action);
+              break;
+          case 'text-remove':
+              this.undoTextRemove(action);
+              break;
+          case 'text-modify':
+              this.undoTextModify(action);
+              break;
       }
   }
 
-  redo() {
-      if (this.historyStep < this.history.length - 1) {
-          this.isRestoring = true;
-          this.historyStep++;
-          const action = this.history[this.historyStep];
-          const pageId = action.pageId;
-          
-          if (!action.type || action.type === 'drawing') {
-              this.redrawPage(pageId);
-          } else {
-              if (action.type === 'text-add') {
-                  if (this.pages.has(pageId)) {
-                      this.restoreTextWrapper(action.state, this.pages.get(pageId));
-                  }
-              } else if (action.type === 'text-remove') {
-                  const wrapper = this.textWrappers.find(w => w.id === action.id);
-                  if (wrapper) this.removeTextWrapper(wrapper);
-              } else if (action.type === 'text-modify') {
-                  const wrapper = this.textWrappers.find(w => w.id === action.id);
-                  if (wrapper) this.applyTextState(wrapper, action.after);
-              }
-          }
-          
-          this.isRestoring = false;
+  undoTextAdd(action) {
+      const wrapper = this.textWrappers.find(w => w.id === action.id);
+      if (wrapper) this.removeTextWrapper(wrapper);
+  }
+
+  undoTextRemove(action) {
+      if (this.pages.has(action.pageId)) {
+          this.restoreTextWrapper(action.state, this.pages.get(action.pageId));
       }
+  }
+
+  undoTextModify(action) {
+      const wrapper = this.textWrappers.find(w => w.id === action.id);
+      if (wrapper) this.applyTextState(wrapper, action.before);
+  }
+
+  redo() {
+      if (this.historyStep >= this.history.length - 1) return;
+      
+      this.isRestoring = true;
+      this.historyStep++;
+      const action = this.history[this.historyStep];
+      
+      if (!action.type || action.type === 'drawing') {
+          this.redrawPage(action.pageId);
+      } else {
+          this.redoTextAction(action);
+      }
+      
+      this.isRestoring = false;
+  }
+
+  redoTextAction(action) {
+      switch (action.type) {
+          case 'text-add':
+              this.redoTextAdd(action);
+              break;
+          case 'text-remove':
+              this.redoTextRemove(action);
+              break;
+          case 'text-modify':
+              this.redoTextModify(action);
+              break;
+      }
+  }
+
+  redoTextAdd(action) {
+      if (this.pages.has(action.pageId)) {
+          this.restoreTextWrapper(action.state, this.pages.get(action.pageId));
+      }
+  }
+
+  redoTextRemove(action) {
+      const wrapper = this.textWrappers.find(w => w.id === action.id);
+      if (wrapper) this.removeTextWrapper(wrapper);
+  }
+
+  redoTextModify(action) {
+      const wrapper = this.textWrappers.find(w => w.id === action.id);
+      if (wrapper) this.applyTextState(wrapper, action.after);
   }
 
   removeTextWrapper(wrapper) {
@@ -1051,37 +1107,57 @@ class AnnotationManager {
 
   deselectText(wrapper) {
       if (this.initialTextState && !this.isRestoring) {
-          const currentState = this.serializeTextWrapper(wrapper);
-          const input = wrapper.querySelector('textarea');
-          if (wrapper.isNew) {
-              if (input.value.trim()) {
-                  this.addAction({
-                      type: 'text-add',
-                      id: wrapper.id,
-                      pageId: currentState.pageId,
-                      state: currentState
-                  });
-                  wrapper.isNew = false;
-              } else {
-                  if (this.activeWrapper === wrapper) {
-                      this.activeWrapper = null;
-                      this.activeInput = null;
-                  }
-                  this.removeTextWrapper(wrapper);
-                  return;
-              }
-          } else {
-              if (JSON.stringify(this.initialTextState) !== JSON.stringify(currentState)) {
-                  this.addAction({
-                      type: 'text-modify',
-                      id: wrapper.id,
-                      pageId: currentState.pageId,
-                      before: this.initialTextState,
-                      after: currentState
-                  });
-              }
-          }
+          this.handleTextStateChange(wrapper);
       }
+      this.clearTextSelection(wrapper);
+  }
+
+  handleTextStateChange(wrapper) {
+      const currentState = this.serializeTextWrapper(wrapper);
+      const input = wrapper.querySelector('textarea');
+      
+      if (wrapper.isNew) {
+          this.handleNewTextWrapper(wrapper, input, currentState);
+      } else {
+          this.handleExistingTextWrapper(wrapper, currentState);
+      }
+  }
+
+  handleNewTextWrapper(wrapper, input, currentState) {
+      if (input.value.trim()) {
+          this.addAction({
+              type: 'text-add',
+              id: wrapper.id,
+              pageId: currentState.pageId,
+              state: currentState
+          });
+          wrapper.isNew = false;
+      } else {
+          this.removeEmptyTextWrapper(wrapper);
+      }
+  }
+
+  removeEmptyTextWrapper(wrapper) {
+      if (this.activeWrapper === wrapper) {
+          this.activeWrapper = null;
+          this.activeInput = null;
+      }
+      this.removeTextWrapper(wrapper);
+  }
+
+  handleExistingTextWrapper(wrapper, currentState) {
+      if (JSON.stringify(this.initialTextState) !== JSON.stringify(currentState)) {
+          this.addAction({
+              type: 'text-modify',
+              id: wrapper.id,
+              pageId: currentState.pageId,
+              before: this.initialTextState,
+              after: currentState
+          });
+      }
+  }
+
+  clearTextSelection(wrapper) {
       wrapper.classList.remove('selected');
       const input = wrapper.querySelector('textarea');
       input.readOnly = true;
@@ -1405,28 +1481,60 @@ class AnnotationManager {
 
   updatePropertiesVisibility() {
     if (!this.propertiesContainer || !this.propertiesContainer.querySelector) return;
-    const sizeGroup = this.propertiesContainer.querySelector('.size-group');
-    const colorGroup = this.propertiesContainer.querySelector('.color-group');
-    const textOptionsGroup = this.propertiesContainer.querySelector('.text-options-group');
-    const eraserOptionsGroup = this.propertiesContainer.querySelector('.eraser-options-group');
-    if (sizeGroup) sizeGroup.classList.add('hidden');
-    if (colorGroup) colorGroup.classList.add('hidden');
-    if (textOptionsGroup) textOptionsGroup.classList.add('hidden');
-    if (eraserOptionsGroup) eraserOptionsGroup.classList.add('hidden');
-    if (this.currentTool === 'text') {
-        if (textOptionsGroup) textOptionsGroup.classList.remove('hidden');
-    } else if (this.currentTool === 'eraser') {
-        if (eraserOptionsGroup) {
-            eraserOptionsGroup.classList.remove('hidden');
-            const slider = eraserOptionsGroup.querySelector('.range-slider');
-            const valueDisplay = eraserOptionsGroup.querySelector('.slider-value');
-            if (slider) slider.value = this.currentSize;
-            if (valueDisplay) valueDisplay.textContent = this.currentSize;
-        }
-    } else {
-        if (sizeGroup) sizeGroup.classList.remove('hidden');
-        if (colorGroup) colorGroup.classList.remove('hidden');
+    
+    const groups = this.getPropertyGroups();
+    this.hideAllPropertyGroups(groups);
+    this.showToolSpecificGroups(groups);
+  }
+
+  getPropertyGroups() {
+    return {
+      sizeGroup: this.propertiesContainer.querySelector('.size-group'),
+      colorGroup: this.propertiesContainer.querySelector('.color-group'),
+      textOptionsGroup: this.propertiesContainer.querySelector('.text-options-group'),
+      eraserOptionsGroup: this.propertiesContainer.querySelector('.eraser-options-group')
+    };
+  }
+
+  hideAllPropertyGroups(groups) {
+    Object.values(groups).forEach(group => {
+      if (group) group.classList.add('hidden');
+    });
+  }
+
+  showToolSpecificGroups(groups) {
+    switch (this.currentTool) {
+      case 'text':
+        this.showTextOptions(groups.textOptionsGroup);
+        break;
+      case 'eraser':
+        this.showEraserOptions(groups.eraserOptionsGroup);
+        break;
+      default:
+        this.showDrawingOptions(groups);
     }
+  }
+
+  showTextOptions(textOptionsGroup) {
+    if (textOptionsGroup) textOptionsGroup.classList.remove('hidden');
+  }
+
+  showEraserOptions(eraserOptionsGroup) {
+    if (!eraserOptionsGroup) return;
+    eraserOptionsGroup.classList.remove('hidden');
+    this.updateEraserSlider(eraserOptionsGroup);
+  }
+
+  updateEraserSlider(eraserOptionsGroup) {
+    const slider = eraserOptionsGroup.querySelector('.range-slider');
+    const valueDisplay = eraserOptionsGroup.querySelector('.slider-value');
+    if (slider) slider.value = this.currentSize;
+    if (valueDisplay) valueDisplay.textContent = this.currentSize;
+  }
+
+  showDrawingOptions(groups) {
+    if (groups.sizeGroup) groups.sizeGroup.classList.remove('hidden');
+    if (groups.colorGroup) groups.colorGroup.classList.remove('hidden');
   }
 
   setColor(color) {

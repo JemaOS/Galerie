@@ -668,19 +668,7 @@ class FullscreenViewer {
                   const newVal = parseInt(e.target.value);
                   const oldVal = parseInt(slider.dataset.startValue);
                   if (newVal !== oldVal) {
-                      this.addToHistory({
-                          type: 'adjustment',
-                          undo: () => {
-                              this.adjustments[adj.id] = oldVal;
-                              this.applyAdjustments();
-                              this.renderAdjustmentUI();
-                          },
-                          redo: () => {
-                              this.adjustments[adj.id] = newVal;
-                              this.applyAdjustments();
-                              this.renderAdjustmentUI();
-                          }
-                      });
+                      this.addAdjustmentToHistory(adj.id, oldVal, newVal);
                   }
               });
               
@@ -1006,32 +994,30 @@ class FullscreenViewer {
    * @param {string} fileId - ID of deleted file
    */
   onFileDeleted(fileId) {
-      // Remove from internal list
       const index = this.files.findIndex(f => f.id === fileId);
-      if (index !== -1) {
-          this.files.splice(index, 1);
-          
-          // If it was the current file
-          if (this.currentFile && this.currentFile.id === fileId) {
-              if (this.files.length === 0) {
-                  this.close();
-              } else {
-                  // Show next available file
-                  let newIndex = index;
-                  if (newIndex >= this.files.length) {
-                      newIndex = this.files.length - 1;
-                  }
-                  this.currentIndex = newIndex;
-                  this.currentFile = this.files[this.currentIndex];
-                  this.loadFile(this.currentFile);
-              }
-          } else {
-              // If deleted file was before current, adjust index
-              if (index < this.currentIndex) {
-                  this.currentIndex--;
-              }
+      if (index === -1) return;
+      
+      this.files.splice(index, 1);
+      
+      if (!this.currentFile || this.currentFile.id !== fileId) {
+          // Deleted file was not the current one, just adjust index if needed
+          if (index < this.currentIndex) {
+              this.currentIndex--;
           }
+          return;
       }
+      
+      // Current file was deleted
+      if (this.files.length === 0) {
+          this.close();
+          return;
+      }
+      
+      // Show next available file
+      const newIndex = Math.min(index, this.files.length - 1);
+      this.currentIndex = newIndex;
+      this.currentFile = this.files[newIndex];
+      this.loadFile(this.currentFile);
   }
 
   /**
@@ -1470,74 +1456,89 @@ class FullscreenViewer {
       if (img) {
           img.style.transform = transform;
           img.style.cursor = this.transform.scale > 1 && (!this.annotationManager || !this.annotationManager.isActive) ? 'grab' : 'default';
-          
-          // Apply filters to the image element for live preview
-          const brightness = 100 + this.adjustments.brightness + this.adjustments.exposure;
-          const contrast = 100 + this.adjustments.contrast;
-          const saturation = 100 + this.adjustments.saturation;
-          const sepia = this.adjustments.warmth;
-          const hueRotate = this.adjustments.tint * 1.8;
-          
-          // Update SVG Filter for Highlights/Shadows
-          const shadows = this.adjustments.shadows / 100; // -1 to 1
-          const highlights = this.adjustments.highlights / 100; // -1 to 1
-          
-          const tableValues = [];
-          for (let i = 0; i <= 20; i++) {
-              let x = i / 20;
-              let y = x;
-              
-              // Shadows (brighten darks)
-              if (shadows !== 0) {
-                  const influence = Math.exp(-x * 4);
-                  y += (1 - x) * influence * shadows * 0.6;
-              }
-              
-              // Highlights (darken brights)
-              if (highlights !== 0) {
-                  const influence = Math.exp(-(1 - x) * 4);
-                  y -= x * influence * highlights * 0.6;
-              }
-              
-              y = Math.max(0, Math.min(1, y));
-              tableValues.push(y);
-          }
-          
-          const tableStr = tableValues.join(' ');
-          const filter = document.getElementById(this.filterId);
-          if (filter) {
-              ['R', 'G', 'B'].forEach(c => {
-                  const func = filter.querySelector(`feFunc${c}`);
-                  if (func) func.setAttribute('tableValues', tableStr);
-              });
-              
-              // Update Sharpness
-              const sharpness = this.adjustments.sharpness;
-              const composite = filter.querySelector('feComposite');
-              if (composite) {
-                  const strength = sharpness / 30;
-                  composite.setAttribute('k2', 1 + strength);
-                  composite.setAttribute('k3', -strength);
-              }
-          }
-
-          img.style.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) sepia(${sepia}%) hue-rotate(${hueRotate}deg) url(#${this.filterId})`;
-
-          // Vignette (using mask to reveal black background)
-          if (this.adjustments.vignette > 0) {
-              const v = this.adjustments.vignette;
-              const stop = Math.max(0, 100 - v);
-              const mask = `radial-gradient(circle, black ${stop}%, transparent 150%)`;
-              img.style.webkitMaskImage = mask;
-              img.style.maskImage = mask;
-          } else {
-              img.style.webkitMaskImage = 'none';
-              img.style.maskImage = 'none';
-          }
+          this.applyImageFilters(img);
       }
       
       if (annotationCanvas) {
           annotationCanvas.style.transform = transform;
+      }
+  }
+
+  applyImageFilters(img) {
+      // Apply filters to the image element for live preview
+      const brightness = 100 + this.adjustments.brightness + this.adjustments.exposure;
+      const contrast = 100 + this.adjustments.contrast;
+      const saturation = 100 + this.adjustments.saturation;
+      const sepia = this.adjustments.warmth;
+      const hueRotate = this.adjustments.tint * 1.8;
+      
+      this.updateSVGFilter();
+
+      img.style.filter = `brightness(${brightness}%) contrast(${contrast}%) saturate(${saturation}%) sepia(${sepia}%) hue-rotate(${hueRotate}deg) url(#${this.filterId})`;
+
+      this.applyVignette(img);
+  }
+
+  updateSVGFilter() {
+      const shadows = this.adjustments.shadows / 100;
+      const highlights = this.adjustments.highlights / 100;
+      
+      const tableValues = this.calculateTableValues(shadows, highlights);
+      const tableStr = tableValues.join(' ');
+      
+      const filter = document.getElementById(this.filterId);
+      if (!filter) return;
+      
+      ['R', 'G', 'B'].forEach(c => {
+          const func = filter.querySelector(`feFunc${c}`);
+          if (func) func.setAttribute('tableValues', tableStr);
+      });
+      
+      this.updateSharpness(filter);
+  }
+
+  calculateTableValues(shadows, highlights) {
+      const tableValues = [];
+      for (let i = 0; i <= 20; i++) {
+          let x = i / 20;
+          let y = x;
+          
+          if (shadows !== 0) {
+              const influence = Math.exp(-x * 4);
+              y += (1 - x) * influence * shadows * 0.6;
+          }
+          
+          if (highlights !== 0) {
+              const influence = Math.exp(-(1 - x) * 4);
+              y -= x * influence * highlights * 0.6;
+          }
+          
+          y = Math.max(0, Math.min(1, y));
+          tableValues.push(y);
+      }
+      return tableValues;
+  }
+
+  updateSharpness(filter) {
+      const sharpness = this.adjustments.sharpness;
+      const composite = filter.querySelector('feComposite');
+      if (!composite) return;
+      
+      const strength = sharpness / 30;
+      composite.setAttribute('k2', 1 + strength);
+      composite.setAttribute('k3', -strength);
+  }
+
+  applyVignette(img) {
+      if (this.adjustments.vignette > 0) {
+          const v = this.adjustments.vignette;
+          const stop = Math.max(0, 100 - v);
+          const mask = `radial-gradient(circle, black ${stop}%, transparent 150%)`;
+          img.style.webkitMaskImage = mask;
+          img.style.maskImage = mask;
+      } else {
+          img.style.webkitMaskImage = 'none';
+          img.style.maskImage = 'none';
       }
   }
 
@@ -1559,6 +1560,22 @@ class FullscreenViewer {
       this.history.push(action);
       this.historyStep++;
       this.updateUndoRedoButtons();
+  }
+
+  addAdjustmentToHistory(adjId, oldVal, newVal) {
+      this.addToHistory({
+          type: 'adjustment',
+          undo: () => {
+              this.adjustments[adjId] = oldVal;
+              this.applyAdjustments();
+              this.renderAdjustmentUI();
+          },
+          redo: () => {
+              this.adjustments[adjId] = newVal;
+              this.applyAdjustments();
+              this.renderAdjustmentUI();
+          }
+      });
   }
 
   undo() {

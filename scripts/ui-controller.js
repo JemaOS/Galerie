@@ -648,6 +648,106 @@ class UIController {
   }
 
   /**
+   * Load and initialize audio player
+   * @private
+   */
+  async _loadAudioPlayer() {
+    this.showLoading(true);
+    try {
+      await window.loadScript('scripts/audio-player.js');
+      if (window.audioPlayer) {
+        window.audioPlayer.init();
+      }
+    } catch (error) {
+      console.error('Failed to load audio player:', error);
+      this.showToast('Erreur lors du chargement du lecteur audio', 'error');
+      this.showLoading(false);
+      return false;
+    }
+    this.showLoading(false);
+    return true;
+  }
+
+  /**
+   * Load and initialize PDF viewer
+   * @private
+   */
+  async _loadPdfViewer() {
+    this.showLoading(true);
+    try {
+      await window.loadScript('scripts/pdf-viewer.js');
+      if (!window.pdfViewer) {
+        window.pdfViewer = new PdfViewer(this.fileHandler, this);
+        window.pdfViewer.init();
+      }
+    } catch (error) {
+      console.error('Failed to load PDF viewer:', error);
+      this.showToast('Erreur lors du chargement du lecteur PDF', 'error');
+      this.showLoading(false);
+      return false;
+    }
+    this.showLoading(false);
+    return true;
+  }
+
+  /**
+   * Get files list for viewer
+   * @private
+   * @returns {Array} Files array
+   */
+  _getFilesForViewer() {
+    const hasActiveFilter = this.fileHandler.currentFilter !== 'all' || this.fileHandler.searchQuery !== '';
+    return hasActiveFilter ? this.fileHandler.getFilteredFiles() : this.fileHandler.files;
+  }
+
+  /**
+   * Open audio file in audio player
+   * @private
+   * @param {Object} file - File object
+   */
+  async _openAudioFile(file) {
+    if (!window.audioPlayer) {
+      const loaded = await this._loadAudioPlayer();
+      if (!loaded) return;
+    }
+
+    if (window.audioPlayer) {
+      const files = this.fileHandler.getFilteredFiles();
+      const index = files.findIndex(f => f.id === file.id);
+      window.audioPlayer.open(files, index);
+    }
+  }
+
+  /**
+   * Open PDF file in PDF viewer
+   * @private
+   * @param {Object} file - File object
+   */
+  async _openPdfFile(file) {
+    if (!window.pdfViewer) {
+      const loaded = await this._loadPdfViewer();
+      if (!loaded) return;
+    }
+
+    if (window.pdfViewer) {
+      window.pdfViewer.open(file);
+    }
+  }
+
+  /**
+   * Open file in fullscreen viewer
+   * @private
+   * @param {Object} file - File object
+   */
+  _openInFullscreenViewer(file) {
+    if (!window.fullscreenViewer) return;
+
+    const files = this._getFilesForViewer();
+    const index = files.findIndex(f => f.id === file.id);
+    window.fullscreenViewer.open(file, index, files);
+  }
+
+  /**
    * Open file in fullscreen, audio player, or PDF viewer
    * @param {Object} file - File object
    */
@@ -656,63 +756,20 @@ class UIController {
     // Pass false to NOT remove files when switching between viewers
     this.closeAllViewers(false);
 
-    if (file.type === 'audio') {
-      if (!window.audioPlayer) {
-        this.showLoading(true);
-        try {
-          await window.loadScript('scripts/audio-player.js');
-          if (window.audioPlayer) {
-            window.audioPlayer.init();
-          }
-        } catch (error) {
-          console.error('Failed to load audio player:', error);
-          this.showToast('Erreur lors du chargement du lecteur audio', 'error');
-          this.showLoading(false);
-          return;
-        }
-        this.showLoading(false);
-      }
-      
-      if (window.audioPlayer) {
-        const files = this.fileHandler.getFilteredFiles();
-        const index = files.findIndex(f => f.id === file.id);
-        window.audioPlayer.open(files, index);
-      }
-    } else if (file.type === 'pdf') {
-      if (!window.pdfViewer) {
-        this.showLoading(true);
-        try {
-          await window.loadScript('scripts/pdf-viewer.js');
-          if (!window.pdfViewer) {
-             window.pdfViewer = new PdfViewer(this.fileHandler, this);
-             window.pdfViewer.init();
-          }
-        } catch (error) {
-          console.error('Failed to load PDF viewer:', error);
-          this.showToast('Erreur lors du chargement du lecteur PDF', 'error');
-          this.showLoading(false);
-          return;
-        }
-        this.showLoading(false);
-      }
-
-      if (window.pdfViewer) {
-        window.pdfViewer.open(file);
-      }
-    } else if ((file.type === 'video' || file.type === 'image') && window.fullscreenViewer) {
-      // Use filtered files if a filter is active, otherwise use all files
-      const hasActiveFilter = this.fileHandler.currentFilter !== 'all' || this.fileHandler.searchQuery !== '';
-      const files = hasActiveFilter ? this.fileHandler.getFilteredFiles() : this.fileHandler.files;
-      
-      const index = files.findIndex(f => f.id === file.id);
-      window.fullscreenViewer.open(file, index, files);
-    } else if (window.fullscreenViewer) {
-      // Fallback for other types handled by fullscreen viewer
-      const hasActiveFilter = this.fileHandler.currentFilter !== 'all' || this.fileHandler.searchQuery !== '';
-      const files = hasActiveFilter ? this.fileHandler.getFilteredFiles() : this.fileHandler.files;
-      
-      const index = files.findIndex(f => f.id === file.id);
-      window.fullscreenViewer.open(file, index, files);
+    switch (file.type) {
+      case 'audio':
+        await this._openAudioFile(file);
+        break;
+      case 'pdf':
+        await this._openPdfFile(file);
+        break;
+      case 'video':
+      case 'image':
+        this._openInFullscreenViewer(file);
+        break;
+      default:
+        this._openInFullscreenViewer(file);
+        break;
     }
   }
 
@@ -852,55 +909,93 @@ class UIController {
   }
 
   /**
+   * Fetch metadata for image or video files
+   * @private
+   * @param {Object} file - File object
+   * @returns {Promise<Object|null>} Metadata object with width and height
+   */
+  async _fetchMediaMetadata(file) {
+    try {
+      if (file.type === 'image') {
+        return await this.fileHandler.getImageMetadata(file.file);
+      }
+      if (file.type === 'video') {
+        return await this.fileHandler.getVideoMetadata(file.file);
+      }
+      return null;
+    } catch (e) {
+      console.warn('Failed to fetch metadata', e);
+      return null;
+    }
+  }
+
+  /**
+   * Get dimensions for media file
+   * @private
+   * @param {Object} file - File object
+   * @returns {Promise<{width: number, height: number}|null>} Dimensions or null
+   */
+  async _getMediaDimensions(file) {
+    const cachedWidth = file.metadata?.width;
+    const cachedHeight = file.metadata?.height;
+
+    if (cachedWidth && cachedHeight) {
+      return { width: cachedWidth, height: cachedHeight };
+    }
+
+    const metadata = await this._fetchMediaMetadata(file);
+    if (metadata) {
+      // Cache it
+      file.metadata = { ...file.metadata, ...metadata };
+      return { width: metadata.width, height: metadata.height };
+    }
+
+    return null;
+  }
+
+  /**
+   * Update modal with media dimensions
+   * @private
+   * @param {Object} file - File object
+   */
+  async _updateModalDimensions(file) {
+    if (!this.elements.modalDimensionsRow) return;
+
+    this.elements.modalDimensionsRow.style.display = 'none';
+
+    if (file.type !== 'image' && file.type !== 'video') return;
+
+    const dimensions = await this._getMediaDimensions(file);
+    if (dimensions) {
+      this.elements.modalDimensions.textContent = `${dimensions.width} x ${dimensions.height} px`;
+      this.elements.modalDimensionsRow.style.display = 'flex';
+    }
+  }
+
+  /**
+   * Update modal with basic file info
+   * @private
+   * @param {Object} file - File object
+   */
+  _updateModalBasicInfo(file) {
+    this.elements.modalFilename.textContent = file.name;
+    this.elements.modalFiletype.textContent = file.type.toUpperCase();
+    this.elements.modalFilesize.textContent = GalleryUtils.formatFileSize(file.size || 0);
+    this.elements.modalFiledate.textContent = GalleryUtils.formatDate(file.lastModified || Date.now());
+  }
+
+  /**
    * Show file info modal
    * @param {Object} file - File object
    */
   async showFileModal(file) {
     if (!file) return;
 
-    if (this.elements.modal && this.elements.modalFilename) {
-      this.elements.modalFilename.textContent = file.name;
-      this.elements.modalFiletype.textContent = file.type.toUpperCase();
-      this.elements.modalFilesize.textContent = GalleryUtils.formatFileSize(file.size || 0);
-      this.elements.modalFiledate.textContent = GalleryUtils.formatDate(file.lastModified || Date.now());
+    if (!this.elements.modal || !this.elements.modalFilename) return;
 
-      // Handle Dimensions
-      if (this.elements.modalDimensionsRow) {
-        this.elements.modalDimensionsRow.style.display = 'none';
-        
-        if (file.type === 'image' || file.type === 'video') {
-          let width = file.metadata?.width;
-          let height = file.metadata?.height;
-
-          if (!width || !height) {
-            try {
-              let metadata;
-              if (file.type === 'image') {
-                metadata = await this.fileHandler.getImageMetadata(file.file);
-              } else if (file.type === 'video') {
-                metadata = await this.fileHandler.getVideoMetadata(file.file);
-              }
-              
-              if (metadata) {
-                width = metadata.width;
-                height = metadata.height;
-                // Cache it
-                file.metadata = { ...file.metadata, ...metadata };
-              }
-            } catch (e) {
-              console.warn('Failed to fetch metadata', e);
-            }
-          }
-
-          if (width && height) {
-            this.elements.modalDimensions.textContent = `${width} x ${height} px`;
-            this.elements.modalDimensionsRow.style.display = 'flex';
-          }
-        }
-      }
-
-      this.elements.modal.classList.remove('hidden');
-    }
+    this._updateModalBasicInfo(file);
+    await this._updateModalDimensions(file);
+    this.elements.modal.classList.remove('hidden');
   }
 
   /**

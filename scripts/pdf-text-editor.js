@@ -600,40 +600,16 @@ class PdfTextEditor {
             
             switch (op) {
                 case OPS.setFillRGBColor:
-                    if (opArgs && opArgs.length >= 3) {
-                        tempFillColor = [
-                            Math.round(opArgs[0] * 255),
-                            Math.round(opArgs[1] * 255),
-                            Math.round(opArgs[2] * 255)
-                        ];
-                    }
+                    tempFillColor = this._extractRgbColor(opArgs);
                     break;
                 case OPS.setFillGray:
-                    if (opArgs && opArgs.length >= 1) {
-                        const gray = Math.round(opArgs[0] * 255);
-                        tempFillColor = [gray, gray, gray];
-                    }
+                    tempFillColor = this._extractGrayColor(opArgs);
                     break;
                 case OPS.setFillCMYKColor:
-                    if (opArgs && opArgs.length >= 4) {
-                        const [c, m, y, k] = opArgs;
-                        tempFillColor = [
-                            Math.round(255 * (1 - c) * (1 - k)),
-                            Math.round(255 * (1 - m) * (1 - k)),
-                            Math.round(255 * (1 - y) * (1 - k))
-                        ];
-                    }
+                    tempFillColor = this._extractCmykColor(opArgs);
                     break;
                 case OPS.rectangle:
-                    if (opArgs && opArgs.length >= 4) {
-                        pendingRect = {
-                            x: opArgs[0],
-                            y: opArgs[1],
-                            width: opArgs[2],
-                            height: opArgs[3],
-                            color: [...tempFillColor]
-                        };
-                    }
+                    pendingRect = this._createPendingRect(opArgs, tempFillColor);
                     break;
                 case OPS.fill:
                 case OPS.eoFill:
@@ -671,59 +647,27 @@ class PdfTextEditor {
                     break;
                     
                 case OPS.setFillRGBColor:
-                    if (opArgs && opArgs.length >= 3) {
-                        currentFillColor = [
-                            Math.round(opArgs[0] * 255),
-                            Math.round(opArgs[1] * 255),
-                            Math.round(opArgs[2] * 255)
-                        ];
-                    }
+                    currentFillColor = this._extractRgbColor(opArgs);
                     break;
                     
                 case OPS.setStrokeRGBColor:
-                    if (opArgs && opArgs.length >= 3) {
-                        currentStrokeColor = [
-                            Math.round(opArgs[0] * 255),
-                            Math.round(opArgs[1] * 255),
-                            Math.round(opArgs[2] * 255)
-                        ];
-                    }
+                    currentStrokeColor = this._extractRgbColor(opArgs);
                     break;
                     
                 case OPS.setFillGray:
-                    if (opArgs && opArgs.length >= 1) {
-                        const gray = Math.round(opArgs[0] * 255);
-                        currentFillColor = [gray, gray, gray];
-                    }
+                    currentFillColor = this._extractGrayColor(opArgs);
                     break;
                     
                 case OPS.setStrokeGray:
-                    if (opArgs && opArgs.length >= 1) {
-                        const gray = Math.round(opArgs[0] * 255);
-                        currentStrokeColor = [gray, gray, gray];
-                    }
+                    currentStrokeColor = this._extractGrayColor(opArgs);
                     break;
                     
                 case OPS.setFillCMYKColor:
-                    if (opArgs && opArgs.length >= 4) {
-                        const [c, m, y, k] = opArgs;
-                        currentFillColor = [
-                            Math.round(255 * (1 - c) * (1 - k)),
-                            Math.round(255 * (1 - m) * (1 - k)),
-                            Math.round(255 * (1 - y) * (1 - k))
-                        ];
-                    }
+                    currentFillColor = this._extractCmykColor(opArgs);
                     break;
                     
                 case OPS.setStrokeCMYKColor:
-                    if (opArgs && opArgs.length >= 4) {
-                        const [c, m, y, k] = opArgs;
-                        currentStrokeColor = [
-                            Math.round(255 * (1 - c) * (1 - k)),
-                            Math.round(255 * (1 - m) * (1 - k)),
-                            Math.round(255 * (1 - y) * (1 - k))
-                        ];
-                    }
+                    currentStrokeColor = this._extractCmykColor(opArgs);
                     break;
                     
                 case OPS.showText:
@@ -731,26 +675,10 @@ class PdfTextEditor {
                 case OPS.nextLineShowText:
                 case OPS.nextLineSetSpacingShowText:
                     if (textItemIndex < textItems.length) {
-                        // Find background rectangle that contains this text
-                        const textPos = textPositions[textItemIndex];
-                        let bgColor = [255, 255, 255]; // Default white
-                        
-                        for (const rect of filledRects) {
-                            // Check if text is inside this rectangle
-                            // PDF coordinates: y increases upward
-                            const rectTop = rect.y + rect.height;
-                            const rectBottom = rect.y;
-                            const rectLeft = rect.x;
-                            const rectRight = rect.x + rect.width;
-                            
-                            if (textPos.x >= rectLeft - 5 &&
-                                textPos.x <= rectRight + 5 &&
-                                textPos.y >= rectBottom - 5 &&
-                                textPos.y <= rectTop + 5) {
-                                bgColor = rect.color;
-                                break;
-                            }
-                        }
+                        const bgColor = this._findBackgroundColor(
+                            textPositions[textItemIndex],
+                            filledRects
+                        );
                         
                         colorState[textItemIndex] = {
                             fillColor: [...currentFillColor],
@@ -777,6 +705,93 @@ class PdfTextEditor {
         console.log('[PDF-TextEditor] Extracted colors for', textItemIndex, 'text operations');
         
         return colorState;
+    }
+
+    /**
+     * Helper: Extract RGB color from operator args
+     * @private
+     */
+    _extractRgbColor(opArgs) {
+        if (opArgs && opArgs.length >= 3) {
+            return [
+                Math.round(opArgs[0] * 255),
+                Math.round(opArgs[1] * 255),
+                Math.round(opArgs[2] * 255)
+            ];
+        }
+        return [0, 0, 0];
+    }
+
+    /**
+     * Helper: Extract grayscale color from operator args
+     * @private
+     */
+    _extractGrayColor(opArgs) {
+        if (opArgs && opArgs.length >= 1) {
+            const gray = Math.round(opArgs[0] * 255);
+            return [gray, gray, gray];
+        }
+        return [0, 0, 0];
+    }
+
+    /**
+     * Helper: Extract CMYK color from operator args
+     * @private
+     */
+    _extractCmykColor(opArgs) {
+        if (opArgs && opArgs.length >= 4) {
+            const [c, m, y, k] = opArgs;
+            return [
+                Math.round(255 * (1 - c) * (1 - k)),
+                Math.round(255 * (1 - m) * (1 - k)),
+                Math.round(255 * (1 - y) * (1 - k))
+            ];
+        }
+        return [0, 0, 0];
+    }
+
+    /**
+     * Helper: Create pending rectangle object
+     * @private
+     */
+    _createPendingRect(opArgs, color) {
+        if (opArgs && opArgs.length >= 4) {
+            return {
+                x: opArgs[0],
+                y: opArgs[1],
+                width: opArgs[2],
+                height: opArgs[3],
+                color: [...color]
+            };
+        }
+        return null;
+    }
+
+    /**
+     * Helper: Find background color for text position
+     * @private
+     */
+    _findBackgroundColor(textPos, filledRects) {
+        let bgColor = [255, 255, 255]; // Default white
+        
+        for (const rect of filledRects) {
+            // Check if text is inside this rectangle
+            // PDF coordinates: y increases upward
+            const rectTop = rect.y + rect.height;
+            const rectBottom = rect.y;
+            const rectLeft = rect.x;
+            const rectRight = rect.x + rect.width;
+            
+            if (textPos.x >= rectLeft - 5 &&
+                textPos.x <= rectRight + 5 &&
+                textPos.y >= rectBottom - 5 &&
+                textPos.y <= rectTop + 5) {
+                bgColor = rect.color;
+                break;
+            }
+        }
+        
+        return bgColor;
     }
 
     /**
@@ -815,122 +830,135 @@ class PdfTextEditor {
         
         try {
             const imageData = ctx.getImageData(boxLeft, boxTop, boxWidth, boxHeight).data;
-            
-            // Build color histogram - group by quantized color for better clustering
-            const colorMap = new Map();
-            let totalPixels = 0;
-            
-            for (let i = 0; i < imageData.length; i += 4) {
-                const r = imageData[i];
-                const g = imageData[i+1];
-                const b = imageData[i+2];
-                const a = imageData[i+3];
-                
-                if (a < 128) continue; // Skip transparent
-                
-                totalPixels++;
-                
-                // Quantize to reduce noise - group similar colors
-                const qr = Math.round(r / 8) * 8;
-                const qg = Math.round(g / 8) * 8;
-                const qb = Math.round(b / 8) * 8;
-                const key = `${qr},${qg},${qb}`;
-                
-                if (!colorMap.has(key)) {
-                    colorMap.set(key, {
-                        r: 0, g: 0, b: 0,
-                        count: 0,
-                        luminance: 0,
-                        samples: []
-                    });
-                }
-                const entry = colorMap.get(key);
-                entry.r += r;
-                entry.g += g;
-                entry.b += b;
-                entry.count++;
-                entry.samples.push([r, g, b]);
-            }
+            const colorMap = this._buildColorHistogram(imageData);
             
             if (colorMap.size === 0) {
                 return { background: [255, 255, 255], text: [0, 0, 0] };
             }
             
-            // Calculate average color and luminance for each cluster
-            for (const [key, data] of colorMap) {
-                data.r = Math.round(data.r / data.count);
-                data.g = Math.round(data.g / data.count);
-                data.b = Math.round(data.b / data.count);
-                data.luminance = this.getLuminance(data.r, data.g, data.b);
-            }
-            
-            // Sort colors by frequency
-            const sortedColors = Array.from(colorMap.values()).sort((a, b) => b.count - a.count);
-            
-            // STRATEGY: The LIGHTEST color with significant count is the background
-            // The DARKEST color with significant count is the text
-            // This works for both white and gray backgrounds
-            
-            let bgCandidate = null;
-            let textCandidate = null;
-            let maxLuminance = -1;
-            let minLuminance = 256;
-            
-            const minCountThreshold = totalPixels * 0.02; // At least 2% of pixels
-            
-            for (const color of sortedColors) {
-                if (color.count < minCountThreshold) continue;
-                
-                // Track lightest (background)
-                if (color.luminance > maxLuminance) {
-                    maxLuminance = color.luminance;
-                    bgCandidate = color;
-                }
-                
-                // Track darkest (text)
-                if (color.luminance < minLuminance) {
-                    minLuminance = color.luminance;
-                    textCandidate = color;
-                }
-            }
-            
-            // Fallback if no candidates found
-            if (!bgCandidate) {
-                bgCandidate = sortedColors[0];
-            }
-            if (!textCandidate) {
-                textCandidate = bgCandidate.luminance > 128
-                    ? { r: 0, g: 0, b: 0 }
-                    : { r: 255, g: 255, b: 255 };
-            }
-            
-            // If bg and text are the same, use contrasting color for text
-            if (bgCandidate === textCandidate) {
-                textCandidate = bgCandidate.luminance > 128
-                    ? { r: 0, g: 0, b: 0 }
-                    : { r: 255, g: 255, b: 255 };
-            }
-            
-            // Check for colored text (saturation > 0.2)
-            // If we find a saturated color, it's likely the text color
-            for (const color of sortedColors) {
-                if (color.count < minCountThreshold) continue;
-                const [h, s, l] = this.rgbToHsl(color.r, color.g, color.b);
-                if (s > 0.25 && color !== bgCandidate) {
-                    textCandidate = color;
-                    break;
-                }
-            }
-            
-            return {
-                background: [bgCandidate.r, bgCandidate.g, bgCandidate.b],
-                text: [textCandidate.r, textCandidate.g, textCandidate.b]
-            };
+            const sortedColors = this._calculateColorStats(colorMap);
+            return this._determineBgAndTextColors(sortedColors);
             
         } catch (e) {
             console.error('[PDF-TextEditor] sampleTextRegionColors error:', e);
             return { background: [255, 255, 255], text: [0, 0, 0] };
         }
+    }
+
+    /**
+     * Helper: Build color histogram from image data
+     * @private
+     */
+    _buildColorHistogram(imageData) {
+        const colorMap = new Map();
+        
+        for (let i = 0; i < imageData.length; i += 4) {
+            const r = imageData[i];
+            const g = imageData[i+1];
+            const b = imageData[i+2];
+            const a = imageData[i+3];
+            
+            if (a < 128) continue; // Skip transparent
+            
+            // Quantize to reduce noise - group similar colors
+            const qr = Math.round(r / 8) * 8;
+            const qg = Math.round(g / 8) * 8;
+            const qb = Math.round(b / 8) * 8;
+            const key = `${qr},${qg},${qb}`;
+            
+            if (!colorMap.has(key)) {
+                colorMap.set(key, { r: 0, g: 0, b: 0, count: 0 });
+            }
+            const entry = colorMap.get(key);
+            entry.r += r;
+            entry.g += g;
+            entry.b += b;
+            entry.count++;
+        }
+        
+        return colorMap;
+    }
+
+    /**
+     * Helper: Calculate color statistics from histogram
+     * @private
+     */
+    _calculateColorStats(colorMap) {
+        // Calculate average color and luminance for each cluster
+        for (const [key, data] of colorMap) {
+            data.r = Math.round(data.r / data.count);
+            data.g = Math.round(data.g / data.count);
+            data.b = Math.round(data.b / data.count);
+            data.luminance = this.getLuminance(data.r, data.g, data.b);
+        }
+        
+        // Sort colors by frequency
+        return Array.from(colorMap.values()).sort((a, b) => b.count - a.count);
+    }
+
+    /**
+     * Helper: Determine background and text colors from sorted colors
+     * @private
+     */
+    _determineBgAndTextColors(sortedColors) {
+        // STRATEGY: The LIGHTEST color with significant count is the background
+        // The DARKEST color with significant count is the text
+        
+        const totalPixels = sortedColors.reduce((sum, c) => sum + c.count, 0);
+        const minCountThreshold = totalPixels * 0.02; // At least 2% of pixels
+        
+        let bgCandidate = null;
+        let textCandidate = null;
+        let maxLuminance = -1;
+        let minLuminance = 256;
+        
+        for (const color of sortedColors) {
+            if (color.count < minCountThreshold) continue;
+            
+            // Track lightest (background)
+            if (color.luminance > maxLuminance) {
+                maxLuminance = color.luminance;
+                bgCandidate = color;
+            }
+            
+            // Track darkest (text)
+            if (color.luminance < minLuminance) {
+                minLuminance = color.luminance;
+                textCandidate = color;
+            }
+        }
+        
+        // Fallback if no candidates found
+        if (!bgCandidate) {
+            bgCandidate = sortedColors[0];
+        }
+        if (!textCandidate) {
+            textCandidate = bgCandidate.luminance > 128
+                ? { r: 0, g: 0, b: 0 }
+                : { r: 255, g: 255, b: 255 };
+        }
+        
+        // If bg and text are the same, use contrasting color for text
+        if (bgCandidate === textCandidate) {
+            textCandidate = bgCandidate.luminance > 128
+                ? { r: 0, g: 0, b: 0 }
+                : { r: 255, g: 255, b: 255 };
+        }
+        
+        // Check for colored text (saturation > 0.2)
+        for (const color of sortedColors) {
+            if (color.count < minCountThreshold) continue;
+            const [h, s, l] = this.rgbToHsl(color.r, color.g, color.b);
+            if (s > 0.25 && color !== bgCandidate) {
+                textCandidate = color;
+                break;
+            }
+        }
+        
+        return {
+            background: [bgCandidate.r, bgCandidate.g, bgCandidate.b],
+            text: [textCandidate.r, textCandidate.g, textCandidate.b]
+        };
     }
 
     /**
@@ -965,80 +993,89 @@ class PdfTextEditor {
         }
 
         try {
-            // Sample the ENTIRE text bounding box
             const imageData = ctx.getImageData(boxLeft, boxTop, boxWidth, boxHeight).data;
-            
-            // Collect all pixels and find the LIGHTEST ones (background)
-            // Text pixels are dark, background pixels are light
-            const colorCounts = new Map();
-            
-            for (let i = 0; i < imageData.length; i += 4) {
-                const r = imageData[i];
-                const g = imageData[i+1];
-                const b = imageData[i+2];
-                const a = imageData[i+3];
-                
-                // Skip transparent pixels
-                if (a < 200) continue;
-                
-                // Quantize for grouping
-                const key = this.quantizeColor(r, g, b);
-                
-                if (!colorCounts.has(key)) {
-                    colorCounts.set(key, { r: 0, g: 0, b: 0, count: 0, luminance: 0 });
-                }
-                
-                const entry = colorCounts.get(key);
-                entry.r += r;
-                entry.g += g;
-                entry.b += b;
-                entry.count++;
-                entry.luminance = this.getLuminance(r, g, b);
-            }
+            const colorCounts = this._collectBackgroundColorSamples(imageData);
             
             if (colorCounts.size === 0) {
                 return [255, 255, 255];
             }
             
-            // Find the LIGHTEST color with significant count
-            // This is the background color (text is darker)
-            let bestColor = null;
-            let bestLuminance = -1;
-            let bestCount = 0;
-            
-            for (const [key, data] of colorCounts) {
-                const avgLum = this.getLuminance(
-                    data.r / data.count,
-                    data.g / data.count,
-                    data.b / data.count
-                );
-                
-                // Must have at least 5% of pixels to be considered background
-                const minCount = (boxWidth * boxHeight) * 0.05;
-                
-                if (data.count >= minCount) {
-                    // Prefer lighter colors (higher luminance = background)
-                    if (avgLum > bestLuminance) {
-                        bestLuminance = avgLum;
-                        bestColor = data;
-                        bestCount = data.count;
-                    }
-                }
-            }
-            
-            if (bestColor && bestColor.count > 0) {
-                return [
-                    Math.round(bestColor.r / bestColor.count),
-                    Math.round(bestColor.g / bestColor.count),
-                    Math.round(bestColor.b / bestColor.count)
-                ];
-            }
-            
-            return [255, 255, 255];
+            return this._findLightestBackgroundColor(colorCounts, boxWidth, boxHeight);
             
         } catch (e) {
             return [255, 255, 255];
         }
+    }
+
+    /**
+     * Helper: Collect color samples for background detection
+     * @private
+     */
+    _collectBackgroundColorSamples(imageData) {
+        const colorCounts = new Map();
+        
+        for (let i = 0; i < imageData.length; i += 4) {
+            const r = imageData[i];
+            const g = imageData[i+1];
+            const b = imageData[i+2];
+            const a = imageData[i+3];
+            
+            // Skip transparent pixels
+            if (a < 200) continue;
+            
+            // Quantize for grouping
+            const key = this.quantizeColor(r, g, b);
+            
+            if (!colorCounts.has(key)) {
+                colorCounts.set(key, { r: 0, g: 0, b: 0, count: 0 });
+            }
+            
+            const entry = colorCounts.get(key);
+            entry.r += r;
+            entry.g += g;
+            entry.b += b;
+            entry.count++;
+        }
+        
+        return colorCounts;
+    }
+
+    /**
+     * Helper: Find the lightest background color from samples
+     * @private
+     */
+    _findLightestBackgroundColor(colorCounts, boxWidth, boxHeight) {
+        let bestColor = null;
+        let bestLuminance = -1;
+        
+        // Must have at least 5% of pixels to be considered background
+        const minCount = (boxWidth * boxHeight) * 0.05;
+        
+        for (const [key, data] of colorCounts) {
+            if (data.count < minCount) continue;
+            
+            const avgLum = this.getLuminance(
+                data.r / data.count,
+                data.g / data.count,
+                data.b / data.count
+            );
+            
+            // Prefer lighter colors (higher luminance = background)
+            if (avgLum > bestLuminance) {
+                bestLuminance = avgLum;
+                bestColor = data;
+            }
+        }
+        
+        if (bestColor && bestColor.count > 0) {
+            return [
+                Math.round(bestColor.r / bestColor.count),
+                Math.round(bestColor.g / bestColor.count),
+                Math.round(bestColor.b / bestColor.count)
+            ];
+        }
+        
+        return [255, 255, 255];
     }
 
     /**
@@ -1076,75 +1113,83 @@ class PdfTextEditor {
 
         try {
             const imageData = ctx.getImageData(boxLeft, boxTop, boxWidth, boxHeight).data;
+            const exactColors = this._collectTextColorSamples(imageData, bgColor);
             
-            // ADOBE-LEVEL PRECISION: Collect ALL non-background pixels
-            // Group by exact color (no quantization for initial collection)
-            const exactColors = new Map();
-            const bgLuminance = this.getLuminance(bgColor[0], bgColor[1], bgColor[2]);
-            
-            for (let i = 0; i < imageData.length; i += 4) {
-                const r = imageData[i];
-                const g = imageData[i+1];
-                const b = imageData[i+2];
-                const a = imageData[i+3];
-
-                // Skip transparent pixels
-                if (a < 50) continue;
-                
-                // Skip pixels that are too similar to background
-                const dr = r - bgColor[0];
-                const dg = g - bgColor[1];
-                const db = b - bgColor[2];
-                const distSq = dr*dr + dg*dg + db*db;
-                
-                // Very low threshold - only skip if VERY close to background
-                if (distSq < 50) continue;
-                
-                const key = `${r},${g},${b}`;
-                if (!exactColors.has(key)) {
-                    exactColors.set(key, { r, g, b, count: 0 });
-                }
-                exactColors.get(key).count++;
-            }
-
             if (exactColors.size === 0) {
                 return this.getContrastingColor(bgColor);
             }
 
-            // Find the most frequent non-background color
-            // This is the ACTUAL text color
-            let bestColor = null;
-            let bestCount = 0;
-            let bestSaturation = 0;
-            
-            for (const [key, data] of exactColors) {
-                const [h, s, l] = this.rgbToHsl(data.r, data.g, data.b);
-                
-                // Prioritize saturated colors (red, blue, etc.) over grayscale
-                // If we find ANY saturated color with reasonable count, prefer it
-                if (s > 0.2 && data.count > 5) {
-                    if (s > bestSaturation || (s === bestSaturation && data.count > bestCount)) {
-                        bestColor = data;
-                        bestCount = data.count;
-                        bestSaturation = s;
-                    }
-                }
-                // For grayscale, just use frequency
-                else if (bestSaturation < 0.2 && data.count > bestCount) {
-                    bestColor = data;
-                    bestCount = data.count;
-                }
-            }
-
-            if (bestColor) {
-                return [bestColor.r, bestColor.g, bestColor.b];
-            }
-
-            return this.getContrastingColor(bgColor);
+            const bestColor = this._selectBestTextColor(exactColors);
+            return bestColor || this.getContrastingColor(bgColor);
             
         } catch (e) {
             return this.getContrastingColor(bgColor);
         }
+    }
+
+    /**
+     * Helper: Collect text color samples from image data
+     * @private
+     */
+    _collectTextColorSamples(imageData, bgColor) {
+        const exactColors = new Map();
+        
+        for (let i = 0; i < imageData.length; i += 4) {
+            const r = imageData[i];
+            const g = imageData[i+1];
+            const b = imageData[i+2];
+            const a = imageData[i+3];
+
+            // Skip transparent pixels
+            if (a < 50) continue;
+            
+            // Skip pixels that are too similar to background
+            const dr = r - bgColor[0];
+            const dg = g - bgColor[1];
+            const db = b - bgColor[2];
+            const distSq = dr*dr + dg*dg + db*db;
+            
+            // Very low threshold - only skip if VERY close to background
+            if (distSq < 50) continue;
+            
+            const key = `${r},${g},${b}`;
+            if (!exactColors.has(key)) {
+                exactColors.set(key, { r, g, b, count: 0 });
+            }
+            exactColors.get(key).count++;
+        }
+        
+        return exactColors;
+    }
+
+    /**
+     * Helper: Select the best text color from samples
+     * @private
+     */
+    _selectBestTextColor(exactColors) {
+        let bestColor = null;
+        let bestCount = 0;
+        let bestSaturation = 0;
+        
+        for (const [key, data] of exactColors) {
+            const [h, s, l] = this.rgbToHsl(data.r, data.g, data.b);
+            
+            // Prioritize saturated colors (red, blue, etc.) over grayscale
+            if (s > 0.2 && data.count > 5) {
+                if (s > bestSaturation || (s === bestSaturation && data.count > bestCount)) {
+                    bestColor = data;
+                    bestCount = data.count;
+                    bestSaturation = s;
+                }
+            }
+            // For grayscale, just use frequency
+            else if (bestSaturation < 0.2 && data.count > bestCount) {
+                bestColor = data;
+                bestCount = data.count;
+            }
+        }
+        
+        return bestColor ? [bestColor.r, bestColor.g, bestColor.b] : null;
     }
 
     /**
@@ -1273,38 +1318,60 @@ class PdfTextEditor {
      */
     analyzeFontWeight(fontName, style) {
         // Check style metrics FIRST - they are often more reliable than the name
-        if (style) {
-            // Some PDFs encode weight in the font descriptor
-            if (style.fontWeight) {
-                const w = parseInt(style.fontWeight);
-                if (!isNaN(w)) {
-                    return { isBold: w >= 600, weight: w };
-                }
-                // Handle string values like 'bold'
-                if (typeof style.fontWeight === 'string') {
-                    const lowerWeight = style.fontWeight.toLowerCase();
-                    if (lowerWeight === 'bold' || lowerWeight === 'bolder') {
-                        return { isBold: true, weight: 700 };
-                    }
-                }
-            }
-            
-            // Check for bold flag in style object
-            if (style.bold || style.isBold) {
-                return { isBold: true, weight: 700 };
-            }
-            
-            // Check vertical flag (PDF.js uses this for some fonts)
-            if (style.vertical === false && style.ascent && style.descent) {
-                // Some heuristics based on font metrics
-            }
-        }
+        const styleResult = this._checkStyleForFontWeight(style);
+        if (styleResult) return styleResult;
 
         if (!fontName) return { isBold: false, weight: 400 };
         
         const lower = fontName.toLowerCase();
         
-        // Explicit weight indicators (most reliable)
+        // Check explicit weight patterns
+        const patternResult = this._checkFontWeightPatterns(lower);
+        if (patternResult) return patternResult;
+        
+        // Check for common bold font naming conventions
+        if (this._isBoldFontName(lower, fontName)) {
+            return { isBold: true, weight: 700 };
+        }
+        
+        return { isBold: false, weight: 400 };
+    }
+
+    /**
+     * Helper: Check style object for font weight info
+     * @private
+     */
+    _checkStyleForFontWeight(style) {
+        if (!style) return null;
+        
+        // Some PDFs encode weight in the font descriptor
+        if (style.fontWeight) {
+            const w = parseInt(style.fontWeight);
+            if (!isNaN(w)) {
+                return { isBold: w >= 600, weight: w };
+            }
+            // Handle string values like 'bold'
+            if (typeof style.fontWeight === 'string') {
+                const lowerWeight = style.fontWeight.toLowerCase();
+                if (lowerWeight === 'bold' || lowerWeight === 'bolder') {
+                    return { isBold: true, weight: 700 };
+                }
+            }
+        }
+        
+        // Check for bold flag in style object
+        if (style.bold || style.isBold) {
+            return { isBold: true, weight: 700 };
+        }
+        
+        return null;
+    }
+
+    /**
+     * Helper: Check font name against weight patterns
+     * @private
+     */
+    _checkFontWeightPatterns(lower) {
         // Order matters! Check specific variations (SemiBold, ExtraBold) before generic Bold
         const weightPatterns = [
             { pattern: /(ultrabold|extrabold|ultra\s*bold|extra\s*bold)/i, weight: 800, isBold: true },
@@ -1323,19 +1390,26 @@ class PdfTextEditor {
             }
         }
         
-        // Check for common bold font naming conventions
+        return null;
+    }
+
+    /**
+     * Helper: Check if font name indicates bold
+     * @private
+     */
+    _isBoldFontName(lower, fontName) {
         // Many PDFs use font names like "ABCDEF+FontName,Bold" or "FontName-Bold"
         if (lower.includes(',bold') || lower.includes('-bold') || lower.includes('_bold') ||
             lower.endsWith('bold') || lower.includes('bold,') || lower.includes('bold-')) {
-            return { isBold: true, weight: 700 };
+            return true;
         }
         
         // Check for "B" suffix which sometimes indicates bold (e.g., "ArialB", "HelveticaB")
         if (/[a-z]b$/i.test(fontName) || /[a-z]-b$/i.test(fontName)) {
-            return { isBold: true, weight: 700 };
+            return true;
         }
         
-        return { isBold: false, weight: 400 };
+        return false;
     }
 
     /**
@@ -1398,51 +1472,69 @@ class PdfTextEditor {
         // Process each item individually - NO MERGING
         // This matches Adobe Acrobat DC behavior where each text run is editable separately
         validItems.forEach((item, idx) => {
-            if (item.fontName) {
-                let fontName = item.fontName;
-                let fontFamily = null;
-                const style = styles[item.fontName];
-
-                // Check styles for real font name
-                if (style && style.fontFamily) {
-                    fontFamily = style.fontFamily;
-                }
-
-                // ADOBE-LEVEL: Analyze advanced font metrics
-                if (this.advancedConfig.enableFontMetrics && style) {
-                    item.advancedMetrics = this.analyzeAdvancedFontMetrics(style, item.transform ? Math.sqrt(item.transform[0] * item.transform[0] + item.transform[1] * item.transform[1]) : 12);
-                }
-
-                // Analyze weight (bold detection) - enhanced with advanced metrics
-                const weightInfo = this.analyzeFontWeight(fontName, style);
-                item.isBold = weightInfo.isBold || (item.advancedMetrics && item.advancedMetrics.isForceBold);
-                item.fontWeight = weightInfo.weight;
-
-                // Analyze style (italic detection) - enhanced with advanced metrics
-                const styleInfo = this.analyzeFontStyle(fontName, style);
-                item.isItalic = styleInfo.isItalic || (item.advancedMetrics && item.advancedMetrics.isItalic);
-                item.fontStyle = styleInfo.style;
-
-                // Get font family with fallbacks
-                item.fontFamily = this.getFontFamily(fontFamily || fontName);
-
-                // Store rendering mode information
-                if (renderingModes[idx]) {
-                    item.renderingMode = renderingModes[idx];
-                }
-
-                // Store spacing information
-                item.spacingInfo = spacingInfo;
-
-                // DEBUG: Log comprehensive font info for first few items
-                if (idx < 3) {
-                    console.log(`[PDF-TextEditor] Item ${idx}: "${item.str.substring(0, 20)}" | Font: "${fontName}" | Bold: ${item.isBold} (${item.fontWeight}) | Italic: ${item.isItalic} | Metrics:`, item.advancedMetrics);
-                }
-            }
+            this._processTextItem(item, idx, styles, renderingModes, spacingInfo);
         });
 
         // Merge adjacent items that are visually part of the same line and style
         // This fixes the issue where a sentence is split into multiple small boxes
+        return this._mergeAdjacentItems(validItems);
+    }
+
+    /**
+     * Helper: Process a single text item with font analysis
+     * @private
+     */
+    _processTextItem(item, idx, styles, renderingModes, spacingInfo) {
+        if (!item.fontName) return;
+        
+        let fontName = item.fontName;
+        let fontFamily = null;
+        const style = styles[item.fontName];
+
+        // Check styles for real font name
+        if (style && style.fontFamily) {
+            fontFamily = style.fontFamily;
+        }
+
+        // ADOBE-LEVEL: Analyze advanced font metrics
+        if (this.advancedConfig.enableFontMetrics && style) {
+            const fontSize = item.transform ?
+                Math.sqrt(item.transform[0] * item.transform[0] + item.transform[1] * item.transform[1]) : 12;
+            item.advancedMetrics = this.analyzeAdvancedFontMetrics(style, fontSize);
+        }
+
+        // Analyze weight (bold detection) - enhanced with advanced metrics
+        const weightInfo = this.analyzeFontWeight(fontName, style);
+        item.isBold = weightInfo.isBold || (item.advancedMetrics && item.advancedMetrics.isForceBold);
+        item.fontWeight = weightInfo.weight;
+
+        // Analyze style (italic detection) - enhanced with advanced metrics
+        const styleInfo = this.analyzeFontStyle(fontName, style);
+        item.isItalic = styleInfo.isItalic || (item.advancedMetrics && item.advancedMetrics.isItalic);
+        item.fontStyle = styleInfo.style;
+
+        // Get font family with fallbacks
+        item.fontFamily = this.getFontFamily(fontFamily || fontName);
+
+        // Store rendering mode information
+        if (renderingModes[idx]) {
+            item.renderingMode = renderingModes[idx];
+        }
+
+        // Store spacing information
+        item.spacingInfo = spacingInfo;
+
+        // DEBUG: Log comprehensive font info for first few items
+        if (idx < 3) {
+            console.log(`[PDF-TextEditor] Item ${idx}: "${item.str.substring(0, 20)}" | Font: "${fontName}" | Bold: ${item.isBold} (${item.fontWeight}) | Italic: ${item.isItalic} | Metrics:`, item.advancedMetrics);
+        }
+    }
+
+    /**
+     * Helper: Merge adjacent items that are visually part of the same line
+     * @private
+     */
+    _mergeAdjacentItems(validItems) {
         const merged = [];
         let current = null;
 
@@ -1452,63 +1544,9 @@ class PdfTextEditor {
                 return;
             }
 
-            // Check if items are on the same line (similar Y position)
-            const sameLine = Math.abs(item.transform[5] - current.transform[5]) < 5;
-            
-            // Check if items are adjacent horizontally
-            const currentWidth = current.width;
-            const gap = item.transform[4] - (current.transform[4] + currentWidth);
-            // Allow larger gap for spaces (up to 50px)
-            const isAdjacent = gap > -5 && gap < 50;
-
-            if (sameLine && isAdjacent) {
-                // Merge
-                current.str += item.str;
-                current.width += item.width + gap;
-                
-                // ADOBE-LEVEL PRECISION: Style Inheritance Strategy
-                // When merging mixed styles (e.g. "Article" + "Garantie"), we must decide which style wins.
-                // Strategy: "Rich" styles (Bold, Italic, Color) always win over "Plain" styles.
-                
-                // 1. Font Weight (Bold wins)
-                if (item.isBold || item.fontWeight > current.fontWeight) {
-                    current.isBold = true;
-                    current.fontWeight = Math.max(current.fontWeight || 400, item.fontWeight || 700);
-                }
-
-                // 2. Font Style (Italic wins)
-                if (item.isItalic || item.fontStyle === 'italic') {
-                    current.isItalic = true;
-                    current.fontStyle = 'italic';
-                }
-
-                // 3. Text Color (Saturated/Colored wins over Black/Gray)
-                if (item.color && current.color) {
-                    const [h1, s1, l1] = this.rgbToHsl(item.color[0], item.color[1], item.color[2]);
-                    const [h2, s2, l2] = this.rgbToHsl(current.color[0], current.color[1], current.color[2]);
-                    
-                    // If new item is significantly more saturated, take its color
-                    if (s1 > s2 + 0.1) {
-                        current.color = item.color;
-                    }
-                    // If saturations are similar, but new item is darker (and not black), prefer it
-                    // This helps with dark red vs black
-                    else if (Math.abs(s1 - s2) < 0.1 && l1 < l2 && l1 > 0.1) {
-                        current.color = item.color;
-                    }
-                }
-
-                // 4. Background Color (Darker/Colored wins over White)
-                if (item.bgColor && current.bgColor) {
-                    const itemBgLum = this.getLuminance(item.bgColor[0], item.bgColor[1], item.bgColor[2]);
-                    const currentBgLum = this.getLuminance(current.bgColor[0], current.bgColor[1], current.bgColor[2]);
-                    
-                    // If item has a darker background (e.g. gray vs white), use it
-                    if (itemBgLum < 250 && itemBgLum < currentBgLum) {
-                        current.bgColor = item.bgColor;
-                    }
-                }
-                
+            // Check if items can be merged
+            if (this._canMergeItems(item, current)) {
+                this._mergeItemProperties(current, item);
             } else {
                 merged.push(current);
                 current = { ...item };
@@ -1520,6 +1558,90 @@ class PdfTextEditor {
         }
 
         return merged;
+    }
+
+    /**
+     * Helper: Check if two items can be merged
+     * @private
+     */
+    _canMergeItems(item, current) {
+        // Check if items are on the same line (similar Y position)
+        const sameLine = Math.abs(item.transform[5] - current.transform[5]) < 5;
+        
+        // Check if items are adjacent horizontally
+        const gap = item.transform[4] - (current.transform[4] + current.width);
+        // Allow larger gap for spaces (up to 50px)
+        const isAdjacent = gap > -5 && gap < 50;
+
+        return sameLine && isAdjacent;
+    }
+
+    /**
+     * Helper: Merge item properties into current item
+     * @private
+     */
+    _mergeItemProperties(current, item) {
+        // Merge text and width
+        const gap = item.transform[4] - (current.transform[4] + current.width);
+        current.str += item.str;
+        current.width += item.width + gap;
+        
+        // ADOBE-LEVEL PRECISION: Style Inheritance Strategy
+        // When merging mixed styles, "Rich" styles (Bold, Italic, Color) always win over "Plain" styles.
+        
+        // 1. Font Weight (Bold wins)
+        if (item.isBold || item.fontWeight > current.fontWeight) {
+            current.isBold = true;
+            current.fontWeight = Math.max(current.fontWeight || 400, item.fontWeight || 700);
+        }
+
+        // 2. Font Style (Italic wins)
+        if (item.isItalic || item.fontStyle === 'italic') {
+            current.isItalic = true;
+            current.fontStyle = 'italic';
+        }
+
+        // 3. Text Color (Saturated/Colored wins over Black/Gray)
+        if (item.color && current.color) {
+            this._mergeTextColor(current, item);
+        }
+
+        // 4. Background Color (Darker/Colored wins over White)
+        if (item.bgColor && current.bgColor) {
+            this._mergeBackgroundColor(current, item);
+        }
+    }
+
+    /**
+     * Helper: Merge text color from item into current
+     * @private
+     */
+    _mergeTextColor(current, item) {
+        const [h1, s1, l1] = this.rgbToHsl(item.color[0], item.color[1], item.color[2]);
+        const [h2, s2, l2] = this.rgbToHsl(current.color[0], current.color[1], current.color[2]);
+        
+        // If new item is significantly more saturated, take its color
+        if (s1 > s2 + 0.1) {
+            current.color = item.color;
+        }
+        // If saturations are similar, but new item is darker (and not black), prefer it
+        else if (Math.abs(s1 - s2) < 0.1 && l1 < l2 && l1 > 0.1) {
+            current.color = item.color;
+        }
+    }
+
+    /**
+     * Helper: Merge background color from item into current
+     * @private
+     */
+    _mergeBackgroundColor(current, item) {
+        const itemBgLum = this.getLuminance(item.bgColor[0], item.bgColor[1], item.bgColor[2]);
+        const currentBgLum = this.getLuminance(current.bgColor[0], current.bgColor[1], current.bgColor[2]);
+        
+        // If item has a darker background (e.g. gray vs white), use it
+        if (itemBgLum < 250 && itemBgLum < currentBgLum) {
+            current.bgColor = item.bgColor;
+        }
     }
 
     /**
@@ -1605,76 +1727,85 @@ class PdfTextEditor {
         
         // Step 2: For each text item, use hybrid detection
         textContent.items.forEach((item, idx) => {
-            if (!item.str.trim()) return;
-
-            // Method 1: Operator list colors
-            const opColors = operatorColors[idx];
-
-            // Method 2: Canvas sampling
-            let canvasColors = null;
-            if (ctx && canvasViewport) {
-                try {
-                    const tx = pdfjsLib.Util.transform(
-                        canvasViewport.transform,
-                        item.transform
-                    );
-                    const fontHeight = Math.sqrt((tx[2] * tx[2]) + (tx[3] * tx[3]));
-                    const scaleX = Math.sqrt((tx[0] * tx[0]) + (tx[1] * tx[1]));
-                    const pixelWidth = item.width * scaleX;
-                    canvasColors = this.sampleTextRegionColors(ctx, tx, pixelWidth, fontHeight, dpr);
-                } catch (e) {
-                    // Ignore sampling errors
-                }
-            }
-
-            // HYBRID DECISION: Choose the best color source
-            // Priority:
-            // 1. If operator list has non-default colors, use them
-            // 2. If canvas sampling found non-white background, use it
-            // 3. Default to operator list or fallback
-
-            let finalTextColor = [0, 0, 0];
-            let finalBgColor = [255, 255, 255];
-
-            // Check operator colors
-            if (opColors) {
-                const opFill = opColors.fillColor;
-                const opBg = opColors.bgColor;
-
-                // Use operator fill color if it's not default black
-                if (opFill && !(opFill[0] === 0 && opFill[1] === 0 && opFill[2] === 0)) {
-                    finalTextColor = opFill;
-                } else if (opFill) {
-                    finalTextColor = opFill;
-                }
-
-                // Use operator bg color if it's not default white
-                if (opBg && !(opBg[0] === 255 && opBg[1] === 255 && opBg[2] === 255)) {
-                    finalBgColor = opBg;
-                }
-            }
-
-            // Check canvas colors - override if they found something interesting
-            if (canvasColors) {
-                const canvasBg = canvasColors.background;
-                const canvasText = canvasColors.text;
-
-                // If canvas found a non-white background, prefer it
-                // (operator list often misses background rectangles)
-                if (canvasBg && !(canvasBg[0] > 250 && canvasBg[1] > 250 && canvasBg[2] > 250)) {
-                    finalBgColor = canvasBg;
-                }
-
-                // If canvas found a colored text (not black), prefer it
-                const [h, s, l] = this.rgbToHsl(canvasText[0], canvasText[1], canvasText[2]);
-                if (s > 0.2) {
-                    finalTextColor = canvasText;
-                }
-            }
-
-            item.color = finalTextColor;
-            item.bgColor = finalBgColor;
+            this._detectItemColors(item, idx, operatorColors, ctx, canvasViewport, dpr);
         });
+    }
+
+    /**
+     * Helper: Detect colors for a single text item
+     * @private
+     */
+    _detectItemColors(item, idx, operatorColors, ctx, canvasViewport, dpr) {
+        if (!item.str.trim()) return;
+
+        // Method 1: Operator list colors
+        const opColors = operatorColors[idx];
+
+        // Method 2: Canvas sampling
+        let canvasColors = null;
+        if (ctx && canvasViewport) {
+            try {
+                const tx = pdfjsLib.Util.transform(
+                    canvasViewport.transform,
+                    item.transform
+                );
+                const fontHeight = Math.sqrt((tx[2] * tx[2]) + (tx[3] * tx[3]));
+                const scaleX = Math.sqrt((tx[0] * tx[0]) + (tx[1] * tx[1]));
+                const pixelWidth = item.width * scaleX;
+                canvasColors = this.sampleTextRegionColors(ctx, tx, pixelWidth, fontHeight, dpr);
+            } catch (e) {
+                // Ignore sampling errors
+            }
+        }
+
+        // Determine final colors using hybrid approach
+        const colors = this._determineFinalColors(opColors, canvasColors);
+        item.color = colors.textColor;
+        item.bgColor = colors.bgColor;
+    }
+
+    /**
+     * Helper: Determine final colors from operator and canvas sources
+     * @private
+     */
+    _determineFinalColors(opColors, canvasColors) {
+        let finalTextColor = [0, 0, 0];
+        let finalBgColor = [255, 255, 255];
+
+        // Check operator colors
+        if (opColors) {
+            const opFill = opColors.fillColor;
+            const opBg = opColors.bgColor;
+
+            // Use operator fill color if available
+            if (opFill) {
+                finalTextColor = opFill;
+            }
+
+            // Use operator bg color if it's not default white
+            if (opBg && !(opBg[0] === 255 && opBg[1] === 255 && opBg[2] === 255)) {
+                finalBgColor = opBg;
+            }
+        }
+
+        // Check canvas colors - override if they found something interesting
+        if (canvasColors) {
+            const canvasBg = canvasColors.background;
+            const canvasText = canvasColors.text;
+
+            // If canvas found a non-white background, prefer it
+            if (canvasBg && !(canvasBg[0] > 250 && canvasBg[1] > 250 && canvasBg[2] > 250)) {
+                finalBgColor = canvasBg;
+            }
+
+            // If canvas found a colored text (not black), prefer it
+            const [h, s, l] = this.rgbToHsl(canvasText[0], canvasText[1], canvasText[2]);
+            if (s > 0.2) {
+                finalTextColor = canvasText;
+            }
+        }
+
+        return { textColor: finalTextColor, bgColor: finalBgColor };
 
         const mergedItems = this.mergeTextItems(textContent.items, styles, renderingModes, spacingInfo);
 
@@ -2107,35 +2238,59 @@ class PdfTextEditor {
 
         // If reverted to original, remove from changes map
         if (newText === originalText) {
-            this.changes.get(pageNum).delete(id);
-            if (this.changes.get(pageNum).size === 0) {
-                this.changes.delete(pageNum);
-            }
+            this._removeChange(pageNum, id);
         } else {
-            // Parse font weight - handle both numeric and string values
-            let fontWeight = 400;
-            if (el.dataset.fontWeight) {
-                const parsed = parseInt(el.dataset.fontWeight);
-                fontWeight = isNaN(parsed) ? (el.dataset.fontWeight === 'bold' ? 700 : 400) : parsed;
-            }
-            
-            this.changes.get(pageNum).set(id, {
-                id: id,
-                pageNum: pageNum,
-                originalText: originalText,
-                newText: newText,
-                transform: JSON.parse(el.dataset.pdfTransform),
-                width: parseFloat(el.dataset.width),
-                height: parseFloat(el.dataset.height),
-                fontName: el.dataset.fontName,
-                fontFamily: el.dataset.fontFamily,
-                fontWeight: fontWeight,
-                isBold: el.dataset.isBold === 'true' || fontWeight >= 600,
-                isItalic: el.dataset.isItalic === 'true' || el.dataset.fontStyle === 'italic',
-                bgColor: el.dataset.bgColor ? JSON.parse(el.dataset.bgColor) : null,
-                color: el.dataset.color ? JSON.parse(el.dataset.color) : null
-            });
+            this._addChange(pageNum, id, el, newText, originalText);
         }
+    }
+
+    /**
+     * Helper: Remove a change from the changes map
+     * @private
+     */
+    _removeChange(pageNum, id) {
+        this.changes.get(pageNum).delete(id);
+        if (this.changes.get(pageNum).size === 0) {
+            this.changes.delete(pageNum);
+        }
+    }
+
+    /**
+     * Helper: Add a change to the changes map
+     * @private
+     */
+    _addChange(pageNum, id, el, newText, originalText) {
+        const fontWeight = this._parseFontWeight(el.dataset.fontWeight);
+        
+        this.changes.get(pageNum).set(id, {
+            id: id,
+            pageNum: pageNum,
+            originalText: originalText,
+            newText: newText,
+            transform: JSON.parse(el.dataset.pdfTransform),
+            width: parseFloat(el.dataset.width),
+            height: parseFloat(el.dataset.height),
+            fontName: el.dataset.fontName,
+            fontFamily: el.dataset.fontFamily,
+            fontWeight: fontWeight,
+            isBold: el.dataset.isBold === 'true' || fontWeight >= 600,
+            isItalic: el.dataset.isItalic === 'true' || el.dataset.fontStyle === 'italic',
+            bgColor: el.dataset.bgColor ? JSON.parse(el.dataset.bgColor) : null,
+            color: el.dataset.color ? JSON.parse(el.dataset.color) : null
+        });
+    }
+
+    /**
+     * Helper: Parse font weight from dataset value
+     * @private
+     */
+    _parseFontWeight(fontWeightData) {
+        if (!fontWeightData) return 400;
+        
+        const parsed = parseInt(fontWeightData);
+        if (!isNaN(parsed)) return parsed;
+        
+        return fontWeightData === 'bold' ? 700 : 400;
     }
 
     /**
@@ -2247,7 +2402,20 @@ class PdfTextEditor {
         const { rgb, StandardFonts } = PDFLib;
 
         // Embed standard fonts with all variants
-        const fonts = {
+        const fonts = await this._embedPdfFonts(pdfDoc, StandardFonts);
+
+        for (const [pageNum, pageChanges] of this.changes) {
+            const page = pages[pageNum - 1]; // 0-indexed
+            await this._applyChangesToPage(page, pageChanges, fonts, rgb);
+        }
+    }
+
+    /**
+     * Helper: Embed PDF fonts
+     * @private
+     */
+    async _embedPdfFonts(pdfDoc, StandardFonts) {
+        return {
             'sans-serif': {
                 regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
                 bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
@@ -2267,98 +2435,130 @@ class PdfTextEditor {
                 boldItalic: await pdfDoc.embedFont(StandardFonts.CourierBoldOblique),
             }
         };
+    }
 
-        for (const [pageNum, pageChanges] of this.changes) {
-            const page = pages[pageNum - 1]; // 0-indexed
-            const { width: pageWidth, height: pageHeight } = page.getSize();
-
-            for (const change of pageChanges.values()) {
-                // Extract transform components
-                const [scaleX, skewY, skewX, scaleY, x, y] = change.transform;
-                
-                // Calculate rotation angle
-                const angleRad = Math.atan2(skewY, scaleX);
-                const angleDeg = angleRad * (180 / Math.PI);
-                
-                // Calculate font size from transform matrix
-                const fontSize = Math.sqrt((scaleX * scaleX) + (skewY * skewY));
-                
-                // Calculate text width more accurately
-                // Use the stored width or estimate from font metrics
-                const textWidth = change.width || (fontSize * change.originalText.length * 0.5);
-                
-                // Determine background color for redaction
-                let redactionColor = rgb(1, 1, 1); // Default white
-                if (change.bgColor) {
-                    redactionColor = rgb(
-                        change.bgColor[0] / 255,
-                        change.bgColor[1] / 255,
-                        change.bgColor[2] / 255
-                    );
-                }
-
-                // Calculate precise redaction rectangle
-                // Account for font metrics: ascender, descender, and line height
-                const ascenderRatio = 0.8;  // Typical ascender height ratio
-                const descenderRatio = 0.2; // Typical descender depth ratio
-                const paddingX = fontSize * 0.05; // Minimal horizontal padding
-                const paddingY = fontSize * 0.1;  // Vertical padding for anti-aliasing
-                
-                const rectX = x - paddingX;
-                const rectY = y - (fontSize * descenderRatio) - paddingY;
-                const rectWidth = textWidth + (paddingX * 2);
-                const rectHeight = fontSize * (ascenderRatio + descenderRatio) + (paddingY * 2);
-                
-                // Draw redaction rectangle
-                page.drawRectangle({
-                    x: rectX,
-                    y: rectY,
-                    width: rectWidth,
-                    height: rectHeight,
-                    rotate: PDFLib.degrees(angleDeg),
-                    color: redactionColor,
-                    borderWidth: 0,
-                });
-
-                // Determine text color
-                let textColor = rgb(0, 0, 0); // Default black
-                if (change.color) {
-                    textColor = rgb(
-                        change.color[0] / 255,
-                        change.color[1] / 255,
-                        change.color[2] / 255
-                    );
-                }
-
-                // Select appropriate font variant
-                const pdfFontFamily = this.getPdfFontFamily(change.fontFamily);
-                const isBold = change.isBold || (change.fontWeight && change.fontWeight >= 600);
-                const isItalic = change.isItalic;
-                
-                let selectedFont;
-                const fontSet = fonts[pdfFontFamily];
-                
-                if (isBold && isItalic) {
-                    selectedFont = fontSet.boldItalic;
-                } else if (isBold) {
-                    selectedFont = fontSet.bold;
-                } else if (isItalic) {
-                    selectedFont = fontSet.italic;
-                } else {
-                    selectedFont = fontSet.regular;
-                }
-
-                // Draw the new text
-                page.drawText(change.newText, {
-                    x: x,
-                    y: y,
-                    size: fontSize,
-                    font: selectedFont,
-                    color: textColor,
-                    rotate: PDFLib.degrees(angleDeg),
-                });
-            }
+    /**
+     * Helper: Apply changes to a single page
+     * @private
+     */
+    async _applyChangesToPage(page, pageChanges, fonts, rgb) {
+        for (const change of pageChanges.values()) {
+            await this._applySingleChange(page, change, fonts, rgb);
         }
+    }
+
+    /**
+     * Helper: Apply a single change to a page
+     * @private
+     */
+    async _applySingleChange(page, change, fonts, rgb) {
+        const [scaleX, skewY, skewX, scaleY, x, y] = change.transform;
+        
+        // Calculate rotation angle and font size
+        const angleRad = Math.atan2(skewY, scaleX);
+        const angleDeg = angleRad * (180 / Math.PI);
+        const fontSize = Math.sqrt((scaleX * scaleX) + (skewY * skewY));
+        const textWidth = change.width || (fontSize * change.originalText.length * 0.5);
+        
+        // Draw redaction rectangle
+        this._drawRedactionRectangle(page, change, x, y, textWidth, fontSize, angleDeg, rgb);
+        
+        // Draw the new text
+        this._drawNewText(page, change, x, y, fontSize, angleDeg, fonts, rgb);
+    }
+
+    /**
+     * Helper: Draw redaction rectangle
+     * @private
+     */
+    _drawRedactionRectangle(page, change, x, y, textWidth, fontSize, angleDeg, rgb) {
+        const redactionColor = this._getRedactionColor(change, rgb);
+        
+        // Calculate precise redaction rectangle
+        const ascenderRatio = 0.8;
+        const descenderRatio = 0.2;
+        const paddingX = fontSize * 0.05;
+        const paddingY = fontSize * 0.1;
+        
+        const rectX = x - paddingX;
+        const rectY = y - (fontSize * descenderRatio) - paddingY;
+        const rectWidth = textWidth + (paddingX * 2);
+        const rectHeight = fontSize * (ascenderRatio + descenderRatio) + (paddingY * 2);
+        
+        page.drawRectangle({
+            x: rectX,
+            y: rectY,
+            width: rectWidth,
+            height: rectHeight,
+            rotate: PDFLib.degrees(angleDeg),
+            color: redactionColor,
+            borderWidth: 0,
+        });
+    }
+
+    /**
+     * Helper: Get redaction color from change
+     * @private
+     */
+    _getRedactionColor(change, rgb) {
+        if (change.bgColor) {
+            return rgb(
+                change.bgColor[0] / 255,
+                change.bgColor[1] / 255,
+                change.bgColor[2] / 255
+            );
+        }
+        return rgb(1, 1, 1); // Default white
+    }
+
+    /**
+     * Helper: Draw new text on page
+     * @private
+     */
+    _drawNewText(page, change, x, y, fontSize, angleDeg, fonts, rgb) {
+        const textColor = this._getTextColor(change, rgb);
+        const selectedFont = this._selectFontForChange(change, fonts);
+        
+        page.drawText(change.newText, {
+            x: x,
+            y: y,
+            size: fontSize,
+            font: selectedFont,
+            color: textColor,
+            rotate: PDFLib.degrees(angleDeg),
+        });
+    }
+
+    /**
+     * Helper: Get text color from change
+     * @private
+     */
+    _getTextColor(change, rgb) {
+        if (change.color) {
+            return rgb(
+                change.color[0] / 255,
+                change.color[1] / 255,
+                change.color[2] / 255
+            );
+        }
+        return rgb(0, 0, 0); // Default black
+    }
+
+    /**
+     * Helper: Select appropriate font for change
+     * @private
+     */
+    _selectFontForChange(change, fonts) {
+        const pdfFontFamily = this.getPdfFontFamily(change.fontFamily);
+        const isBold = change.isBold || (change.fontWeight && change.fontWeight >= 600);
+        const isItalic = change.isItalic;
+        
+        const fontSet = fonts[pdfFontFamily];
+        
+        if (isBold && isItalic) return fontSet.boldItalic;
+        if (isBold) return fontSet.bold;
+        if (isItalic) return fontSet.italic;
+        return fontSet.regular;
     }
 
     /**

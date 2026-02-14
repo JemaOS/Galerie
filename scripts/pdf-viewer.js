@@ -174,6 +174,18 @@ class PdfViewer {
    */
   setupEventListeners() {
     this.setupPanning();
+    this.setupBasicControls();
+    this.setupNavigationControls();
+    this.setupEditModeControls();
+    this.setupKeyboardShortcuts();
+    this.setupResizeHandling();
+    this.setupWheelZoom();
+  }
+
+  /**
+   * Setup basic control buttons (zoom, rotate, fit, sidebar)
+   */
+  setupBasicControls() {
     if (this.elements.close) {
       this.elements.close.addEventListener('click', () => this.close());
     }
@@ -189,9 +201,7 @@ class PdfViewer {
     }
 
     if (this.elements.rotate) {
-        this.elements.rotate.addEventListener('click', () => {
-            this.rotate();
-        });
+        this.elements.rotate.addEventListener('click', () => this.rotate());
     }
     
     if (this.elements.fitWidth) {
@@ -201,138 +211,8 @@ class PdfViewer {
       this.elements.fitPage.addEventListener('click', () => this.fitToPage());
     }
     
-    this.elements.sidebarToggle.addEventListener('click', () => {
-      this.elements.sidebar.classList.toggle('hidden');
-      if (!this.elements.sidebar.classList.contains('hidden')) {
-          // Sidebar is now open, scroll to active thumbnail
-          requestAnimationFrame(() => {
-              const currentThumbnail = this.thumbnailWrappers[this.pageNum];
-              if (currentThumbnail) {
-                  currentThumbnail.scrollIntoView({ behavior: 'auto', block: 'center' });
-              }
-          });
-      }
-    });
+    this.elements.sidebarToggle.addEventListener('click', () => this.handleSidebarToggle());
     
-    this.elements.pageNum.addEventListener('change', (e) => {
-      const num = parseInt(e.target.value);
-      if (num >= 1 && num <= this.pdfDoc.numPages) {
-        this.scrollToPage(num);
-      } else {
-        this.elements.pageNum.value = this.pageNum;
-      }
-    });
-
-    if (this.elements.prevPageBtn) {
-        this.elements.prevPageBtn.addEventListener('click', () => this.onPrevPage());
-    }
-
-    if (this.elements.nextPageBtn) {
-        this.elements.nextPageBtn.addEventListener('click', () => this.onNextPage());
-    }
-
-    // Window resize
-    window.addEventListener('resize', () => {
-        this.onWindowResize();
-    });
-
-    // Resize Observer for main container (handles sidebar toggle)
-    if (this.elements.main) {
-        this.resizeObserver = new ResizeObserver(() => {
-            window.requestAnimationFrame(() => {
-                this.onWindowResize();
-            });
-        });
-        this.resizeObserver.observe(this.elements.main);
-    }
-    
-    // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
-      if (!this.isOpen) return;
-      
-      if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
-
-      if (e.key === ' ' && !this.isSpaceHeld) {
-          this.isSpaceHeld = true;
-          this.updateCursor();
-      }
-
-      if (e.key === 'Escape') {
-        if (this.isEditMode) {
-            this.toggleEditMode(false);
-        } else {
-            this.close();
-        }
-      } else if (e.key === 'ArrowLeft') {
-        this.onPrevPage();
-      } else if (e.key === 'ArrowRight') {
-        this.onNextPage();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
-          e.preventDefault();
-          if (this.annotationManager) {
-              if (e.shiftKey) {
-                  this.annotationManager.redo();
-              } else {
-                  this.annotationManager.undo();
-              }
-          }
-      }
-    });
-
-    document.addEventListener('keyup', (e) => {
-        if (e.key === ' ') {
-            this.isSpaceHeld = false;
-            this.updateCursor();
-        }
-    });
-    
-    // Edit Mode
-    if (this.elements.editModeBtn) {
-        this.elements.editModeBtn.addEventListener('click', () => this.toggleEditMode(true));
-    }
-
-    if (this.elements.exitEditBtn) {
-        this.elements.exitEditBtn.addEventListener('click', () => this.toggleEditMode(false));
-    }
-
-    if (this.elements.undoEditBtn) this.elements.undoEditBtn.addEventListener('click', () => {
-        if (this.isTextEditMode && this.textEditor) {
-            this.textEditor.undo();
-        } else if (this.annotationManager) {
-            this.annotationManager.undo();
-        }
-    });
-    
-    if (this.elements.redoEditBtn) this.elements.redoEditBtn.addEventListener('click', () => {
-        if (this.isTextEditMode && this.textEditor) {
-            this.textEditor.redo();
-        } else if (this.annotationManager) {
-            this.annotationManager.redo();
-        }
-    });
-
-    // Tool Buttons
-    const toolBtns = this.elements.editToolbar.querySelectorAll('.tool-btn');
-    toolBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const tool = btn.dataset.tool;
-            this.setTool(tool);
-        });
-    });
-
-    // Split Save Button
-    this.setupSplitButton();
-
-    // Print
-    const printBtn = document.getElementById('pdf-print');
-    if (printBtn) {
-        printBtn.addEventListener('click', () => {
-            if (this.currentFile) {
-                GalleryUtils.printFile(this.currentFile.url, 'pdf');
-            }
-        });
-    }
-
     // Layout (Grid View) - Map to Sidebar Toggle
     const layoutBtn = document.getElementById('pdf-layout');
     if (layoutBtn) {
@@ -344,48 +224,264 @@ class PdfViewer {
     // Info
     const infoBtn = document.getElementById('pdf-info');
     if (infoBtn) {
-        infoBtn.addEventListener('click', () => {
-            if (this.currentFile) {
-                const ui = this.uiController || window.galleryUI;
-                if (ui) ui.showFileModal(this.currentFile);
+        infoBtn.addEventListener('click', () => this.handleInfoClick());
+    }
+
+    // Print
+    const printBtn = document.getElementById('pdf-print');
+    if (printBtn) {
+        printBtn.addEventListener('click', () => this.handlePrintClick());
+    }
+  }
+
+  /**
+   * Handle sidebar toggle click
+   */
+  handleSidebarToggle() {
+    this.elements.sidebar.classList.toggle('hidden');
+    if (!this.elements.sidebar.classList.contains('hidden')) {
+        // Sidebar is now open, scroll to active thumbnail
+        requestAnimationFrame(() => {
+            const currentThumbnail = this.thumbnailWrappers[this.pageNum];
+            if (currentThumbnail) {
+                currentThumbnail.scrollIntoView({ behavior: 'auto', block: 'center' });
             }
         });
     }
+  }
 
-    // Wheel Event for Zoom (Ctrl+Wheel or Pinch)
-    if (this.elements.viewer) {
-        this.elements.viewer.addEventListener('wheel', (e) => {
-            if (e.ctrlKey) {
-                e.preventDefault();
-                
-                const main = this.elements.main;
-                const container = this.elements.container;
-                
-                if (!main || !container) return;
-
-                // Get mouse position relative to viewport
-                const mainRect = main.getBoundingClientRect();
-                const mouseX = e.clientX - mainRect.left;
-                const mouseY = e.clientY - mainRect.top;
-                
-                // Calculate focal point in content coordinates (at current scale)
-                const contentX = (main.scrollLeft + mouseX) / this.scale;
-                const contentY = (main.scrollTop + mouseY) / this.scale;
-                
-                // Calculate new scale
-                const delta = -e.deltaY;
-                const factor = Math.pow(1.01, delta);
-                const oldScale = this.scale;
-                let newScale = this.scale * factor;
-                newScale = Math.max(PdfViewer.MIN_ZOOM, Math.min(PdfViewer.MAX_ZOOM, newScale));
-                
-                if (Math.abs(newScale - oldScale) < 0.001) return;
-                
-                // Apply zoom with focal point
-                this.setZoom(newScale, contentX, contentY, mouseX, mouseY);
-            }
-        }, { passive: false });
+  /**
+   * Handle info button click
+   */
+  handleInfoClick() {
+    if (this.currentFile) {
+        const ui = this.uiController || window.galleryUI;
+        if (ui) ui.showFileModal(this.currentFile);
     }
+  }
+
+  /**
+   * Handle print button click
+   */
+  handlePrintClick() {
+    if (this.currentFile) {
+        GalleryUtils.printFile(this.currentFile.url, 'pdf');
+    }
+  }
+
+  /**
+   * Setup navigation controls (page number, prev/next)
+   */
+  setupNavigationControls() {
+    this.elements.pageNum.addEventListener('change', (e) => this.handlePageNumChange(e));
+
+    if (this.elements.prevPageBtn) {
+        this.elements.prevPageBtn.addEventListener('click', () => this.onPrevPage());
+    }
+
+    if (this.elements.nextPageBtn) {
+        this.elements.nextPageBtn.addEventListener('click', () => this.onNextPage());
+    }
+  }
+
+  /**
+   * Handle page number input change
+   */
+  handlePageNumChange(e) {
+    const num = parseInt(e.target.value);
+    if (num >= 1 && num <= this.pdfDoc.numPages) {
+      this.scrollToPage(num);
+    } else {
+      this.elements.pageNum.value = this.pageNum;
+    }
+  }
+
+  /**
+   * Setup edit mode controls
+   */
+  setupEditModeControls() {
+    if (this.elements.editModeBtn) {
+        this.elements.editModeBtn.addEventListener('click', () => this.toggleEditMode(true));
+    }
+
+    if (this.elements.exitEditBtn) {
+        this.elements.exitEditBtn.addEventListener('click', () => this.toggleEditMode(false));
+    }
+
+    if (this.elements.undoEditBtn) {
+        this.elements.undoEditBtn.addEventListener('click', () => this.handleUndo());
+    }
+    
+    if (this.elements.redoEditBtn) {
+        this.elements.redoEditBtn.addEventListener('click', () => this.handleRedo());
+    }
+
+    // Tool Buttons
+    const toolBtns = this.elements.editToolbar.querySelectorAll('.tool-btn');
+    toolBtns.forEach(btn => {
+        btn.addEventListener('click', () => this.setTool(btn.dataset.tool));
+    });
+
+    // Split Save Button
+    this.setupSplitButton();
+  }
+
+  /**
+   * Handle undo action
+   */
+  handleUndo() {
+    if (this.isTextEditMode && this.textEditor) {
+        this.textEditor.undo();
+    } else if (this.annotationManager) {
+        this.annotationManager.undo();
+    }
+  }
+
+  /**
+   * Handle redo action
+   */
+  handleRedo() {
+    if (this.isTextEditMode && this.textEditor) {
+        this.textEditor.redo();
+    } else if (this.annotationManager) {
+        this.annotationManager.redo();
+    }
+  }
+
+  /**
+   * Setup keyboard shortcuts
+   */
+  setupKeyboardShortcuts() {
+    document.addEventListener('keydown', (e) => this.handleKeyDown(e));
+    document.addEventListener('keyup', (e) => this.handleKeyUp(e));
+  }
+
+  /**
+   * Handle keydown events
+   */
+  handleKeyDown(e) {
+    if (!this.isOpen) return;
+    
+    if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+
+    if (e.key === ' ' && !this.isSpaceHeld) {
+        this.isSpaceHeld = true;
+        this.updateCursor();
+    }
+
+    this.handleNavigationKeys(e);
+    this.handleEditKeys(e);
+  }
+
+  /**
+   * Handle navigation keys
+   */
+  handleNavigationKeys(e) {
+    if (e.key === 'Escape') {
+      if (this.isEditMode) {
+          this.toggleEditMode(false);
+      } else {
+          this.close();
+      }
+    } else if (e.key === 'ArrowLeft') {
+      this.onPrevPage();
+    } else if (e.key === 'ArrowRight') {
+      this.onNextPage();
+    }
+  }
+
+  /**
+   * Handle edit mode keys (undo/redo)
+   */
+  handleEditKeys(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (!this.annotationManager) return;
+        
+        if (e.shiftKey) {
+            this.annotationManager.redo();
+        } else {
+            this.annotationManager.undo();
+        }
+    }
+  }
+
+  /**
+   * Handle keyup events
+   */
+  handleKeyUp(e) {
+    if (e.key === ' ') {
+        this.isSpaceHeld = false;
+        this.updateCursor();
+    }
+  }
+
+  /**
+   * Setup resize handling
+   */
+  setupResizeHandling() {
+    window.addEventListener('resize', () => this.onWindowResize());
+
+    if (this.elements.main) {
+        this.resizeObserver = new ResizeObserver(() => {
+            window.requestAnimationFrame(() => this.onWindowResize());
+        });
+        this.resizeObserver.observe(this.elements.main);
+    }
+  }
+
+  /**
+   * Setup wheel zoom
+   */
+  setupWheelZoom() {
+    if (!this.elements.viewer) return;
+    
+    this.elements.viewer.addEventListener('wheel', (e) => this.handleWheelZoom(e), { passive: false });
+  }
+
+  /**
+   * Handle wheel zoom events
+   */
+  handleWheelZoom(e) {
+    if (!e.ctrlKey) return;
+    
+    e.preventDefault();
+    
+    const main = this.elements.main;
+    const container = this.elements.container;
+    
+    if (!main || !container) return;
+
+    const { contentX, contentY, mouseX, mouseY } = this.calculateZoomFocalPoint(e, main);
+    const newScale = this.calculateNewScale(e);
+    
+    if (Math.abs(newScale - this.scale) < 0.001) return;
+    
+    this.setZoom(newScale, contentX, contentY, mouseX, mouseY);
+  }
+
+  /**
+   * Calculate focal point for zoom
+   */
+  calculateZoomFocalPoint(e, main) {
+    const mainRect = main.getBoundingClientRect();
+    const mouseX = e.clientX - mainRect.left;
+    const mouseY = e.clientY - mainRect.top;
+    
+    const contentX = (main.scrollLeft + mouseX) / this.scale;
+    const contentY = (main.scrollTop + mouseY) / this.scale;
+    
+    return { contentX, contentY, mouseX, mouseY };
+  }
+
+  /**
+   * Calculate new scale from wheel event
+   */
+  calculateNewScale(e) {
+    const delta = -e.deltaY;
+    const factor = Math.pow(1.01, delta);
+    const newScale = this.scale * factor;
+    return Math.max(PdfViewer.MIN_ZOOM, Math.min(PdfViewer.MAX_ZOOM, newScale));
   }
 
   /**
@@ -528,80 +624,124 @@ class PdfViewer {
       this.isEditMode = active;
 
       if (active) {
-          if (!this.annotationManager) {
-              this.uiController.showLoading(true);
-              try {
-                  await window.loadScript('scripts/annotation-manager.js');
-                  
-                  if (typeof AnnotationManager === 'undefined') {
-                      let retries = 0;
-                      while (typeof AnnotationManager === 'undefined' && retries < 50) {
-                          await new Promise(resolve => setTimeout(resolve, 50));
-                          retries++;
-                      }
-                      if (typeof AnnotationManager === 'undefined') {
-                          throw new Error('AnnotationManager class not found after loading script');
-                      }
-                  }
-
-                  this.annotationManager = new AnnotationManager(this.uiController);
-              } catch (e) {
-                  console.error('Failed to load annotation manager', e);
-                  this.uiController.showToast('Erreur de chargement des outils d\'édition', 'error');
-                  this.uiController.showLoading(false);
-                  this.isEditMode = false;
-                  return;
-              }
-              this.uiController.showLoading(false);
-          }
-
-          this.elements.defaultToolbar.classList.add('hidden');
-          this.elements.editToolbar.classList.remove('hidden');
-          this.elements.propertiesSidebar.classList.remove('hidden');
-          
-          const targets = [];
-          if (this.pageWrappers) {
-            Object.values(this.pageWrappers).forEach(wrapper => {
-              if (wrapper) {
-                const canvas = wrapper.querySelector('canvas');
-                if (canvas) {
-                  targets.push({
-                    container: wrapper,
-                    target: canvas,
-                    id: parseInt(wrapper.dataset.pageNumber)
-                  });
-                }
-              }
-            });
-          }
-
-          if (targets.length > 0) {
-            this.annotationManager.start(targets, null, {
-                propertiesContainer: this.elements.propertiesContainer
-            });
-            
-            if (tool) {
-                await this.setTool(tool);
-            }
-          } else {
-            this.uiController.showToast('Impossible d\'annoter : aucun document chargé', 'error');
-            this.toggleEditMode(false);
-          }
-
+          await this.activateEditMode(tool);
       } else {
-          this.elements.defaultToolbar.classList.remove('hidden');
-          this.elements.editToolbar.classList.add('hidden');
-          this.elements.propertiesSidebar.classList.add('hidden');
-          
-          if (this.annotationManager) this.annotationManager.stop();
-          
-          if (this.textEditor) {
-              this.textEditor.stop();
-              this.isTextEditMode = false;
-          }
+          await this.deactivateEditMode();
       }
       
       this.updateCursor();
+  }
+
+  /**
+   * Activate edit mode
+   */
+  async activateEditMode(tool) {
+      const loaded = await this.loadAnnotationManager();
+      if (!loaded) return;
+
+      this.showEditModeUI();
+      
+      const targets = this.collectAnnotationTargets();
+      if (targets.length === 0) {
+          this.uiController.showToast('Impossible d\'annoter : aucun document chargé', 'error');
+          this.toggleEditMode(false);
+          return;
+      }
+
+      this.annotationManager.start(targets, null, {
+          propertiesContainer: this.elements.propertiesContainer
+      });
+      
+      if (tool) {
+          await this.setTool(tool);
+      }
+  }
+
+  /**
+   * Load annotation manager if needed
+   */
+  async loadAnnotationManager() {
+      if (this.annotationManager) return true;
+
+      this.uiController.showLoading(true);
+      try {
+          await window.loadScript('scripts/annotation-manager.js');
+          
+          if (typeof AnnotationManager === 'undefined') {
+              const loaded = await this.waitForAnnotationManager();
+              if (!loaded) {
+                  throw new Error('AnnotationManager class not found after loading script');
+              }
+          }
+
+          this.annotationManager = new AnnotationManager(this.uiController);
+          this.uiController.showLoading(false);
+          return true;
+      } catch (e) {
+          console.error('Failed to load annotation manager', e);
+          this.uiController.showToast('Erreur de chargement des outils d\'édition', 'error');
+          this.uiController.showLoading(false);
+          this.isEditMode = false;
+          return false;
+      }
+  }
+
+  /**
+   * Wait for AnnotationManager to be available
+   */
+  async waitForAnnotationManager() {
+      let retries = 0;
+      while (typeof AnnotationManager === 'undefined' && retries < 50) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+          retries++;
+      }
+      return typeof AnnotationManager !== 'undefined';
+  }
+
+  /**
+   * Show edit mode UI
+   */
+  showEditModeUI() {
+      this.elements.defaultToolbar.classList.add('hidden');
+      this.elements.editToolbar.classList.remove('hidden');
+      this.elements.propertiesSidebar.classList.remove('hidden');
+  }
+
+  /**
+   * Collect annotation targets from page wrappers
+   */
+  collectAnnotationTargets() {
+      const targets = [];
+      if (!this.pageWrappers) return targets;
+
+      Object.values(this.pageWrappers).forEach(wrapper => {
+          if (!wrapper) return;
+          const canvas = wrapper.querySelector('canvas');
+          if (canvas) {
+              targets.push({
+                  container: wrapper,
+                  target: canvas,
+                  id: parseInt(wrapper.dataset.pageNumber)
+              });
+          }
+      });
+      return targets;
+  }
+
+  /**
+   * Deactivate edit mode
+   */
+  async deactivateEditMode() {
+      this.elements.defaultToolbar.classList.remove('hidden');
+      this.elements.editToolbar.classList.add('hidden');
+      this.elements.propertiesSidebar.classList.add('hidden');
+      
+      if (this.annotationManager) this.annotationManager.stop();
+      
+      if (this.textEditor) {
+          this.textEditor.stop();
+          this.isTextEditMode = false;
+      }
   }
 
   async setTool(toolId) {
@@ -654,58 +794,88 @@ class PdfViewer {
       this.isTextEditMode = active;
       
       if (active) {
-          if (!this.textEditor) {
-              this.uiController.showLoading(true);
-              try {
-                  await window.loadScript('scripts/pdf-text-editor.js');
-                  
-                  if (typeof PdfTextEditor === 'undefined') {
-                      let retries = 0;
-                      while (typeof PdfTextEditor === 'undefined' && retries < 50) {
-                          await new Promise(resolve => setTimeout(resolve, 50));
-                          retries++;
-                      }
-                      if (typeof PdfTextEditor === 'undefined') {
-                          throw new Error('PdfTextEditor class not found after loading script');
-                      }
-                  }
-
-                  this.textEditor = new PdfTextEditor(this);
-              } catch (e) {
-                  console.error('Failed to load text editor:', e);
-                  this.uiController.showToast('Erreur de chargement de l\'éditeur de texte', 'error');
-                  this.uiController.showLoading(false);
-                  this.isTextEditMode = false;
-                  return;
-              }
-              this.uiController.showLoading(false);
-          }
-          
-          if (this.annotationManager) {
-              this.annotationManager.pause();
-          }
-          
-          await this.textEditor.startTextEditMode(this.pageNum);
-          
-          if (this.elements.propertiesContainer) {
-              this.textEditor.renderLanguageSelector(this.elements.propertiesContainer);
-          }
-          
-          this.showTextEditIndicator();
-          
+          await this.activateTextEditMode();
       } else {
-          if (this.textEditor) {
-              this.textEditor.stop();
-          }
-          
-          if (this.annotationManager) {
-              this.annotationManager.resume();
-          }
-          
-          this.hideTextEditIndicator();
+          await this.deactivateTextEditMode();
       }
       
       this.updateCursor();
+  }
+
+  /**
+   * Activate text edit mode
+   */
+  async activateTextEditMode() {
+      const loaded = await this.loadTextEditor();
+      if (!loaded) return;
+      
+      if (this.annotationManager) {
+          this.annotationManager.pause();
+      }
+      
+      await this.textEditor.startTextEditMode(this.pageNum);
+      
+      if (this.elements.propertiesContainer) {
+          this.textEditor.renderLanguageSelector(this.elements.propertiesContainer);
+      }
+      
+      this.showTextEditIndicator();
+  }
+
+  /**
+   * Load text editor if needed
+   */
+  async loadTextEditor() {
+      if (this.textEditor) return true;
+
+      this.uiController.showLoading(true);
+      try {
+          await window.loadScript('scripts/pdf-text-editor.js');
+          
+          if (typeof PdfTextEditor === 'undefined') {
+              const loaded = await this.waitForTextEditor();
+              if (!loaded) {
+                  throw new Error('PdfTextEditor class not found after loading script');
+              }
+          }
+
+          this.textEditor = new PdfTextEditor(this);
+          this.uiController.showLoading(false);
+          return true;
+      } catch (e) {
+          console.error('Failed to load text editor:', e);
+          this.uiController.showToast('Erreur de chargement de l\'éditeur de texte', 'error');
+          this.uiController.showLoading(false);
+          this.isTextEditMode = false;
+          return false;
+      }
+  }
+
+  /**
+   * Wait for PdfTextEditor to be available
+   */
+  async waitForTextEditor() {
+      let retries = 0;
+      while (typeof PdfTextEditor === 'undefined' && retries < 50) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+          retries++;
+      }
+      return typeof PdfTextEditor !== 'undefined';
+  }
+
+  /**
+   * Deactivate text edit mode
+   */
+  async deactivateTextEditMode() {
+      if (this.textEditor) {
+          this.textEditor.stop();
+      }
+      
+      if (this.annotationManager) {
+          this.annotationManager.resume();
+      }
+      
+      this.hideTextEditIndicator();
   }
 
   showTextEditIndicator() {
@@ -737,18 +907,44 @@ class PdfViewer {
     this.currentFile = file;
     this.isOpen = true;
     
-    if (!options.preserveState) {
-        this.pageNum = 1;
-        this.scale = 1.0;
-        this.rotation = 0;
-    } else {
-        if (options.pageNum) this.pageNum = options.pageNum;
-        if (options.scale) this.scale = options.scale;
-        if (options.rotation !== undefined) this.rotation = options.rotation;
-    }
-
-    this.isEditMode = false;
+    this.applyOpenOptions(options);
+    this.resetEditMode();
+    this.showViewerUI(file.name);
     
+    try {
+      await this.loadPdfDocument(file);
+    } catch (error) {
+      console.error('Error loading PDF:', error);
+      this.uiController.showToast('Erreur lors du chargement du fichier PDF', 'error');
+    }
+  }
+
+  /**
+   * Apply options when opening PDF
+   */
+  applyOpenOptions(options) {
+    if (!options.preserveState) {
+      this.pageNum = 1;
+      this.scale = 1.0;
+      this.rotation = 0;
+    } else {
+      if (options.pageNum) this.pageNum = options.pageNum;
+      if (options.scale) this.scale = options.scale;
+      if (options.rotation !== undefined) this.rotation = options.rotation;
+    }
+  }
+
+  /**
+   * Reset edit mode state
+   */
+  resetEditMode() {
+    this.isEditMode = false;
+  }
+
+  /**
+   * Show viewer UI elements
+   */
+  showViewerUI(filename) {
     this.elements.viewer.classList.remove('hidden');
     setTimeout(() => {
       this.elements.viewer.classList.add('active');
@@ -758,107 +954,150 @@ class PdfViewer {
     this.elements.editToolbar.classList.add('hidden');
     this.elements.propertiesSidebar.classList.add('hidden');
     
-    this.elements.filename.textContent = file.name;
+    this.elements.filename.textContent = filename;
+  }
+
+  /**
+   * Load PDF document
+   */
+  async loadPdfDocument(file) {
+    const loadingTask = pdfjsLib.getDocument({
+      url: file.url,
+      password: '',
+      cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
+      cMapPacked: true,
+    });
     
-    try {
-      const loadingTask = pdfjsLib.getDocument({
-          url: file.url,
-          password: '',
-          cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
-          cMapPacked: true,
-      });
-      
-      loadingTask.onPassword = (updatePassword, reason) => {
-          if (reason === pdfjsLib.PasswordResponses.NEED_PASSWORD) {
-              updatePassword('');
-          }
-      };
-
-      this.pdfDoc = await loadingTask.promise;
-      
-      if (this.pdfDoc) {
-          this.elements.pageCount.textContent = this.pdfDoc.numPages;
-          
-          if (!options.preserveState || !options.scale) {
-              await this.calculateInitialScale();
-          }
-          
-          await this.render();
-          
-          if (options.preserveState && options.scrollTop !== undefined) {
-              const main = document.getElementById('pdf-main');
-              if (main) {
-                  setTimeout(() => {
-                      main.scrollTop = options.scrollTop;
-                      main.scrollLeft = options.scrollLeft;
-                  }, 0);
-              }
-          }
-
-          this.renderThumbnails();
+    loadingTask.onPassword = (updatePassword, reason) => {
+      if (reason === pdfjsLib.PasswordResponses.NEED_PASSWORD) {
+        updatePassword('');
       }
-    } catch (error) {
-      console.error('Error loading PDF:', error);
-      this.uiController.showToast('Erreur lors du chargement du fichier PDF', 'error');
+    };
+
+    this.pdfDoc = await loadingTask.promise;
+    
+    if (!this.pdfDoc) return;
+    
+    this.elements.pageCount.textContent = this.pdfDoc.numPages;
+    
+    const options = arguments[1] || {};
+    if (!options.preserveState || !options.scale) {
+      await this.calculateInitialScale();
     }
+    
+    await this.render();
+    
+    if (options.preserveState && options.scrollTop !== undefined) {
+      this.restoreScrollPosition(options.scrollTop, options.scrollLeft);
+    }
+
+    this.renderThumbnails();
+  }
+
+  /**
+   * Restore scroll position
+   */
+  restoreScrollPosition(scrollTop, scrollLeft) {
+    const main = document.getElementById('pdf-main');
+    if (!main) return;
+    
+    setTimeout(() => {
+      main.scrollTop = scrollTop;
+      main.scrollLeft = scrollLeft;
+    }, 0);
   }
 
   /**
    * Close viewer
    */
   async close() {
-    if (this.activeRenderTasks) {
-        this.activeRenderTasks.forEach(task => task.cancel());
-        this.activeRenderTasks.clear();
-    }
-    
-    this.cancelAllThumbnailRenders();
-
-    const hasTextChanges = this.textEditor && this.textEditor.hasChanges();
-    const hasAnnotationChanges = this.annotationManager && this.annotationManager.hasChanges();
-    
-    if (hasTextChanges || hasAnnotationChanges || this.rotation !== 0) {
-        await this.save();
-    }
+    this.cancelAllRenders();
+    await this.saveChangesIfNeeded();
 
     this.isOpen = false;
     this.toggleEditMode(false);
     
-    if (this.resizeObserver) {
-        this.resizeObserver.disconnect();
-        this.resizeObserver = null;
+    this.cleanupObservers();
+    await this.cleanupTextEditor();
+    this.hideViewerUI();
+    this.cleanupSingleFile();
+  }
+
+  /**
+   * Cancel all render tasks
+   */
+  cancelAllRenders() {
+    if (this.activeRenderTasks) {
+      this.activeRenderTasks.forEach(task => task.cancel());
+      this.activeRenderTasks.clear();
     }
-    if (this.observer) {
-        this.observer.disconnect();
-        this.observer = null;
-    }
-    if (this.lazyLoadObserver) {
-        this.lazyLoadObserver.disconnect();
-        this.lazyLoadObserver = null;
-    }
-    if (this.thumbnailObserver) {
-        this.thumbnailObserver.disconnect();
-        this.thumbnailObserver = null;
-    }
+    this.cancelAllThumbnailRenders();
+  }
+
+  /**
+   * Save changes if needed
+   */
+  async saveChangesIfNeeded() {
+    const hasTextChanges = this.textEditor && this.textEditor.hasChanges();
+    const hasAnnotationChanges = this.annotationManager && this.annotationManager.hasChanges();
     
+    if (hasTextChanges || hasAnnotationChanges || this.rotation !== 0) {
+      await this.save();
+    }
+  }
+
+  /**
+   * Cleanup all observers
+   */
+  cleanupObservers() {
+    const observers = [
+      { name: 'resizeObserver', obj: this.resizeObserver },
+      { name: 'observer', obj: this.observer },
+      { name: 'lazyLoadObserver', obj: this.lazyLoadObserver },
+      { name: 'thumbnailObserver', obj: this.thumbnailObserver }
+    ];
+
+    observers.forEach(({ name, obj }) => {
+      if (obj) {
+        obj.disconnect();
+        this[name] = null;
+      }
+    });
+  }
+
+  /**
+   * Cleanup text editor
+   */
+  async cleanupTextEditor() {
     if (this.textEditor) {
-        await this.textEditor.destroy();
-        this.textEditor = null;
+      await this.textEditor.destroy();
+      this.textEditor = null;
     }
-    
+  }
+
+  /**
+   * Hide viewer UI
+   */
+  hideViewerUI() {
     this.elements.viewer.classList.remove('active');
     setTimeout(() => {
       this.elements.viewer.classList.add('hidden');
       this.elements.container.innerHTML = '';
     }, 300);
+  }
 
-    if (this.uiController && this.uiController.fileHandler) {
-      if (this.uiController.fileHandler.files.length === 1) {
-        const files = this.uiController.fileHandler.files;
-        if (files.length > 0) {
-          this.uiController.fileHandler.removeFile(files[0].id);
-          this.uiController.renderFiles();
-        }
+  /**
+   * Cleanup single file if only one file exists
+   */
+  cleanupSingleFile() {
+    if (!this.uiController?.fileHandler) return;
+    
+    const { fileHandler } = this.uiController;
+    if (fileHandler.files.length === 1) {
+      const files = fileHandler.files;
+      if (files.length > 0) {
+        fileHandler.removeFile(files[0].id);
+        this.uiController.renderFiles();
       }
     }
   }
@@ -869,61 +1108,100 @@ class PdfViewer {
   async generatePdfBlob() {
       const arrayBuffer = await fetch(this.currentFile.url).then(res => res.arrayBuffer());
       const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
-      const pages = pdfDoc.getPages();
       
-      if (this.rotation !== 0) {
-          pages.forEach(page => {
-              const rotation = page.getRotation();
-              const currentAngle = typeof rotation === 'object' ? rotation.angle : rotation;
-              page.setRotation(PDFLib.degrees(currentAngle + this.rotation));
-          });
-      }
-      
-      if (this.textEditor && this.textEditor.hasChanges()) {
-          await this.textEditor.applyChangesToPdf(pdfDoc);
-          this.textEditor.clearPendingChanges();
-      }
-      
-      if (this.annotationManager && this.annotationManager.activeInput) {
-          this.annotationManager.finalizeTextInput();
-      }
-
-      if (this.annotationManager && this.annotationManager.hasChanges()) {
-          for (let i = 0; i < pages.length; i++) {
-              const pageNum = i + 1;
-              const wrapper = this.pageWrappers[pageNum];
-              if (wrapper) {
-                  const annotationCanvas = wrapper.querySelector('.annotation-canvas');
-                  if (annotationCanvas) {
-                      const tempCanvas = document.createElement('canvas');
-                      tempCanvas.width = annotationCanvas.width;
-                      tempCanvas.height = annotationCanvas.height;
-                      const ctx = tempCanvas.getContext('2d');
-                      
-                      if (annotationCanvas.width > 0 && annotationCanvas.height > 0) {
-                          ctx.drawImage(annotationCanvas, 0, 0);
-                      }
-                      this.annotationManager.drawTextObjects(ctx, wrapper);
-                      
-                      const imageBytes = tempCanvas.toDataURL('image/png');
-                      const image = await pdfDoc.embedPng(imageBytes);
-                      const page = pages[i];
-                      
-                      const { width, height } = page.getSize();
-                      
-                      page.drawImage(image, {
-                          x: 0,
-                          y: 0,
-                          width: width,
-                          height: height,
-                      });
-                  }
-              }
-          }
-      }
+      await this.applyRotation(pdfDoc);
+      await this.applyTextChanges(pdfDoc);
+      this.finalizeAnnotationInput();
+      await this.applyAnnotationChanges(pdfDoc);
       
       const pdfBytes = await pdfDoc.save();
       return new Blob([pdfBytes], { type: 'application/pdf' });
+  }
+
+  /**
+   * Apply rotation to all pages
+   */
+  async applyRotation(pdfDoc) {
+      if (this.rotation === 0) return;
+      
+      const pages = pdfDoc.getPages();
+      pages.forEach(page => {
+          const rotation = page.getRotation();
+          const currentAngle = typeof rotation === 'object' ? rotation.angle : rotation;
+          page.setRotation(PDFLib.degrees(currentAngle + this.rotation));
+      });
+  }
+
+  /**
+   * Apply text editor changes
+   */
+  async applyTextChanges(pdfDoc) {
+      if (!this.textEditor || !this.textEditor.hasChanges()) return;
+      
+      await this.textEditor.applyChangesToPdf(pdfDoc);
+      this.textEditor.clearPendingChanges();
+  }
+
+  /**
+   * Finalize annotation text input
+   */
+  finalizeAnnotationInput() {
+      if (this.annotationManager && this.annotationManager.activeInput) {
+          this.annotationManager.finalizeTextInput();
+      }
+  }
+
+  /**
+   * Apply annotation changes to PDF
+   */
+  async applyAnnotationChanges(pdfDoc) {
+      if (!this.annotationManager || !this.annotationManager.hasChanges()) return;
+      
+      const pages = pdfDoc.getPages();
+      for (let i = 0; i < pages.length; i++) {
+          await this.embedAnnotationOnPage(pdfDoc, pages[i], i + 1);
+      }
+  }
+
+  /**
+   * Embed annotation image on a specific page
+   */
+  async embedAnnotationOnPage(pdfDoc, page, pageNum) {
+      const wrapper = this.pageWrappers[pageNum];
+      if (!wrapper) return;
+      
+      const annotationCanvas = wrapper.querySelector('.annotation-canvas');
+      if (!annotationCanvas) return;
+      
+      const imageBytes = this.createAnnotationImage(annotationCanvas, wrapper);
+      if (!imageBytes) return;
+      
+      const image = await pdfDoc.embedPng(imageBytes);
+      const { width, height } = page.getSize();
+      
+      page.drawImage(image, {
+          x: 0,
+          y: 0,
+          width: width,
+          height: height,
+      });
+  }
+
+  /**
+   * Create annotation image from canvas
+   */
+  createAnnotationImage(annotationCanvas, wrapper) {
+      if (annotationCanvas.width === 0 || annotationCanvas.height === 0) return null;
+      
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = annotationCanvas.width;
+      tempCanvas.height = annotationCanvas.height;
+      const ctx = tempCanvas.getContext('2d');
+      
+      ctx.drawImage(annotationCanvas, 0, 0);
+      this.annotationManager.drawTextObjects(ctx, wrapper);
+      
+      return tempCanvas.toDataURL('image/png');
   }
 
   /**
@@ -988,11 +1266,9 @@ class PdfViewer {
   }
 
   /**
-   * Save changes to PDF
+   * Get current save state (edit mode info, scroll position, etc.)
    */
-  async save() {
-    if (!this.currentFile) return;
-
+  getSaveState() {
     const wasEditMode = this.isEditMode;
     let activeTool = null;
     if (wasEditMode) {
@@ -1002,11 +1278,49 @@ class PdfViewer {
         }
     }
 
-    const currentScale = this.scale;
-    const currentPage = this.pageNum;
     const main = document.getElementById('pdf-main');
-    const scrollTop = main ? main.scrollTop : 0;
-    const scrollLeft = main ? main.scrollLeft : 0;
+    return {
+        wasEditMode,
+        activeTool,
+        currentScale: this.scale,
+        currentPage: this.pageNum,
+        scrollTop: main ? main.scrollTop : 0,
+        scrollLeft: main ? main.scrollLeft : 0
+    };
+  }
+
+  /**
+   * Handle successful save - restore state and UI
+   */
+  async handleSaveSuccess(state) {
+    this.uiController.showToast('PDF enregistré', 'success');
+    this.rotation = 0;
+    if (this.annotationManager) this.annotationManager.clear();
+    
+    await this.open(this.currentFile, {
+        preserveState: true,
+        scale: state.currentScale,
+        pageNum: state.currentPage,
+        scrollTop: state.scrollTop,
+        scrollLeft: state.scrollLeft,
+        rotation: 0
+    });
+    
+    if (state.wasEditMode) {
+        await this.toggleEditMode(true);
+        if (state.activeTool) {
+            this.setTool(state.activeTool);
+        }
+    }
+  }
+
+  /**
+   * Save changes to PDF
+   */
+  async save() {
+    if (!this.currentFile) return;
+
+    const state = this.getSaveState();
 
     try {
         this.uiController.showToast('Enregistrement du PDF...', 'info');
@@ -1015,25 +1329,7 @@ class PdfViewer {
         const success = await this.fileHandler.saveFile(this.currentFile, blob);
         
         if (success) {
-            this.uiController.showToast('PDF enregistré', 'success');
-            this.rotation = 0;
-            if (this.annotationManager) this.annotationManager.clear();
-            
-            await this.open(this.currentFile, {
-                preserveState: true,
-                scale: currentScale,
-                pageNum: currentPage,
-                scrollTop: scrollTop,
-                scrollLeft: scrollLeft,
-                rotation: 0
-            });
-            
-            if (wasEditMode) {
-                await this.toggleEditMode(true);
-                if (activeTool) {
-                    this.setTool(activeTool);
-                }
-            }
+            await this.handleSaveSuccess(state);
         } else {
             this.saveAs(blob);
         }
@@ -1376,30 +1672,26 @@ class PdfViewer {
   }
 
   /**
-   * Render page content
-   * Renders at BASE_RENDER_SCALE for high quality, uses CSS transform for display
-   * @param {HTMLElement} wrapper - The page wrapper element
-   * @param {number|null} scaleOverride - Optional scale to render at (defaults to BASE_RENDER_SCALE)
+   * Check if page should skip rendering
    */
-  async renderPageContent(wrapper, scaleOverride = null) {
-      const num = parseInt(wrapper.dataset.pageNumber);
-      
-      // If already rendering, don't interrupt unless it's a force re-render
-      if (wrapper.dataset.rendering === 'true') return;
+  shouldSkipRender(wrapper, scaleOverride) {
+      // If already rendering, don't interrupt
+      if (wrapper.dataset.rendering === 'true') return true;
       
       // If loaded and no scale override (standard render), skip
-      if (wrapper.dataset.loaded === 'true' && !scaleOverride) return;
+      if (wrapper.dataset.loaded === 'true' && !scaleOverride) return true;
+      
+      return false;
+  }
 
+  /**
+   * Calculate render scale with caps and dimension limits
+   */
+  calculateRenderScale(num, scaleOverride) {
       const dpr = window.devicePixelRatio || 1;
-      
-      // Determine target scale
-      let targetScale = scaleOverride || PdfViewer.BASE_RENDER_SCALE;
-      
-      // Calculate effective render scale with caps
-      // Max 3.0 (absolute scale) is usually enough for very high quality
+      const targetScale = scaleOverride || PdfViewer.BASE_RENDER_SCALE;
       let renderScale = Math.min(targetScale * dpr, 3.0);
       
-      // Check for maximum canvas dimensions (e.g., 4096px) using cached dimensions
       const MAX_CANVAS_DIM = 4096;
       const baseWidth = this.basePageWidths[num] || this.basePageWidths[1];
       const baseHeight = this.basePageHeights[num] || this.basePageHeights[1];
@@ -1413,76 +1705,138 @@ class PdfViewer {
               renderScale *= ratio;
           }
       }
+      
+      return { renderScale, dpr };
+  }
 
-      // Check if current render is already sufficient
-      if (wrapper.dataset.loaded === 'true' && scaleOverride) {
-          const currentRenderScale = parseFloat(wrapper.dataset.renderScale || 0);
-          const effectiveLogicalScale = renderScale / dpr;
-          
-          // If we already have a higher or equal resolution (within small margin), don't re-render
-          if (currentRenderScale >= effectiveLogicalScale * 0.95) return;
+  /**
+   * Check if current render quality is already sufficient
+   */
+  isRenderQualitySufficient(wrapper, renderScale, dpr) {
+      if (!wrapper.dataset.loaded === 'true') return false;
+      
+      const currentRenderScale = parseFloat(wrapper.dataset.renderScale || 0);
+      const effectiveLogicalScale = renderScale / dpr;
+      
+      return currentRenderScale >= effectiveLogicalScale * 0.95;
+  }
+
+  /**
+   * Cancel existing render task for a page
+   */
+  cancelExistingRender(num) {
+      if (!this.activeRenderTasks.has(num)) return;
+      
+      try {
+          this.activeRenderTasks.get(num).cancel();
+      } catch (e) { /* ignore */ }
+      this.activeRenderTasks.delete(num);
+  }
+
+  /**
+   * Adjust viewport if dimensions exceed maximum
+   */
+  adjustViewportForMaxDimensions(page, renderScale, maxDim) {
+      let viewport = page.getViewport({ scale: renderScale, rotation: this.rotation });
+      
+      if (viewport.width > maxDim || viewport.height > maxDim) {
+          const ratio = Math.min(maxDim / viewport.width, maxDim / viewport.height);
+          renderScale *= ratio;
+          viewport = page.getViewport({ scale: renderScale, rotation: this.rotation });
       }
       
-      // Cancel any existing render for this page
-      if (this.activeRenderTasks.has(num)) {
-          try {
-              this.activeRenderTasks.get(num).cancel();
-          } catch (e) { /* ignore */ }
-          this.activeRenderTasks.delete(num);
+      return { viewport, renderScale };
+  }
+
+  /**
+   * Update page dimensions if changed
+   */
+  updatePageDimensions(num, baseViewport, wrapper) {
+      if (this.basePageWidths[num] === baseViewport.width &&
+          this.basePageHeights[num] === baseViewport.height) {
+          return;
       }
       
+      this.basePageWidths[num] = baseViewport.width;
+      this.basePageHeights[num] = baseViewport.height;
+      
+      wrapper.style.width = `${baseViewport.width}px`;
+      wrapper.style.height = `${baseViewport.height}px`;
+      
+      this.updateLayout();
+  }
+
+  /**
+   * Create and configure canvas element
+   */
+  createPageCanvas(viewport, baseViewport) {
+      const canvas = document.createElement('canvas');
+      canvas.className = 'pdf-page-canvas';
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      
+      canvas.style.width = `${baseViewport.width}px`;
+      canvas.style.height = `${baseViewport.height}px`;
+      
+      const ctx = canvas.getContext('2d', { alpha: false });
+      ctx.imageSmoothingEnabled = false;
+      
+      return { canvas, ctx };
+  }
+
+  /**
+   * Schedule extended layers rendering
+   */
+  scheduleExtendedLayers(wrapper, num, page, viewport) {
+      if (this.extendedLayerTimeout) clearTimeout(this.extendedLayerTimeout);
+      
+      const renderExtended = () => {
+          if (!wrapper.isConnected) return;
+          this.renderExtendedLayers(wrapper, num, page, viewport);
+      };
+
+      if (window.requestIdleCallback) {
+          window.requestIdleCallback(() => {
+              setTimeout(renderExtended, 200);
+          }, { timeout: 1000 });
+      } else {
+          setTimeout(renderExtended, 200);
+      }
+  }
+
+  /**
+   * Render page content
+   * Renders at BASE_RENDER_SCALE for high quality, uses CSS transform for display
+   * @param {HTMLElement} wrapper - The page wrapper element
+   * @param {number|null} scaleOverride - Optional scale to render at (defaults to BASE_RENDER_SCALE)
+   */
+  async renderPageContent(wrapper, scaleOverride = null) {
+      const num = parseInt(wrapper.dataset.pageNumber);
+      
+      if (this.shouldSkipRender(wrapper, scaleOverride)) return;
+
+      const { renderScale, dpr } = this.calculateRenderScale(num, scaleOverride);
+      
+      if (this.isRenderQualitySufficient(wrapper, renderScale, dpr)) return;
+      
+      this.cancelExistingRender(num);
       wrapper.dataset.rendering = 'true';
 
       try {
           const page = await this.pdfDoc.getPage(num);
           
-          // Store page proxy for cleanup
           if (this.loadedPages) {
               this.loadedPages.set(num, page);
           }
           
-          let viewport = page.getViewport({ scale: renderScale, rotation: this.rotation });
+          const { viewport, renderScale: adjustedScale } = this.adjustViewportForMaxDimensions(
+              page, renderScale, 4096
+          );
           
-          // Double check dimensions with actual viewport (in case cached dims were wrong)
-          if (viewport.width > MAX_CANVAS_DIM || viewport.height > MAX_CANVAS_DIM) {
-              const ratio = Math.min(MAX_CANVAS_DIM / viewport.width, MAX_CANVAS_DIM / viewport.height);
-              renderScale *= ratio;
-              viewport = page.getViewport({ scale: renderScale, rotation: this.rotation });
-          }
-          
-          // Update base dimensions for this page (at scale=1.0)
           const baseViewport = page.getViewport({ scale: 1.0, rotation: this.rotation });
+          this.updatePageDimensions(num, baseViewport, wrapper);
           
-          // Check if dimensions changed from initial guess
-          if (this.basePageWidths[num] !== baseViewport.width ||
-              this.basePageHeights[num] !== baseViewport.height) {
-              
-              this.basePageWidths[num] = baseViewport.width;
-              this.basePageHeights[num] = baseViewport.height;
-              
-              // Update this wrapper immediately
-              wrapper.style.width = `${baseViewport.width}px`;
-              wrapper.style.height = `${baseViewport.height}px`;
-              
-              // Trigger layout update to fix container size and other page positions
-              this.updateLayout();
-          }
-          
-          // Create canvas
-          const canvas = document.createElement('canvas');
-          canvas.className = 'pdf-page-canvas';
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          
-          // Canvas displays at base size (scale=1.0), CSS transform on container handles zoom
-          // So we need to scale down the high-res canvas to base size
-          const displayWidth = baseViewport.width;
-          const displayHeight = baseViewport.height;
-          canvas.style.width = `${displayWidth}px`;
-          canvas.style.height = `${displayHeight}px`;
-          
-          const ctx = canvas.getContext('2d', { alpha: false });
-          ctx.imageSmoothingEnabled = false;
+          const { canvas, ctx } = this.createPageCanvas(viewport, baseViewport);
           
           const renderTask = page.render({
               canvasContext: ctx,
@@ -1491,38 +1845,19 @@ class PdfViewer {
           });
 
           this.activeRenderTasks.set(num, renderTask);
-
           await renderTask.promise;
           
           this.activeRenderTasks.delete(num);
           
-          // Swap canvas
           const oldCanvas = wrapper.querySelector('canvas');
-          if (oldCanvas) {
-              oldCanvas.remove();
-          }
+          if (oldCanvas) oldCanvas.remove();
           wrapper.appendChild(canvas);
           
           wrapper.dataset.loaded = 'true';
-          wrapper.dataset.renderScale = (renderScale / dpr).toString(); // Store logical scale
+          wrapper.dataset.renderScale = (adjustedScale / dpr).toString();
           delete wrapper.dataset.rendering;
           
-          // Schedule extended layers (Text & Annotations) with a delay
-          // This improves perceived performance by prioritizing the canvas
-          if (this.extendedLayerTimeout) clearTimeout(this.extendedLayerTimeout);
-          
-          const renderExtended = () => {
-              if (!wrapper.isConnected) return;
-              this.renderExtendedLayers(wrapper, num, page, viewport);
-          };
-
-          if (window.requestIdleCallback) {
-              window.requestIdleCallback(() => {
-                  setTimeout(renderExtended, 200);
-              }, { timeout: 1000 });
-          } else {
-              setTimeout(renderExtended, 200);
-          }
+          this.scheduleExtendedLayers(wrapper, num, page, viewport);
 
       } catch (error) {
           if (error.name !== 'RenderingCancelledException') {
