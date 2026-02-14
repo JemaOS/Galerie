@@ -104,8 +104,8 @@
   width: 40px;
   height: 40px;
   border: none;
-  background: rgba(255, 255, 255, 0.1);
-  color: #e8eaed;
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
   cursor: pointer;
   border-radius: var(--radius-full);
   display: flex;
@@ -646,12 +646,12 @@
   }
 
   .viewer-btn {
-    background: rgba(0, 0, 0, 0.08);
+    background: rgba(0, 0, 0, 0.12);
     color: #202124;
   }
 
   .viewer-btn:hover {
-    background: rgba(0, 0, 0, 0.1);
+    background: rgba(0, 0, 0, 0.18);
     color: #202124;
   }
 
