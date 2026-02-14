@@ -570,17 +570,17 @@ class UIController {
       }
       
       // Update viewer
-      if (window.fullscreenViewer) {
-        window.fullscreenViewer.files = newFiles;
-        window.fullscreenViewer.currentIndex = newIndex;
-        window.fullscreenViewer.currentFile = newFiles[newIndex];
-        window.fullscreenViewer.updateNavigation();
-        
+      if (globalThis.fullscreenViewer) {
+        globalThis.fullscreenViewer.files = newFiles;
+        globalThis.fullscreenViewer.currentIndex = newIndex;
+        globalThis.fullscreenViewer.currentFile = newFiles[newIndex];
+        globalThis.fullscreenViewer.updateNavigation();
+
         // Proceed with navigation
         if (direction === 'next') {
-          window.fullscreenViewer.showNext();
+          globalThis.fullscreenViewer.showNext();
         } else if (direction === 'previous') {
-          window.fullscreenViewer.showPrevious();
+          globalThis.fullscreenViewer.showPrevious();
         }
       }
       
@@ -610,21 +610,21 @@ class UIController {
     const skipFileRemoval = !removeFiles;
     
     // Temporarily disable file removal in fullscreen viewer close
-    if (window.fullscreenViewer) {
-      window.fullscreenViewer._skipFileRemoval = skipFileRemoval;
-      if (window.fullscreenViewer.isViewerOpen()) {
-        window.fullscreenViewer.close();
+    if (globalThis.fullscreenViewer) {
+      globalThis.fullscreenViewer._skipFileRemoval = skipFileRemoval;
+      if (globalThis.fullscreenViewer.isViewerOpen()) {
+        globalThis.fullscreenViewer.close();
       }
-      window.fullscreenViewer._skipFileRemoval = false;
+      globalThis.fullscreenViewer._skipFileRemoval = false;
     }
-    if (window.pdfViewer?.isOpen) {
-      window.pdfViewer.close();
+    if (globalThis.pdfViewer?.isOpen) {
+      globalThis.pdfViewer.close();
     }
     // Only close audio player if it's actually visible/open
-    if (window.audioPlayer?.elements?.container &&
-        !window.audioPlayer.elements.container.classList.contains('hidden')) {
+    if (globalThis.audioPlayer?.elements?.container &&
+        !globalThis.audioPlayer.elements.container.classList.contains('hidden')) {
       // Pass skipFileRemoval to audio player
-      window.audioPlayer.close(skipFileRemoval);
+      globalThis.audioPlayer.close(skipFileRemoval);
     }
   }
 
@@ -635,9 +635,9 @@ class UIController {
   async _loadAudioPlayer() {
     this.showLoading(true);
     try {
-      await window.loadScript('scripts/audio-player.js');
-      if (window.audioPlayer) {
-        window.audioPlayer.init();
+      await globalThis.loadScript('scripts/audio-player.js');
+      if (globalThis.audioPlayer) {
+        globalThis.audioPlayer.init();
       }
     } catch (error) {
       console.error('Failed to load audio player:', error);
@@ -656,10 +656,10 @@ class UIController {
   async _loadPdfViewer() {
     this.showLoading(true);
     try {
-      await window.loadScript('scripts/pdf-viewer.js');
-      if (!window.pdfViewer) {
-        window.pdfViewer = new PdfViewer(this.fileHandler, this);
-        window.pdfViewer.init();
+      await globalThis.loadScript('scripts/pdf-viewer.js');
+      if (!globalThis.pdfViewer) {
+        globalThis.pdfViewer = new PdfViewer(this.fileHandler, this);
+        globalThis.pdfViewer.init();
       }
     } catch (error) {
       console.error('Failed to load PDF viewer:', error);
@@ -687,15 +687,15 @@ class UIController {
    * @param {Object} file - File object
    */
   async _openAudioFile(file) {
-    if (!window.audioPlayer) {
+    if (!globalThis.audioPlayer) {
       const loaded = await this._loadAudioPlayer();
       if (!loaded) return;
     }
 
-    if (window.audioPlayer) {
+    if (globalThis.audioPlayer) {
       const files = this.fileHandler.getFilteredFiles();
       const index = files.findIndex(f => f.id === file.id);
-      window.audioPlayer.open(files, index);
+      globalThis.audioPlayer.open(files, index);
     }
   }
 
@@ -705,13 +705,13 @@ class UIController {
    * @param {Object} file - File object
    */
   async _openPdfFile(file) {
-    if (!window.pdfViewer) {
+    if (!globalThis.pdfViewer) {
       const loaded = await this._loadPdfViewer();
       if (!loaded) return;
     }
 
-    if (window.pdfViewer) {
-      window.pdfViewer.open(file);
+    if (globalThis.pdfViewer) {
+      globalThis.pdfViewer.open(file);
     }
   }
 
@@ -721,11 +721,11 @@ class UIController {
    * @param {Object} file - File object
    */
   _openInFullscreenViewer(file) {
-    if (!window.fullscreenViewer) return;
+    if (!globalThis.fullscreenViewer) return;
 
     const files = this._getFilesForViewer();
     const index = files.findIndex(f => f.id === file.id);
-    window.fullscreenViewer.open(file, index, files);
+    globalThis.fullscreenViewer.open(file, index, files);
   }
 
   /**

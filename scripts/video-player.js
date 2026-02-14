@@ -205,7 +205,7 @@ class VideoPlayer {
     }
 
     showInfo() {
-        const ui = this.uiController || window.galleryUI;
+        const ui = this.uiController || globalThis.galleryUI;
         if (ui) {
             ui.showFileModal(this.file);
         }
@@ -453,7 +453,7 @@ class VideoPlayer {
     }
 }
 
-window.VideoPlayer = VideoPlayer;
+globalThis.VideoPlayer = VideoPlayer;
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = VideoPlayer;

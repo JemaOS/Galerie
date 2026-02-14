@@ -32,7 +32,7 @@ class GalleryUtils {
     if (bytes === 0) return '0 Bytes';
     
     const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
+    const dm = Math.max(0, decimals);
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
     
     const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -175,7 +175,7 @@ class GalleryUtils {
    * @returns {string} Unique identifier
    */
   static generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    return Date.now().toString(36) + Math.random().toString(36).substring(2);
   }
 
   /**
@@ -488,7 +488,7 @@ class GalleryUtils {
    * @returns {boolean} True if touch device
    */
   static isTouchDevice() {
-    return 'ontouchstart' in window || 
+    return 'ontouchstart' in globalThis || 
            navigator.maxTouchPoints > 0 || 
            navigator.msMaxTouchPoints > 0;
   }
@@ -604,7 +604,7 @@ class GalleryUtils {
 }
 
 // Export for use in other modules
-window.GalleryUtils = GalleryUtils;
+globalThis.GalleryUtils = GalleryUtils;
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = GalleryUtils;

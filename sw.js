@@ -84,7 +84,7 @@ self.addEventListener('activate', event => {
       );
     }).then(() => {
       console.log('[SW] Service worker activated');
-      return self.clients.claim();
+      return globalThis.clients.claim();
     })
   );
 });
@@ -150,7 +150,7 @@ self.addEventListener('message', event => {
   }
   
   if (event.data?.type === 'SKIP_WAITING') {
-    self.skipWaiting();
+    globalThis.skipWaiting();
   }
   
   if (event.data?.type === 'GET_VERSION') {
@@ -214,7 +214,7 @@ self.addEventListener('push', event => {
   };
 
   event.waitUntil(
-    self.registration.showNotification('Galerie', options)
+    globalThis.registration.showNotification('Galerie', options)
   );
 });
 
@@ -230,7 +230,7 @@ self.addEventListener('notificationclick', event => {
 });
 
 // Periodic background sync (if supported)
-if (self.registration && 'periodicSync' in self.registration) {
+if (globalThis.registration && 'periodicSync' in globalThis.registration) {
   self.addEventListener('periodicsync', event => {
     if (event.tag === 'gallery-sync') {
       event.waitUntil(syncGalleryData());

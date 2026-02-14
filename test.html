@@ -380,7 +380,7 @@
         }
 
         // Check if file system access is supported
-        if ('showOpenFilePicker' in window) {
+        if ('showOpenFilePicker' in globalThis) {
             console.log('✅ File System Access API supported');
         } else {
             console.log('ℹ️ File System Access API not supported - using fallback methods');
