@@ -561,8 +561,7 @@ class PdfViewer {
       if (this.isSpaceHeld) {
           main.classList.add('grab');
       } else {
-          main.classList.remove('grab');
-          main.classList.remove('grabbing');
+          main.classList.remove('grab', 'grabbing');
       }
   }
 
@@ -1396,7 +1395,7 @@ class PdfViewer {
         
         // Get base dimensions from first page
         const firstPage = await this.pdfDoc.getPage(1);
-        const baseViewport = firstPage.getViewport({ scale: 1.0, rotation: this.rotation });
+        const baseViewport = firstPage.getViewport({ scale: 1, rotation: this.rotation });
         
         // Initialize base page dimensions (at scale=1.0)
         this.basePageHeights = new Array(this.pdfDoc.numPages + 1).fill(baseViewport.height);
@@ -2715,7 +2714,7 @@ class PdfViewer {
               const dpr = window.devicePixelRatio || 1;
               const targetWidth = 140; // Match CSS width
               
-              const unscaledViewport = page.getViewport({ scale: 1.0, rotation: this.rotation });
+              const unscaledViewport = page.getViewport({ scale: 1, rotation: this.rotation });
               const scale = (targetWidth / unscaledViewport.width) * dpr;
               
               const viewport = page.getViewport({ scale: scale, rotation: this.rotation });
