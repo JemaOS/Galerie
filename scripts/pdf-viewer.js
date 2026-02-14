@@ -1831,7 +1831,7 @@ class PdfViewer {
               page, renderScale, 4096
           );
           
-          const baseViewport = page.getViewport({ scale: 1.0, rotation: this.rotation });
+          const baseViewport = page.getViewport({ scale: 1, rotation: this.rotation });
           this.updatePageDimensions(num, baseViewport, wrapper);
           
           const { canvas, ctx } = this.createPageCanvas(viewport, baseViewport);
@@ -2320,7 +2320,7 @@ class PdfViewer {
         }
 
         const page = await this.pdfDoc.getPage(1);
-        const viewport = page.getViewport({ scale: 1.0, rotation: this.rotation });
+        const viewport = page.getViewport({ scale: 1, rotation: this.rotation });
         
         const main = document.getElementById('pdf-main');
         if (!main) {
