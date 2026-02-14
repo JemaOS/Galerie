@@ -1,6 +1,10 @@
-const { chromium } = require('@playwright/test');
-const path = require('node:path');
-const fs = require('node:fs');
+import { chromium } from '@playwright/test';
+import path from 'node:path';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Generate PNG icons from SVG sources at various sizes
@@ -99,8 +103,9 @@ async function generateIcoFile() {
   console.log('\nGenerating ICO file for Windows...');
   
   try {
-    // Try to use png-to-ico if available
-    const { default: pngToIco } = require('png-to-ico');
+    // Try to use png-to-ico if available - using dynamic import for ESM
+    const pngToIcoModule = await import('png-to-ico');
+    const pngToIco = pngToIcoModule.default;
     
     // ICO should contain these sizes for best Windows compatibility
     const icoSources = [
@@ -243,7 +248,9 @@ async function generateFileTypeIcons() {
  */
 async function generateFileTypeIco(fileTypeName, pngFiles) {
   try {
-    const { default: pngToIco } = require('png-to-ico');
+    // Using dynamic import for ESM compatibility
+    const pngToIcoModule = await import('png-to-ico');
+    const pngToIco = pngToIcoModule.default;
     
     // Verify all source files exist
     const existingFiles = pngFiles.filter(f => fs.existsSync(f));
@@ -267,12 +274,10 @@ async function generateFileTypeIco(fileTypeName, pngFiles) {
   }
 }
 
-// Main execution - using async IIFE for proper async handling
-(async () => {
-  try {
-    await generateIcons();
-  } catch (err) {
-    console.error('Error generating icons:', err);
-    process.exit(1);
-  }
-})();
+// Main execution - using top-level await (ESM style)
+try {
+  await generateIcons();
+} catch (err) {
+  console.error('Error generating icons:', err);
+  process.exit(1);
+}
