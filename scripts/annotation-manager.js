@@ -839,6 +839,8 @@ class AnnotationManager {
           case 'text-modify':
               this.undoTextModify(action);
               break;
+          default:
+              break;
       }
   }
 
@@ -884,6 +886,8 @@ class AnnotationManager {
               break;
           case 'text-modify':
               this.redoTextModify(action);
+              break;
+          default:
               break;
       }
   }
@@ -1512,6 +1516,7 @@ class AnnotationManager {
         break;
       default:
         this.showDrawingOptions(groups);
+        break;
     }
   }
 

@@ -129,7 +129,8 @@ self.addEventListener('fetch', event => {
             return caches.match('./index.html');
           }
           
-          throw error;
+          // Return a 503 Response instead of throwing to handle the error gracefully
+          return new Response('Service Unavailable', { status: 503, statusText: 'Service Unavailable' });
         });
       })
   );
@@ -183,9 +184,14 @@ self.addEventListener('sync', event => {
 
 function doBackgroundSync() {
   // Handle background file operations
-  return new Promise((resolve) => {
-    console.log('[SW] Background sync completed');
-    resolve('sync-completed');
+  return new Promise((resolve, reject) => {
+    try {
+      console.log('[SW] Background sync completed');
+      resolve('sync-completed');
+    } catch (error) {
+      console.error('[SW] Background sync failed:', error);
+      reject(error);
+    }
   });
 }
 
@@ -234,9 +240,14 @@ if (self.registration && 'periodicSync' in self.registration) {
 }
 
 function syncGalleryData() {
-  return new Promise((resolve) => {
-    console.log('[SW] Periodic sync completed');
-    resolve('gallery-synced');
+  return new Promise((resolve, reject) => {
+    try {
+      console.log('[SW] Periodic sync completed');
+      resolve('gallery-synced');
+    } catch (error) {
+      console.error('[SW] Periodic sync failed:', error);
+      reject(error);
+    }
   });
 }
 

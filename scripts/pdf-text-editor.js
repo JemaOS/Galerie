@@ -302,6 +302,7 @@ class PdfTextEditor {
                 case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
                 case g: h = ((b - r) / d + 2) / 6; break;
                 case b: h = ((r - g) / d + 4) / 6; break;
+                default: break;
             }
         }
         return [h * 360, s, l];
@@ -456,6 +457,8 @@ class PdfTextEditor {
                     };
                     textOpIndex++;
                     break;
+                default:
+                    break;
             }
         }
 
@@ -498,6 +501,8 @@ class PdfTextEditor {
                 case OPS.eoClip:
                     // Mark current path as clipping path
                     // This is complex - would need full path analysis
+                    break;
+                default:
                     break;
             }
         }
@@ -547,6 +552,8 @@ class PdfTextEditor {
                     if (opArgs && opArgs.length >= 1) {
                         spacing.horizontalScaling = opArgs[0];
                     }
+                    break;
+                default:
                     break;
             }
         }
@@ -620,6 +627,8 @@ class PdfTextEditor {
                         pendingRect = null;
                     }
                     break;
+                default:
+                    break;
             }
         }
         
@@ -687,6 +696,8 @@ class PdfTextEditor {
                         };
                         textItemIndex++;
                     }
+                    break;
+                default:
                     break;
             }
         }
