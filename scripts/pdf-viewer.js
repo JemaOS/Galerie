@@ -1154,7 +1154,7 @@ class PdfViewer {
    * Apply annotation changes to PDF
    */
   async applyAnnotationChanges(pdfDoc) {
-      if (!this.annotationManager || !this.annotationManager?.hasChanges()) return;
+      if (!this.annotationManager?.hasChanges()) return;
       
       const pages = pdfDoc.getPages();
       for (let i = 0; i < pages.length; i++) {
@@ -1971,7 +1971,7 @@ class PdfViewer {
       }
       
       // Cleanup PDF page resources
-      if (this.loadedPages && this.loadedPages.has(num)) {
+      if (this.loadedPages?.has(num)) {
           try {
               const page = this.loadedPages.get(num);
               page.cleanup();
@@ -2126,7 +2126,7 @@ class PdfViewer {
               this.renderQueue.delete(pageNum);
 
               const wrapper = this.pageWrappers[pageNum];
-              if (wrapper && wrapper.dataset.loaded === 'false' && wrapper.dataset.rendering !== 'true') {
+              if (wrapper?.dataset.loaded === 'false' && wrapper?.dataset.rendering !== 'true') {
                   await this.renderPageContent(wrapper);
                   
                   // Small delay to yield to main thread
@@ -2360,11 +2360,8 @@ class PdfViewer {
   rotate() {
     this.rotation = (this.rotation + 90) % 360;
     
-    try {
-        this.renderThumbnails();
-    } catch (e) {
-        console.error('Error rendering thumbnails:', e);
-    }
+    this.renderThumbnails()
+        .catch(e => console.error('Error rendering thumbnails:', e));
 
     this.pageRendering = false;
     this.queueRender();

@@ -800,7 +800,7 @@
 
 .size-btn.active {
     background: #6569d0;
-    color: #202124;
+    color: #ffffff;
 }
 
 .size-btn.active .size-shape {
@@ -857,13 +857,13 @@
 
 .tool-btn.active {
     background: #6569d0; /* Blue active state */
-    color: #202124;
+    color: #ffffff;
 }
 
 /* Save Button in Sidebar */
 #viewer-save-split {
     background-color: #6569d0;
-    color: #202124;
+    color: #ffffff;
     width: 100%;
     justify-content: center;
     font-weight: 500;
@@ -882,7 +882,7 @@
 .split-btn-main {
     flex: 1;
     background-color: #6569d0;
-    color: #202124;
+    color: #ffffff;
     border: none;
     padding: 10px;
     border-radius: 4px 0 0 4px;
@@ -896,7 +896,7 @@
 
 .split-btn-arrow {
     background-color: #6569d0; /* Slightly darker */
-    color: #202124;
+    color: #ffffff;
     border: none;
     padding: 0 8px;
     border-radius: 0 4px 4px 0;

@@ -107,7 +107,7 @@ self.addEventListener('fetch', event => {
 
         return fetch(event.request).then(response => {
           // Don't cache non-successful responses
-          if (!response || response.status !== 200 || response.type !== 'basic') {
+          if (!response || response?.status !== 200 || response?.type !== 'basic') {
             return response;
           }
 
@@ -149,15 +149,15 @@ self.addEventListener('message', event => {
     return;
   }
   
-  if (event.data && event.data.type === 'SKIP_WAITING') {
+  if (event.data?.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
   
-  if (event.data && event.data.type === 'GET_VERSION') {
+  if (event.data?.type === 'GET_VERSION') {
     event.ports[0].postMessage({version: CACHE_NAME});
   }
   
-  if (event.data && event.data.type === 'SHARE_FILES') {
+  if (event.data?.type === 'SHARE_FILES') {
     // Handle shared files
     const { files, title, text } = event.data;
     console.log('[SW] Received shared files:', files);

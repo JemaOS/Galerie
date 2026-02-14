@@ -391,6 +391,7 @@
     }
     
     .pdf-toolbar-right {
+        justify-self: end;
     }
 }
 
