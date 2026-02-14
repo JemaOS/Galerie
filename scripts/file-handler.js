@@ -706,9 +706,13 @@ class FileHandler {
       }
 
       if (this.currentSort.order === 'asc') {
-        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+        if (aValue < bValue) return -1;
+        if (aValue > bValue) return 1;
+        return 0;
       } else {
-        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+        if (aValue > bValue) return -1;
+        if (aValue < bValue) return 1;
+        return 0;
       }
     });
 

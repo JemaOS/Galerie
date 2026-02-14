@@ -514,7 +514,7 @@ class JemaOSGallery {
     
     // Calculate localStorage usage
     for (let key in localStorage) {
-      if (localStorage.hasOwnProperty(key)) {
+      if (Object.hasOwn(localStorage, key)) {
         usage.localStorage += localStorage[key].length;
       }
     }
