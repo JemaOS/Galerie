@@ -220,9 +220,9 @@ class UIController {
     ['dragenter', 'dragover'].forEach(eventName => {
       document.addEventListener(eventName, () => {
         // Check if any viewer is open
-        const isViewerOpen = (window.fullscreenViewer && window.fullscreenViewer.isViewerOpen()) ||
-                             (window.pdfViewer && window.pdfViewer.isOpen) ||
-                             (window.audioPlayer && window.audioPlayer.elements && window.audioPlayer.elements.container && !window.audioPlayer.elements.container.classList.contains('hidden'));
+        const isViewerOpen = (globalThis.fullscreenViewer?.isViewerOpen()) ||
+                             (globalThis.pdfViewer?.isOpen) ||
+                             (globalThis.audioPlayer?.elements?.container && !globalThis.audioPlayer.elements.container.classList.contains('hidden'));
 
         if (!isViewerOpen) {
           dropZone.classList.remove('hidden');
@@ -238,9 +238,9 @@ class UIController {
     
     document.addEventListener('drop', async (e) => {
       // Check if any viewer is open
-      const isViewerOpen = (window.fullscreenViewer && window.fullscreenViewer.isViewerOpen()) ||
-                           (window.pdfViewer && window.pdfViewer.isOpen) ||
-                           (window.audioPlayer && window.audioPlayer.elements && window.audioPlayer.elements.container && !window.audioPlayer.elements.container.classList.contains('hidden'));
+      const isViewerOpen = (globalThis.fullscreenViewer?.isViewerOpen()) ||
+                           (globalThis.pdfViewer?.isOpen) ||
+                           (globalThis.audioPlayer?.elements?.container && !globalThis.audioPlayer.elements.container.classList.contains('hidden'));
 
       if (isViewerOpen) {
         console.log('Drop blocked because viewer is open');
@@ -281,9 +281,9 @@ class UIController {
     // If we have files but no viewer is open, open the first file immediately
     // This prevents showing a blank screen or the hidden home page
     if (this.fileHandler.files.length > 0 &&
-        (!window.fullscreenViewer || !window.fullscreenViewer.isViewerOpen()) &&
-        (!window.pdfViewer || !window.pdfViewer.isOpen) &&
-        (!window.audioPlayer || !window.audioPlayer.elements.container || window.audioPlayer.elements.container.classList.contains('hidden'))) {
+        (!globalThis.fullscreenViewer || !globalThis.fullscreenViewer?.isViewerOpen()) &&
+        (!globalThis.pdfViewer || !globalThis.pdfViewer?.isOpen) &&
+        (!globalThis.audioPlayer || !globalThis.audioPlayer?.elements?.container || globalThis.audioPlayer.elements.container.classList.contains('hidden'))) {
         
         // Use requestAnimationFrame to ensure this runs after the current call stack
         // but before the next repaint, making it feel instant
@@ -541,7 +541,7 @@ class UIController {
    */
   async promptForFolderAccess(currentFile, direction) {
     try {
-      const dirHandle = await window.showDirectoryPicker({
+      const dirHandle = await globalThis.showDirectoryPicker({
         id: 'gallery-folder-access',
         mode: 'read'
       });
@@ -781,12 +781,12 @@ class UIController {
       this.showToast(`${fileIds.length} fichier${fileIds.length !== 1 ? 's' : ''} supprimé${fileIds.length !== 1 ? 's' : ''}`, 'success');
 
       // Notify viewers
-      if (window.fullscreenViewer && window.fullscreenViewer.isViewerOpen()) {
-          fileIds.forEach(id => window.fullscreenViewer.onFileDeleted(id));
+      if (globalThis.fullscreenViewer?.isViewerOpen()) {
+          fileIds.forEach(id => globalThis.fullscreenViewer.onFileDeleted(id));
       }
       
       // Notify PDF viewer
-      if (window.pdfViewer && window.pdfViewer.isOpen && window.pdfViewer.currentFile) {
+      if (globalThis.pdfViewer?.isOpen && globalThis.pdfViewer?.currentFile) {
           if (fileIds.includes(window.pdfViewer.currentFile.id)) {
               window.pdfViewer.close();
           }
