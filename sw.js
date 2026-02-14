@@ -62,7 +62,6 @@ self.addEventListener('install', event => {
       })
       .then(() => {
         console.log('[SW] App shell cached successfully');
-        // return self.skipWaiting(); // Wait for user to confirm update
       })
       .catch(error => {
         console.error('[SW] Failed to cache app shell:', error);

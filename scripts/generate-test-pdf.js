@@ -67,6 +67,9 @@ async function createTestPdf() {
   console.log('Created test/fixtures/test-bg.pdf');
 }
 
-(async () => {
+try {
   await createTestPdf();
-})();
+} catch (error) {
+  console.error('Error creating test PDF:', error);
+  process.exit(1);
+}

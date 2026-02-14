@@ -386,13 +386,11 @@
 /* Responsive */
 @media (max-width: 1024px) {
     .pdf-toolbar-center {
-        /* display: none; */ /* Don't hide controls, just adjust layout if needed */
         flex: 1;
         justify-content: center;
     }
     
     .pdf-toolbar-right {
-        /* margin-left: auto; */
     }
 }
 

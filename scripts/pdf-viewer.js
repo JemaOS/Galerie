@@ -1155,7 +1155,7 @@ class PdfViewer {
    * Apply annotation changes to PDF
    */
   async applyAnnotationChanges(pdfDoc) {
-      if (!this.annotationManager || !this.annotationManager.hasChanges()) return;
+      if (!this.annotationManager || !this.annotationManager?.hasChanges()) return;
       
       const pages = pdfDoc.getPages();
       for (let i = 0; i < pages.length; i++) {
@@ -1525,7 +1525,6 @@ class PdfViewer {
       // 3. Clear Queue: Cancel any pending renders immediately
       this.cancelAllPageRenders();
       
-      const oldScale = this.scale;
       this.scale = newScale;
       
       // Update UI
@@ -1713,7 +1712,7 @@ class PdfViewer {
    * Check if current render quality is already sufficient
    */
   isRenderQualitySufficient(wrapper, renderScale, dpr) {
-      if (!wrapper.dataset.loaded === 'true') return false;
+      if (wrapper.dataset.loaded !== 'true') return false;
       
       const currentRenderScale = Number.parseFloat(wrapper.dataset.renderScale || 0);
       const effectiveLogicalScale = renderScale / dpr;
@@ -1897,7 +1896,6 @@ class PdfViewer {
               // We need to ensure text layer fits the wrapper
               
               const baseViewport = page.getViewport({ scale: 1.0, rotation: this.rotation });
-              const scale = viewport.width / baseViewport.width;
               
               textLayerDiv.style.width = `${baseViewport.width}px`;
               textLayerDiv.style.height = `${baseViewport.height}px`;

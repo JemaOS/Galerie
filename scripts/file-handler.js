@@ -1078,7 +1078,6 @@ class FileHandler {
    */
   async _tryLoadFromHandles(items) {
     const handles = [];
-    let hasHandles = false;
 
     for (const item of items) {
       if (item.kind !== 'file') continue;
@@ -1086,7 +1085,6 @@ class FileHandler {
       const handle = await this._getFileSystemHandle(item);
       if (handle) {
         handles.push(handle);
-        hasHandles = true;
       }
     }
 
@@ -1108,7 +1106,7 @@ class FileHandler {
 
     try {
       const handle = await item.getAsFileSystemHandle();
-      return (handle && handle.kind === 'file') ? handle : null;
+      return (handle?.kind === 'file') ? handle : null;
     } catch (err) {
       console.warn('Failed to get handle:', err);
       return null;
@@ -1181,7 +1179,7 @@ class FileHandler {
    */
   showToast(message, type = 'info') {
     // This would be handled by the UI controller
-    if (window.galleryUI && window.galleryUI.showToast) {
+    if (window.galleryUI?.showToast) {
       window.galleryUI.showToast(message, type);
     }
   }

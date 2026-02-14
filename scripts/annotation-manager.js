@@ -1169,6 +1169,14 @@ class AnnotationManager {
       this.initialTextState = null;
   }
 
+  _createInteractionEndHandler(wrapper, onMouseMove) {
+      return () => {
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', this._currentMouseUpHandler);
+          this._handleInteractionEnd(wrapper);
+      };
+  }
+
   setupMoveHandler(e, wrapper) {
       e.preventDefault();
       const startX = e.clientX;
@@ -1181,13 +1189,9 @@ class AnnotationManager {
           wrapper.style.left = `${initialLeft + dx}px`;
           wrapper.style.top = `${initialTop + dy}px`;
       };
-      const onMouseUp = () => {
-          document.removeEventListener('mousemove', onMouseMove);
-          document.removeEventListener('mouseup', onMouseUp);
-          this._handleInteractionEnd(wrapper);
-      };
+      this._currentMouseUpHandler = this._createInteractionEndHandler(wrapper, onMouseMove);
       document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
+      document.addEventListener('mouseup', this._currentMouseUpHandler);
   }
 
   setupResizeHandler(handle, wrapper, pos) {
@@ -1214,13 +1218,9 @@ class AnnotationManager {
               if (newWidth > 20) { wrapper.style.width = `${newWidth}px`; wrapper.style.left = `${newLeft}px`; }
               if (newHeight > 20) { wrapper.style.height = `${newHeight}px`; wrapper.style.top = `${newTop}px`; }
           };
-      const onMouseUp = () => {
-          document.removeEventListener('mousemove', onMouseMove);
-          document.removeEventListener('mouseup', onMouseUp);
-          this._handleInteractionEnd(wrapper);
-      };
+          this._currentMouseUpHandler = this._createInteractionEndHandler(wrapper, onMouseMove);
           document.addEventListener('mousemove', onMouseMove);
-          document.addEventListener('mouseup', onMouseUp);
+          document.addEventListener('mouseup', this._currentMouseUpHandler);
       });
   }
 
@@ -1238,13 +1238,9 @@ class AnnotationManager {
               wrapper.style.transform = `rotate(${angle}deg)`;
               wrapper.dataset.rotation = angle;
           };
-      const onMouseUp = () => {
-          document.removeEventListener('mousemove', onMouseMove);
-          document.removeEventListener('mouseup', onMouseUp);
-          this._handleInteractionEnd(wrapper);
-      };
+          this._currentMouseUpHandler = this._createInteractionEndHandler(wrapper, onMouseMove);
           document.addEventListener('mousemove', onMouseMove);
-          document.addEventListener('mouseup', onMouseUp);
+          document.addEventListener('mouseup', this._currentMouseUpHandler);
       });
   }
 

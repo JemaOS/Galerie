@@ -531,25 +531,7 @@ class UIController {
     this.fileHandler.deselectAll();
     this.updateSelectionDisplay();
     
-    // Viewers closing via Escape is disabled as per request
-    /*
-    // Close fullscreen if open
-    if (window.fullscreenViewer && window.fullscreenViewer.isViewerOpen()) {
-      window.fullscreenViewer.close();
-    }
-    
-    // Close PDF viewer if open
-    if (window.pdfViewer && window.pdfViewer.isOpen) {
-      window.pdfViewer.close();
-    }
 
-    // Close Audio Player if open
-    if (window.audioPlayer && window.audioPlayer.isPlaying) {
-      window.audioPlayer.close();
-    } else if (window.audioPlayer && !document.getElementById('audio-player').classList.contains('hidden')) {
-      window.audioPlayer.close();
-    }
-    */
   }
 
   /**
