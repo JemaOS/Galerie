@@ -2201,7 +2201,7 @@ class PdfViewer {
           const pageNum = Number.parseInt(key);
           if (!pagesToKeep.has(pageNum)) {
               const wrapper = this.pageWrappers[pageNum];
-              if (wrapper && wrapper.parentNode) {
+              if (wrapper?.parentNode) {
                   this.unloadPageContent(wrapper);
                   wrapper.remove();
               }

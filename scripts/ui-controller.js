@@ -617,12 +617,11 @@ class UIController {
       }
       window.fullscreenViewer._skipFileRemoval = false;
     }
-    if (window.pdfViewer && window.pdfViewer.isOpen) {
+    if (window.pdfViewer?.isOpen) {
       window.pdfViewer.close();
     }
     // Only close audio player if it's actually visible/open
-    if (window.audioPlayer && window.audioPlayer.elements &&
-        window.audioPlayer.elements.container &&
+    if (window.audioPlayer?.elements?.container &&
         !window.audioPlayer.elements.container.classList.contains('hidden')) {
       // Pass skipFileRemoval to audio player
       window.audioPlayer.close(skipFileRemoval);
@@ -847,7 +846,7 @@ class UIController {
    */
   async copyFiles(files) {
     try {
-      if (navigator.clipboard && navigator.clipboard.write) {
+      if (navigator.clipboard?.write) {
         const clipboardItems = files.map(file => 
           new ClipboardItem({ [file.file.type]: file.file })
         );

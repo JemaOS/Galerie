@@ -141,9 +141,9 @@
         }
         
         .test-file:hover {
-            background: rgba(101, 105, 208, 0.1);
+            background: rgba(101, 105, 208, 0.15);
             border-color: #6569d0;
-            color: #6569d0;
+            color: #4a4e9e;
         }
         
         .file-icon {
@@ -251,30 +251,30 @@
         <p>Click on any file type to test the gallery functionality:</p>
         
         <div class="test-files">
-            <div class="test-file" role="button" tabindex="0" onclick="testImageSupport()">
+            <button class="test-file" onclick="testImageSupport()">
                 <div class="file-icon">🖼️</div>
                 <div>Image Test</div>
-            </div>
-            <div class="test-file" role="button" tabindex="0" onclick="testVideoSupport()">
+            </button>
+            <button class="test-file" onclick="testVideoSupport()">
                 <div class="file-icon">🎬</div>
                 <div>Video Test</div>
-            </div>
-            <div class="test-file" role="button" tabindex="0" onclick="testAudioSupport()">
+            </button>
+            <button class="test-file" onclick="testAudioSupport()">
                 <div class="file-icon">🎵</div>
                 <div>Audio Test</div>
-            </div>
-            <div class="test-file" role="button" tabindex="0" onclick="testLargeCollection()">
+            </button>
+            <button class="test-file" onclick="testLargeCollection()">
                 <div class="file-icon">📚</div>
                 <div>Large Collection</div>
-            </div>
-            <div class="test-file" role="button" tabindex="0" onclick="testFullscreen()">
+            </button>
+            <button class="test-file" onclick="testFullscreen()">
                 <div class="file-icon">🖥️</div>
                 <div>Fullscreen Test</div>
-            </div>
-            <div class="test-file" role="button" tabindex="0" onclick="testKeyboardShortcuts()">
+            </button>
+            <button class="test-file" onclick="testKeyboardShortcuts()">
                 <div class="file-icon">⌨️</div>
                 <div>Keyboard Test</div>
-            </div>
+            </button>
         </div>
     </div>
 
@@ -369,13 +369,6 @@
                 setTimeout(() => {
                     this.style.transform = '';
                 }, 150);
-            });
-            // Handle keyboard activation (Enter and Space)
-            file.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    this.click();
-                }
             });
         });
 
