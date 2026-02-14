@@ -37,7 +37,7 @@ class GalleryUtils {
     
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   }
 
   /**
@@ -283,7 +283,7 @@ class GalleryUtils {
     link.style.display = 'none';
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
+    link.remove();
   }
 
   /**
@@ -305,7 +305,7 @@ class GalleryUtils {
         document.body.appendChild(textArea);
         textArea.select();
         document.execCommand('copy');
-        document.body.removeChild(textArea);
+        textArea.remove();
         return true;
       }
     } catch (error) {
@@ -597,7 +597,7 @@ class GalleryUtils {
     // Cleanup after a delay
     setTimeout(() => {
         if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
+            iframe.remove();
         }
     }, 60000); // 1 minute should be enough to trigger print dialog
   }

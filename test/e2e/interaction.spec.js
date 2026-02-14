@@ -7,10 +7,10 @@ test.describe('App Interactions', () => {
 
   test('galleryApp is initialized globally', async ({ page }) => {
     // Wait for initialization
-    await page.waitForFunction(() => window.galleryApp && window.galleryApp.isInitialized);
+    await page.waitForFunction(() => window.galleryApp?.isInitialized);
     
     const isInitialized = await page.evaluate(() => {
-      return window.galleryApp && window.galleryApp.isInitialized;
+      return window.galleryApp?.isInitialized;
     });
     expect(isInitialized).toBe(true);
   });

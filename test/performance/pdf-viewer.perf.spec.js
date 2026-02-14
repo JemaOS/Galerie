@@ -46,7 +46,6 @@ test.describe('PDF Viewer Performance', () => {
     await expect(page.locator('.pdf-page-canvas').first()).toBeVisible();
 
     // 4. Perform fast scrolling
-    const main = page.locator('#pdf-main');
     
     // Measure FPS / Jank
     const performanceMetrics = await page.evaluate(async () => {

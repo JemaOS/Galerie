@@ -257,7 +257,7 @@ class VideoPlayer {
         this.video.addEventListener('error', (e) => {
             console.error('Video playback error:', this.video.error);
             
-            let errorMessage = 'Format non supporté';
+            let errorMessage;
             if (this.video.error) {
                 switch (this.video.error.code) {
                     case 1: errorMessage = 'Lecture annulée'; break;
@@ -266,6 +266,8 @@ class VideoPlayer {
                     case 4: errorMessage = 'Format non supporté'; break;
                     default: errorMessage = 'Erreur inconnue';
                 }
+            } else {
+                errorMessage = 'Format non supporté';
             }
 
             const errorDisplay = document.createElement('div');
@@ -408,7 +410,7 @@ class VideoPlayer {
     }
 
     formatTime(seconds) {
-        if (!seconds || isNaN(seconds)) return '0:00';
+        if (!seconds || Number.isNaN(seconds)) return '0:00';
         
         const mins = Math.floor(seconds / 60);
         const secs = Math.floor(seconds % 60);
