@@ -255,7 +255,7 @@ class PdfViewer {
    */
   handleInfoClick() {
     if (this.currentFile) {
-        const ui = this.uiController || window.galleryUI;
+        const ui = this.uiController || globalThis.galleryUI;
         if (ui) ui.showFileModal(this.currentFile);
     }
   }
@@ -420,11 +420,11 @@ class PdfViewer {
    * Setup resize handling
    */
   setupResizeHandling() {
-    window.addEventListener('resize', () => this.onWindowResize());
+    globalThis.addEventListener('resize', () => this.onWindowResize());
 
     if (this.elements.main) {
         this.resizeObserver = new ResizeObserver(() => {
-            window.requestAnimationFrame(() => this.onWindowResize());
+            globalThis.requestAnimationFrame(() => this.onWindowResize());
         });
         this.resizeObserver.observe(this.elements.main);
     }
@@ -665,7 +665,7 @@ class PdfViewer {
 
       this.uiController.showLoading(true);
       try {
-          await window.loadScript('scripts/annotation-manager.js');
+          await globalThis.loadScript('scripts/annotation-manager.js');
           
           if (typeof AnnotationManager === 'undefined') {
               const loaded = await this.waitForAnnotationManager();
@@ -830,7 +830,7 @@ class PdfViewer {
 
       this.uiController.showLoading(true);
       try {
-          await window.loadScript('scripts/pdf-text-editor.js');
+          await globalThis.loadScript('scripts/pdf-text-editor.js');
           
           if (typeof PdfTextEditor === 'undefined') {
               const loaded = await this.waitForTextEditor();
@@ -1794,8 +1794,8 @@ class PdfViewer {
           this.renderExtendedLayers(wrapper, num, page, viewport);
       };
 
-      if (window.requestIdleCallback) {
-          window.requestIdleCallback(() => {
+      if (globalThis.requestIdleCallback) {
+          globalThis.requestIdleCallback(() => {
               setTimeout(renderExtended, 200);
           }, { timeout: 1000 });
       } else {
@@ -2068,7 +2068,7 @@ class PdfViewer {
           lastScrollTime = now;
 
           if (!ticking) {
-              window.requestAnimationFrame(() => {
+              globalThis.requestAnimationFrame(() => {
                   this.updateVisiblePages();
                   ticking = false;
               });
@@ -2633,8 +2633,8 @@ class PdfViewer {
       const task = this.activeThumbnailRenderTasks.get(pageNum);
       if (task) {
           if (task.idleId) {
-              if (window.cancelIdleCallback) {
-                  window.cancelIdleCallback(task.idleId);
+              if (globalThis.cancelIdleCallback) {
+                  globalThis.cancelIdleCallback(task.idleId);
               } else {
                   clearTimeout(task.idleId);
               }
@@ -2757,8 +2757,8 @@ class PdfViewer {
       };
 
       // Use requestIdleCallback if available to avoid blocking main thread
-      if (window.requestIdleCallback) {
-          const idleId = window.requestIdleCallback(() => performRender(), { timeout: 1000 });
+      if (globalThis.requestIdleCallback) {
+          const idleId = globalThis.requestIdleCallback(() => performRender(), { timeout: 1000 });
           this.activeThumbnailRenderTasks.set(num, { idleId });
       } else {
           const idleId = setTimeout(performRender, 10);
@@ -2797,7 +2797,7 @@ class PdfViewer {
   }
 }
 
-window.PdfViewer = PdfViewer;
+globalThis.PdfViewer = PdfViewer;
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = PdfViewer;

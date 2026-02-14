@@ -158,7 +158,7 @@ class FullscreenViewer {
     if (this.elements.info) {
         this.elements.info.addEventListener('click', () => {
             if (this.currentFile) {
-                const ui = this.uiController || window.galleryUI;
+                const ui = this.uiController || globalThis.galleryUI;
                 if (ui) ui.showFileModal(this.currentFile);
             }
         });
@@ -341,8 +341,6 @@ class FullscreenViewer {
       // Pinch-to-zoom state
       let initialPinchDistance = null;
       let initialScale = 1;
-      let pinchCenterX = 0;
-      let pinchCenterY = 0;
       let isPinching = false;
       let pinchRafId = null;
 
@@ -425,7 +423,7 @@ class FullscreenViewer {
   getDistance(touch1, touch2) {
       const dx = touch1.clientX - touch2.clientX;
       const dy = touch1.clientY - touch2.clientY;
-      return Math.sqrt(dx * dx + dy * dy);
+      return Math.hypot(dx, dy);
   }
 
   setupSplitButton() {
@@ -500,7 +498,7 @@ class FullscreenViewer {
           if (!this.annotationManager) {
               this.uiController.showLoading(true);
               try {
-                  await window.loadScript('scripts/annotation-manager.js');
+                  await globalThis.loadScript('scripts/annotation-manager.js');
                   this.annotationManager = new AnnotationManager(this.uiController);
               } catch (e) {
                   console.error('Failed to load annotation manager', e);
@@ -1069,8 +1067,8 @@ class FullscreenViewer {
         // Show edit button
         if (this.elements.editModeBtn) this.elements.editModeBtn.style.display = '';
       } else if (file.type === 'video') {
-        if (!window.VideoPlayer) {
-             await window.loadScript('scripts/video-player.js');
+        if (!globalThis.VideoPlayer) {
+             await globalThis.loadScript('scripts/video-player.js');
         }
         this.videoPlayer = new VideoPlayer(this.elements.media, file, this.uiController);
         // Hide default toolbar as VideoPlayer has its own custom UI
@@ -1642,7 +1640,7 @@ class FullscreenViewer {
 }
 
 // Export for use in other modules
-window.FullscreenViewer = FullscreenViewer;
+globalThis.FullscreenViewer = FullscreenViewer;
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = FullscreenViewer;

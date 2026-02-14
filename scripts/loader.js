@@ -50,4 +50,4 @@ function loadScript(url) {
 }
 
 // Export globally
-window.loadScript = loadScript;
+globalThis.loadScript = loadScript;

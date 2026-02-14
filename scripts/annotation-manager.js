@@ -514,13 +514,13 @@ class AnnotationManager {
   }
 
   setupGlobalListeners() {
-    window.addEventListener('resize', this.handleResize);
+    globalThis.addEventListener('resize', this.handleResize);
     document.addEventListener('keydown', this.handleKeyDown);
     document.addEventListener('mousedown', this.handleDocumentMouseDown);
   }
 
   removeGlobalListeners() {
-    window.removeEventListener('resize', this.handleResize);
+    globalThis.removeEventListener('resize', this.handleResize);
     document.removeEventListener('keydown', this.handleKeyDown);
     document.removeEventListener('mousedown', this.handleDocumentMouseDown);
   }
@@ -598,7 +598,7 @@ class AnnotationManager {
     const rect = this.activeCanvas.getBoundingClientRect();
     this.canvasRect = rect;
     
-    const style = window.getComputedStyle(this.activeCanvas);
+    const style = globalThis.getComputedStyle(this.activeCanvas);
     const objectFit = style.objectFit;
     
     const bw = this.activeCanvas.width;
@@ -1279,7 +1279,7 @@ class AnnotationManager {
           const canvasWidth = rect.width * scaleX;
           const canvasHeight = rect.height * scaleY;
           const rotation = Number.parseFloat(wrapper.dataset.rotation || 0);
-          const style = window.getComputedStyle(input);
+          const style = globalThis.getComputedStyle(input);
           const fontSize = Number.parseFloat(style.fontSize) * scaleX;
           const fontFamily = style.fontFamily;
           const color = style.color;
@@ -1711,7 +1711,7 @@ class AnnotationManager {
   }
 }
 
-window.AnnotationManager = AnnotationManager;
+globalThis.AnnotationManager = AnnotationManager;
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = AnnotationManager;

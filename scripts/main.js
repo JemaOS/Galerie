@@ -93,10 +93,10 @@ class JemaOSGallery {
     this.fullscreenViewer.uiController = this.uiController;
     
     // Make components globally available
-    window.galleryApp = this;
-    window.galleryFileHandler = this.fileHandler;
-    window.galleryUI = this.uiController;
-    window.fullscreenViewer = this.fullscreenViewer;
+    globalThis.galleryApp = this;
+    globalThis.galleryFileHandler = this.fileHandler;
+    globalThis.galleryUI = this.uiController;
+    globalThis.fullscreenViewer = this.fullscreenViewer;
   }
 
   /**
@@ -146,7 +146,7 @@ class JemaOSGallery {
   setupInstallPrompt() {
     let deferredPrompt = null;
     
-    window.addEventListener('beforeinstallprompt', (e) => {
+    globalThis.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       deferredPrompt = e;
       
@@ -154,7 +154,7 @@ class JemaOSGallery {
       this.showInstallPrompt(deferredPrompt);
     });
     
-    window.addEventListener('appinstalled', () => {
+    globalThis.addEventListener('appinstalled', () => {
       console.log('📱 PWA was installed');
       this.showToast('Galerie installée avec succès !', 'success');
     });
@@ -173,8 +173,8 @@ class JemaOSGallery {
    * Setup file handlers
    */
   setupFileHandlers() {
-    if ('launchQueue' in window) {
-      window.launchQueue.setConsumer(async (launchData) => {
+    if ('launchQueue' in globalThis) {
+      globalThis.launchQueue.setConsumer(async (launchData) => {
         if (launchData.files && launchData.files.length > 0) {
           const loadedFiles = await this.fileHandler.loadFiles(launchData.files);
 
@@ -194,7 +194,7 @@ class JemaOSGallery {
    */
   async setupShareTarget() {
     // Check if this is a shared file request
-    const urlParams = new URLSearchParams(window.location.search);
+    const urlParams = new URLSearchParams(globalThis.location.search);
     const sharedFiles = urlParams.get('shared-files');
     
     if (sharedFiles) {
@@ -242,19 +242,19 @@ class JemaOSGallery {
    */
   setupErrorHandling() {
     // Global error handler
-    window.addEventListener('error', (event) => {
+    globalThis.addEventListener('error', (event) => {
       console.error('💥 Global error:', event.error);
       this.handleError(event.error);
     });
     
     // Unhandled promise rejection handler
-    window.addEventListener('unhandledrejection', (event) => {
+    globalThis.addEventListener('unhandledrejection', (event) => {
       console.error('💥 Unhandled promise rejection:', event.reason);
       this.handleError(event.reason);
     });
     
     // File error handler
-    window.addEventListener('fileerror', (event) => {
+    globalThis.addEventListener('fileerror', (event) => {
       console.error('💥 File error:', event.detail);
       this.uiController.showToast(`Erreur lors du chargement du fichier : ${event.detail.filename}`, 'error');
     });
@@ -287,7 +287,7 @@ class JemaOSGallery {
       stack: error.stack,
       userAgent: navigator.userAgent,
       timestamp: new Date().toISOString(),
-      url: window.location.href
+      url: globalThis.location.href
     };
     
     // Store in localStorage for debugging
@@ -342,7 +342,7 @@ class JemaOSGallery {
         
         // Wait for the new service worker to take control
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          window.location.reload();
+          globalThis.location.reload();
         }, { once: true });
       } else {
         window.location.reload();
@@ -534,7 +534,7 @@ if (document.readyState === 'loading') {
 }
 
 // Make app available globally for debugging
-window.galleryAppDebug = {
+globalThis.galleryAppDebug = {
   app: galleryApp,
   clearData: () => galleryApp.clearAllData(),
   exportSettings: () => galleryApp.exportSettings(),
@@ -547,7 +547,7 @@ window.galleryAppDebug = {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     // Pause any playing media
-    if (window.fullscreenViewer?.isOpen) {
+    if (globalThis.fullscreenViewer?.isOpen) {
       const media = document.querySelector('#viewer-media video, #viewer-media audio');
       if (media && !media.paused) {
         media.pause();

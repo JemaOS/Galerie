@@ -49,8 +49,8 @@ class UIController {
     this.setupKeyboardShortcuts();
     
     // Initialize Audio Player
-    if (window.audioPlayer) {
-      window.audioPlayer.init();
+    if (globalThis.audioPlayer) {
+      globalThis.audioPlayer.init();
     }
 
     this.updateUI();
@@ -999,7 +999,7 @@ class UIController {
 }
 
 // Export for use in other modules
-window.UIController = UIController;
+globalThis.UIController = UIController;
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = UIController;

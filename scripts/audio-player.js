@@ -106,8 +106,8 @@ class AudioPlayer {
         this.elements.nextBtn.addEventListener('click', this.handleNext);
         if (this.elements.infoBtn) {
             this.elements.infoBtn.addEventListener('click', () => {
-                if (this.playlist[this.currentIndex] && window.galleryUI) {
-                    window.galleryUI.showFileModal(this.playlist[this.currentIndex]);
+                if (this.playlist[this.currentIndex] && globalThis.galleryUI) {
+                    globalThis.galleryUI.showFileModal(this.playlist[this.currentIndex]);
                 }
             });
         }
@@ -159,12 +159,12 @@ class AudioPlayer {
 
         // If we only have one file, return to home page (landing state)
         // BUT skip this if we're just switching viewers
-        if (!skipFileRemoval && window.galleryUI?.fileHandler) {
-            if (window.galleryUI.fileHandler.files.length === 1) {
-                const files = window.galleryUI.fileHandler.files;
+        if (!skipFileRemoval && globalThis.galleryUI?.fileHandler) {
+            if (globalThis.galleryUI.fileHandler.files.length === 1) {
+                const files = globalThis.galleryUI.fileHandler.files;
                 if (files.length > 0) {
-                    window.galleryUI.fileHandler.removeFile(files[0].id);
-                    window.galleryUI.renderFiles();
+                    globalThis.galleryUI.fileHandler.removeFile(files[0].id);
+                    globalThis.galleryUI.renderFiles();
                 }
             }
         }
@@ -441,7 +441,7 @@ class AudioPlayer {
 }
 
 // Initialize
-window.audioPlayer = new AudioPlayer();
+globalThis.audioPlayer = new AudioPlayer();
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = AudioPlayer;

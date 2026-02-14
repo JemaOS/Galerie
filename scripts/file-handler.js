@@ -132,8 +132,7 @@ class FileHandler {
    * @private
    */
   async _processFileList(fileList, files, errors) {
-    for (let i = 0; i < fileList.length; i++) {
-      const file = fileList[i];
+    for (const file of fileList) {
       const result = await this.processFile(file);
       if (result) {
         files.push(result);
@@ -920,7 +919,7 @@ class FileHandler {
                   }],
               };
               
-              const handle = await window.showSaveFilePicker(options);
+              const handle = await globalThis.showSaveFilePicker(options);
               const writable = await handle.createWritable();
               await writable.write(blob);
               await writable.close();
@@ -1044,9 +1043,9 @@ class FileHandler {
    * @returns {boolean} True if any viewer is open
    */
   _isAnyViewerOpen() {
-    return (window.fullscreenViewer?.isViewerOpen()) ||
-           (window.pdfViewer?.isOpen) ||
-           (window.audioPlayer?.elements?.container && !window.audioPlayer.elements.container.classList.contains('hidden'));
+    return (globalThis.fullscreenViewer?.isViewerOpen()) ||
+           (globalThis.pdfViewer?.isOpen) ||
+           (globalThis.audioPlayer?.elements?.container && !globalThis.audioPlayer.elements.container.classList.contains('hidden'));
   }
 
   /**
@@ -1144,8 +1143,8 @@ class FileHandler {
    */
   _extractFilesFromClipboard(items) {
     const files = [];
-    for (let i = 0; i < items.length; i++) {
-      const file = this._getSupportedFileFromItem(items[i]);
+    for (const item of items) {
+      const file = this._getSupportedFileFromItem(item);
       if (file) files.push(file);
     }
     return files;
@@ -1179,14 +1178,14 @@ class FileHandler {
    */
   showToast(message, type = 'info') {
     // This would be handled by the UI controller
-    if (window.galleryUI?.showToast) {
-      window.galleryUI.showToast(message, type);
+    if (globalThis.galleryUI?.showToast) {
+      globalThis.galleryUI.showToast(message, type);
     }
   }
 }
 
 // Export for use in other modules
-window.FileHandler = FileHandler;
+globalThis.FileHandler = FileHandler;
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = FileHandler;
