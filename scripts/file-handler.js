@@ -467,7 +467,6 @@ class FileHandler {
         video.src = fileObject.url;
         video.currentTime = 1; // Seek to 1 second
       });
-    }
   }
 
   /**
