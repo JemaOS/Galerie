@@ -22,12 +22,13 @@
  */
 
 class JemaOSGallery {
+  fileHandler = null;
+  uiController = null;
+  fullscreenViewer = null;
+  pdfViewer = null;
+  isInitialized = false;
+  
   constructor() {
-    this.fileHandler = null;
-    this.uiController = null;
-    this.fullscreenViewer = null;
-    this.pdfViewer = null;
-    this.isInitialized = false;
   }
 
   /**

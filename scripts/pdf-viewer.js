@@ -58,7 +58,7 @@ class PdfViewer {
     
     // Zoom state - this.scale is the VISUAL zoom level (what user sees)
     // Canvases are always rendered at BASE_RENDER_SCALE
-    this.scale = 1.0;
+    this.scale = 1;
     this.rotation = 0;
     
     this.canvas = null;
@@ -924,7 +924,7 @@ class PdfViewer {
   applyOpenOptions(options) {
     if (!options.preserveState) {
       this.pageNum = 1;
-      this.scale = 1.0;
+      this.scale = 1;
       this.rotation = 0;
     } else {
       if (options.pageNum) this.pageNum = options.pageNum;
@@ -1688,7 +1688,7 @@ class PdfViewer {
   calculateRenderScale(num, scaleOverride) {
       const dpr = window.devicePixelRatio || 1;
       const targetScale = scaleOverride || PdfViewer.BASE_RENDER_SCALE;
-      let renderScale = Math.min(targetScale * dpr, 3.0);
+      let renderScale = Math.min(targetScale * dpr, 3);
       
       const MAX_CANVAS_DIM = 4096;
       const baseWidth = this.basePageWidths[num] || this.basePageWidths[1];
@@ -2315,7 +2315,7 @@ class PdfViewer {
   async calculateInitialScale() {
     try {
         if (!this.pdfDoc) {
-            this.scale = 1.0;
+            this.scale = 1;
             return;
         }
 
@@ -2324,7 +2324,7 @@ class PdfViewer {
         
         const main = document.getElementById('pdf-main');
         if (!main) {
-            this.scale = 1.0;
+            this.scale = 1;
             return;
         }
         
@@ -2333,7 +2333,7 @@ class PdfViewer {
         const availableHeight = main.clientHeight - 48;
         
         if (availableWidth <= 0 || availableHeight <= 0) {
-            this.scale = 1.0;
+            this.scale = 1;
             return;
         }
 
@@ -2350,7 +2350,7 @@ class PdfViewer {
         
     } catch (error) {
         console.error('Error calculating initial scale:', error);
-        this.scale = 1.0;
+        this.scale = 1;
     }
   }
 

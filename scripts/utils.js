@@ -304,7 +304,13 @@ class GalleryUtils {
         textArea.style.opacity = '0';
         document.body.appendChild(textArea);
         textArea.select();
-        document.execCommand('copy');
+        try {
+          // Modern Clipboard API
+          await navigator.clipboard.writeText(text);
+        } catch (clipboardErr) {
+          // Fallback to execCommand
+          document.execCommand('copy');
+        }
         textArea.remove();
         return true;
       }
