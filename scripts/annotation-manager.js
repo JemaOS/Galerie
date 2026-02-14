@@ -108,6 +108,7 @@ class AnnotationManager {
             this.updatePropertiesVisibility();
         } else {
             this.renderProperties(this.options.propertiesContainer);
+        }
     }
 
     this.createCursor();
