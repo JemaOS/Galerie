@@ -761,11 +761,11 @@ class UIController {
     const selectedFiles = this.fileHandler.getSelectedFiles();
     if (selectedFiles.length === 0) return;
     
-    if (confirm(`Supprimer ${selectedFiles.length} fichier${selectedFiles.length !== 1 ? 's' : ''} ?`)) {
+    if (confirm(`Supprimer ${selectedFiles.length} fichier${selectedFiles.length === 1 ? '' : 's'} ?`)) {
       const fileIds = selectedFiles.map(f => f.id);
       this.fileHandler.removeFiles(fileIds);
       this.renderFiles();
-      this.showToast(`${selectedFiles.length} fichier${selectedFiles.length !== 1 ? 's' : ''} supprimé${selectedFiles.length !== 1 ? 's' : ''}`, 'success');
+      this.showToast(`${selectedFiles.length} fichier${selectedFiles.length === 1 ? '' : 's'} supprimé${selectedFiles.length === 1 ? '' : 's'}`, 'success');
     }
   }
 
@@ -774,10 +774,10 @@ class UIController {
    * @param {Array<string>} fileIds - Array of file IDs
    */
   deleteFiles(fileIds) {
-    if (confirm(`Supprimer ${fileIds.length} fichier${fileIds.length !== 1 ? 's' : ''} ?`)) {
+    if (confirm(`Supprimer ${fileIds.length} fichier${fileIds.length === 1 ? '' : 's'} ?`)) {
       this.fileHandler.removeFiles(fileIds);
       this.renderFiles();
-      this.showToast(`${fileIds.length} fichier${fileIds.length !== 1 ? 's' : ''} supprimé${fileIds.length !== 1 ? 's' : ''}`, 'success');
+      this.showToast(`${fileIds.length} fichier${fileIds.length === 1 ? '' : 's'} supprimé${fileIds.length === 1 ? '' : 's'}`, 'success');
 
       // Notify viewers
       if (globalThis.fullscreenViewer?.isViewerOpen()) {
@@ -802,7 +802,7 @@ class UIController {
     
     const success = await this.shareFiles(selectedFiles);
     if (success) {
-      this.showToast(`Partagé ${selectedFiles.length} fichier${selectedFiles.length !== 1 ? 's' : ''}`, 'success');
+      this.showToast(`Partagé ${selectedFiles.length} fichier${selectedFiles.length === 1 ? '' : 's'}`, 'success');
     } else {
       this.showToast('Échec du partage des fichiers', 'error');
     }
@@ -836,7 +836,7 @@ class UIController {
     
     const success = await this.copyFiles(selectedFiles);
     if (success) {
-      this.showToast(`${selectedFiles.length} fichier${selectedFiles.length !== 1 ? 's' : ''} copié${selectedFiles.length !== 1 ? 's' : ''} dans le presse-papiers`, 'success');
+      this.showToast(`${selectedFiles.length} fichier${selectedFiles.length === 1 ? '' : 's'} copié${selectedFiles.length === 1 ? '' : 's'} dans le presse-papiers`, 'success');
     }
   }
 
@@ -886,7 +886,7 @@ class UIController {
     files.forEach(file => {
       GalleryUtils.downloadFile(file.url, file.name);
     });
-    this.showToast(`${files.length} fichier${files.length !== 1 ? 's' : ''} téléchargé${files.length !== 1 ? 's' : ''}`, 'success');
+    this.showToast(`${files.length} fichier${files.length === 1 ? '' : 's'} téléchargé${files.length === 1 ? '' : 's'}`, 'success');
   }
 
   /**

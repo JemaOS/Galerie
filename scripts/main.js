@@ -345,7 +345,7 @@ class JemaOSGallery {
           globalThis.location.reload();
         }, { once: true });
       } else {
-        window.location.reload();
+        globalThis.location.reload();
       }
     });
     

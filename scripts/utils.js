@@ -185,9 +185,9 @@ class GalleryUtils {
    */
   static sanitizeFilename(filename) {
     return filename
-      .replace(/[<>:"/\\|?*]/g, '_')
-      .replace(/\.\.+/g, '_')
-      .replace(/\s+/g, ' ')
+      .replaceAll(/[<>:"/\\|?*]/g, '_')
+      .replaceAll(/\.\.+/g, '_')
+      .replaceAll(/\s+/g, ' ')
       .trim();
   }
 

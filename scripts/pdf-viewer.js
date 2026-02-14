@@ -43,7 +43,7 @@ if (typeof pdfjsLib !== 'undefined') {
 class PdfViewer {
   // Fixed render scale - canvases are always rendered at this resolution
   static BASE_RENDER_SCALE = 1.5;
-  static MAX_ZOOM = 5.0;
+  static MAX_ZOOM = 5;
   static MIN_ZOOM = 0.2;
 
   constructor(fileHandler, uiController) {

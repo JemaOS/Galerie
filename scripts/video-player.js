@@ -392,7 +392,7 @@ class VideoPlayer {
     }
 
     toggleFullscreen() {
-        if (!document.fullscreenElement) {
+        if (document.fullscreenElement === null) {
             this.container.requestFullscreen().catch(err => {
                 console.error(`Error attempting to enable fullscreen: ${err.message}`);
             });

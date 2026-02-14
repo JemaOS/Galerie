@@ -429,12 +429,14 @@ class FileHandler {
    * @returns {Promise<string>} Thumbnail data URL
    */
   async generateVideoThumbnail(fileObject) {
-    try {
-      // Try using GalleryUtils method
-      return await GalleryUtils.createVideoThumbnail(fileObject.url, 1);
-    } catch (error) {
-      // Fallback to video element method
-      return new Promise((resolve, reject) => {
+    // Try using GalleryUtils method first
+    const galleryUtilsThumbnail = await GalleryUtils.createVideoThumbnail(fileObject.url, 1).catch(() => null);
+    if (galleryUtilsThumbnail) {
+      return galleryUtilsThumbnail;
+    }
+    
+    // Fallback to video element method
+    return new Promise((resolve, reject) => {
         const video = document.createElement('video');
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');

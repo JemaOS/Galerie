@@ -104,11 +104,10 @@ class AnnotationManager {
     });
 
     if (this.options.propertiesContainer) {
-        if (this.propertiesContainer !== this.options.propertiesContainer) {
-            this.renderProperties(this.options.propertiesContainer);
-        } else {
+        if (this.propertiesContainer === this.options.propertiesContainer) {
             this.updatePropertiesVisibility();
-        }
+        } else {
+            this.renderProperties(this.options.propertiesContainer);
     }
 
     this.createCursor();
@@ -982,7 +981,7 @@ class AnnotationManager {
   createTextInput(x, y, width, height) {
       const container = this.activeCanvas.parentElement;
       const wrapper = document.createElement('div');
-      wrapper.id = `text-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      wrapper.id = `text-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
       wrapper.className = 'text-input-wrapper';
       wrapper.style.position = 'absolute';
       wrapper.style.left = `${x}px`;
