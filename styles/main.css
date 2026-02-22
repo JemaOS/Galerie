@@ -319,6 +319,7 @@ body {
   align-items: center;
   justify-content: center;
   transition: background-color var(--transition-fast);
+  pointer-events: auto;
 }
 
 .icon-btn:hover {
@@ -589,6 +590,7 @@ input:checked + .slider:before {
   font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: background-color var(--transition-fast);
+  pointer-events: auto;
 }
 
 .primary-btn:hover {

@@ -271,6 +271,7 @@
     width: 40px;
     height: 40px;
     transition: background-color var(--transition-fast);
+    pointer-events: auto;
 }
 
 .control-btn:hover {

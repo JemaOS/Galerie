@@ -113,6 +113,7 @@
   justify-content: center;
   transition: all var(--transition-fast);
   backdrop-filter: blur(10px);
+  pointer-events: auto;
 }
 
 .viewer-btn:hover {
@@ -233,6 +234,7 @@
   align-items: center;
   justify-content: center;
   transition: background 0.2s;
+  pointer-events: auto;
 }
 
 .video-btn:hover {
@@ -514,6 +516,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: auto;
 }
 
 .icon-btn:hover {
@@ -890,6 +893,7 @@
     justify-content: center;
     gap: 8px;
     font-weight: 500;
+    pointer-events: auto;
 }
 
 .split-btn-arrow {
@@ -903,4 +907,5 @@
     align-items: center;
     justify-content: center;
     border-left: 1px solid rgba(0,0,0,0.1);
+    pointer-events: auto;
 }
