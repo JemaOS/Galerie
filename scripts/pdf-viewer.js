@@ -309,11 +309,27 @@ class PdfViewer {
     }
 
     if (this.elements.undoEditBtn) {
-        this.elements.undoEditBtn.addEventListener('click', () => this.handleUndo());
+        this.elements.undoEditBtn.addEventListener('click', () => {
+            if (this.isTextEditMode && this.textEditor) {
+                this.textEditor.undo();
+            } else if (this.annotationManager && this.annotationManager.isActive) {
+                this.annotationManager.undo();
+            } else {
+                this.handleUndo();
+            }
+        });
     }
     
     if (this.elements.redoEditBtn) {
-        this.elements.redoEditBtn.addEventListener('click', () => this.handleRedo());
+        this.elements.redoEditBtn.addEventListener('click', () => {
+            if (this.isTextEditMode && this.textEditor) {
+                this.textEditor.redo();
+            } else if (this.annotationManager && this.annotationManager.isActive) {
+                this.annotationManager.redo();
+            } else {
+                this.handleRedo();
+            }
+        });
     }
 
     // Tool Buttons
@@ -332,7 +348,7 @@ class PdfViewer {
   handleUndo() {
     if (this.isTextEditMode && this.textEditor) {
         this.textEditor.undo();
-    } else if (this.annotationManager) {
+    } else if (this.annotationManager && this.annotationManager.isActive) {
         this.annotationManager.undo();
     }
   }
@@ -343,7 +359,7 @@ class PdfViewer {
   handleRedo() {
     if (this.isTextEditMode && this.textEditor) {
         this.textEditor.redo();
-    } else if (this.annotationManager) {
+    } else if (this.annotationManager && this.annotationManager.isActive) {
         this.annotationManager.redo();
     }
   }
@@ -408,12 +424,12 @@ class PdfViewer {
         }
         
         // Otherwise use annotation manager
-        if (!this.annotationManager) return;
-        
-        if (e.shiftKey) {
-            this.annotationManager.redo();
-        } else {
-            this.annotationManager.undo();
+        if (this.annotationManager && this.annotationManager.isActive) {
+            if (e.shiftKey) {
+                this.annotationManager.redo();
+            } else {
+                this.annotationManager.undo();
+            }
         }
     }
     
@@ -428,7 +444,7 @@ class PdfViewer {
         }
         
         // Otherwise use annotation manager
-        if (this.annotationManager) {
+        if (this.annotationManager && this.annotationManager.isActive) {
             this.annotationManager.redo();
         }
     }

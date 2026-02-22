@@ -48,6 +48,19 @@
     padding: 0 16px;
     box-shadow: var(--shadow-sm);
     z-index: 10;
+    pointer-events: none;
+}
+
+.pdf-toolbar > * {
+    pointer-events: auto;
+}
+
+.pdf-toolbar.edit-mode-toolbar {
+    pointer-events: auto;
+}
+
+#pdf-edit-toolbar {
+    pointer-events: auto;
 }
 
 .pdf-toolbar-left,

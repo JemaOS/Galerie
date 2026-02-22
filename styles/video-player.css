@@ -54,6 +54,10 @@
 
 .video-top-bar.visible {
     opacity: 1;
+    pointer-events: none;
+}
+
+.video-top-bar > * {
     pointer-events: auto;
 }
 

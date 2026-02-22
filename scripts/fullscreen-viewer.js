@@ -211,8 +211,20 @@ class FullscreenViewer {
         this.elements.exitEditBtn.addEventListener('click', () => this.toggleEditMode(false));
     }
 
-    if (this.elements.undoEditBtn) this.elements.undoEditBtn.addEventListener('click', () => this.undo());
-    if (this.elements.redoEditBtn) this.elements.redoEditBtn.addEventListener('click', () => this.redo());
+    if (this.elements.undoEditBtn) this.elements.undoEditBtn.addEventListener('click', () => {
+        if (this.annotationManager && this.annotationManager.isActive) {
+            this.annotationManager.undo();
+        } else {
+            this.undo();
+        }
+    });
+    if (this.elements.redoEditBtn) this.elements.redoEditBtn.addEventListener('click', () => {
+        if (this.annotationManager && this.annotationManager.isActive) {
+            this.annotationManager.redo();
+        } else {
+            this.redo();
+        }
+    });
 
     // Tool Buttons
     const toolBtns = this.elements.editToolbar.querySelectorAll('.tool-btn');
@@ -324,9 +336,17 @@ class FullscreenViewer {
             if (e.ctrlKey || e.metaKey) {
                 e.preventDefault();
                 if (e.shiftKey) {
-                    this.redo();
+                    if (this.annotationManager && this.annotationManager.isActive) {
+                        this.annotationManager.redo();
+                    } else {
+                        this.redo();
+                    }
                 } else {
-                    this.undo();
+                    if (this.annotationManager && this.annotationManager.isActive) {
+                        this.annotationManager.undo();
+                    } else {
+                        this.undo();
+                    }
                 }
             }
             break;

@@ -833,12 +833,13 @@ class AnnotationManager {
       const action = this.history[this.historyStep];
       
       if (!action.type || action.type === 'drawing') {
+          this.historyStep--;
           this.undoDrawingAction(action);
       } else {
+          this.historyStep--;
           this.undoTextAction(action);
       }
       
-      this.historyStep--;
       this.isRestoring = false;
   }
 

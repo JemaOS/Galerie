@@ -61,6 +61,11 @@
 .viewer-toolbar.edit-mode-toolbar {
   position: relative;
   background: var(--surface-color);
+  pointer-events: auto;
+}
+
+#viewer-edit-toolbar {
+  pointer-events: auto;
 }
 
 .viewer-top-left {
@@ -200,10 +205,12 @@
   min-width: 400px;
   max-width: 90vw;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
 }
 
 .video-controls-container.visible {
   opacity: 1;
+  pointer-events: auto;
 }
 
 .video-controls-row {
@@ -850,6 +857,7 @@
     color: #e8eaed;
     border: none;
     margin: 0 4px;
+    pointer-events: auto;
 }
 
 .tool-btn:hover {
@@ -907,5 +915,35 @@
     align-items: center;
     justify-content: center;
     border-left: 1px solid rgba(0,0,0,0.1);
+    pointer-events: auto;
+}
+
+.split-btn-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background-color: #2d2e30;
+    border: 1px solid #3c4043;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    display: none;
+    flex-direction: column;
+    min-width: 180px;
+    z-index: 100;
+    margin-top: 4px;
+    pointer-events: auto;
+}
+
+.split-btn-item {
+    background: none;
+    border: none;
+    color: #e8eaed;
+    cursor: pointer;
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
     pointer-events: auto;
 }
