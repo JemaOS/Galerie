@@ -174,9 +174,9 @@ class GalleryUtils {
    * Generate unique ID
    * @returns {string} Unique identifier
    */
-  // Math.random for ID generation - not cryptographic, just unique identifiers
+  // Using crypto.randomUUID() for ID generation - provides cryptographically secure random IDs
   static generateId() {
-    return Date.now().toString(36) + Math.random().toString(36).substring(2);
+    return Date.now().toString(36) + '-' + crypto.randomUUID();
   }
 
   /**

@@ -396,12 +396,40 @@ class PdfViewer {
   handleEditKeys(e) {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
+        
+        // Check if in text edit mode first
+        if (this.isTextEditMode && this.textEditor) {
+            if (e.shiftKey) {
+                this.textEditor.redo();
+            } else {
+                this.textEditor.undo();
+            }
+            return;
+        }
+        
+        // Otherwise use annotation manager
         if (!this.annotationManager) return;
         
         if (e.shiftKey) {
             this.annotationManager.redo();
         } else {
             this.annotationManager.undo();
+        }
+    }
+    
+    // Handle Ctrl+Y for redo (alternative to Ctrl+Shift+Z)
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        
+        // Check if in text edit mode first
+        if (this.isTextEditMode && this.textEditor) {
+            this.textEditor.redo();
+            return;
+        }
+        
+        // Otherwise use annotation manager
+        if (this.annotationManager) {
+            this.annotationManager.redo();
         }
     }
   }

@@ -557,6 +557,24 @@ class AnnotationManager {
 
   handleKeyDown(e) {
       if (!this.isActive) return;
+      
+      // Handle Ctrl+Z (Undo) and Ctrl+Y or Ctrl+Shift+Z (Redo)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) {
+              this.redo();
+          } else {
+              this.undo();
+          }
+          return;
+      }
+      // Handle Ctrl+Y (Redo alternative)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+          e.preventDefault();
+          this.redo();
+          return;
+      }
+      
       if (e.key === 'Delete' || e.key === 'Backspace') {
           if (this.activeWrapper?.classList.contains('selected')) {
               if (document.activeElement === this.activeInput) return;
@@ -982,8 +1000,8 @@ class AnnotationManager {
   createTextInput(x, y, width, height) {
       const container = this.activeCanvas.parentElement;
       const wrapper = document.createElement('div');
-      // Math.random for generating unique element IDs - not cryptographic
-      wrapper.id = `text-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+      // Using crypto.randomUUID() for generating unique element IDs - safe for this use case
+      wrapper.id = `text-${Date.now()}-${crypto.randomUUID().substring(0, 8)}`;
       wrapper.className = 'text-input-wrapper';
       wrapper.style.position = 'absolute';
       wrapper.style.left = `${x}px`;

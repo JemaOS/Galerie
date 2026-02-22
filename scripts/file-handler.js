@@ -518,8 +518,10 @@ class FileHandler {
     ctx.fillStyle = '#34a853';
     for (let i = 0; i < 20; i++) {
       const x = i * 10 + 5;
-      // Math.random for visual waveform heights - not cryptographic
-      const height = Math.random() * 100 + 20;
+      // Using crypto.getRandomValues for visual waveform heights
+      const randomBuffer = new Uint32Array(1);
+      crypto.getRandomValues(randomBuffer);
+      const height = (randomBuffer[0] % 100) + 20;
       const y = 100 - height / 2;
       ctx.fillRect(x, y, 6, height);
     }

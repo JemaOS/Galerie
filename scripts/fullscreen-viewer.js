@@ -575,8 +575,14 @@ class FullscreenViewer {
                           onAction: () => {
                               this.addToHistory({
                                   type: 'annotation',
-                                  undo: () => this.annotationManager.undo(),
-                                  redo: () => this.annotationManager.redo()
+                                  undo: () => {
+                                      this.annotationManager.undo();
+                                      this.updateUndoRedoButtons();
+                                  },
+                                  redo: () => {
+                                      this.annotationManager.redo();
+                                      this.updateUndoRedoButtons();
+                                  }
                               });
                           }
                       });
