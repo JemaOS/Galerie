@@ -933,11 +933,11 @@ class AnnotationManager {
 
   serializeTextWrapper(wrapper) {
       const input = wrapper.querySelector('textarea');
-      const canvas = wrapper.parentElement.querySelector('canvas');
-      // Find pageId
+      const container = wrapper.parentElement;
+      // Find pageId by matching the container (more reliable than canvas querySelector)
       let pageId = null;
       for (const [id, page] of this.pages) {
-          if (page.canvas === canvas) {
+          if (page.container === container) {
               pageId = id;
               break;
           }
