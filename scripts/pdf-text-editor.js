@@ -2125,7 +2125,7 @@ class PdfTextEditor {
         
         // Interaction
         el.addEventListener('click', (e) => this.handleTextClick(e, el));
-        el.addEventListener('blur', (e) => this.handleTextBlur(e, el));
+        el.addEventListener('focusout', (e) => this.handleTextBlur(e, el));
         el.addEventListener('keydown', (e) => this.handleKeyDown(e, el));
         
         // Re-enable pointer events for the text item
@@ -2257,7 +2257,7 @@ class PdfTextEditor {
             this.undo();
         }
         // Check for Ctrl+Y or Ctrl+Shift+Z (Redo)
-        else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
             e.preventDefault();
             this.redo();
         }
@@ -2388,6 +2388,30 @@ class PdfTextEditor {
             if (content) {
                 content.textContent = targetText;
                 this.updateChangesMap(el, targetText);
+                
+                // Update visual state to reflect modification status
+                const originalText = el.dataset.originalText;
+                if (targetText !== originalText) {
+                    el.classList.add('modified');
+                    
+                    if (el.dataset.color) {
+                        const c = JSON.parse(el.dataset.color);
+                        el.style.color = `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+                    } else {
+                        el.style.color = 'black';
+                    }
+
+                    if (el.dataset.bgColor) {
+                        const bg = JSON.parse(el.dataset.bgColor);
+                        el.style.backgroundColor = `rgb(${bg[0]}, ${bg[1]}, ${bg[2]})`;
+                    } else {
+                        el.style.backgroundColor = 'white';
+                    }
+                } else {
+                    el.classList.remove('modified');
+                    el.style.backgroundColor = '';
+                    el.style.color = '';
+                }
             }
         } else {
             console.warn(`Could not find element for undo/redo: ${action.id}`);

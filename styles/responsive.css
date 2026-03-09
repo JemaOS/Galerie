@@ -37,7 +37,7 @@
   }
   
   .viewer-toolbar {
-    padding: var(--space-lg) var(--space-2xl);
+    padding: 0 var(--space-2xl);
   }
   
   .viewer-thumbnails {
@@ -100,7 +100,7 @@
   }
   
   .viewer-toolbar {
-    padding: var(--space-md) var(--space-lg);
+    padding: 0 var(--space-lg);
   }
   
   .viewer-filename {
@@ -186,8 +186,7 @@
   }
   
   .viewer-toolbar {
-    padding: var(--space-sm);
-    flex-wrap: wrap;
+    padding: 0 var(--space-sm);
   }
   
   .viewer-info {
@@ -286,7 +285,7 @@
   /* Selection Toolbar removed */
   
   .viewer-toolbar {
-    padding: var(--space-xs);
+    padding: 0 var(--space-xs);
   }
   
   .viewer-btn {
@@ -405,7 +404,7 @@
   }
   
   .viewer-toolbar {
-    padding: var(--space-xs);
+    padding: 0 var(--space-xs);
   }
   
   .viewer-info {
@@ -513,7 +512,7 @@
   }
   
   .viewer-toolbar {
-    padding: var(--space-xs) var(--space-md);
+    padding: 0 var(--space-md);
   }
   
   .viewer-thumbnails {

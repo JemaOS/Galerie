@@ -174,8 +174,14 @@ class FullscreenViewer {
 
     if (this.elements.delete) this.elements.delete.addEventListener('click', () => this.uiController.deleteFiles([this.currentFile.id]));
     
-    if (this.elements.zoomOut) this.elements.zoomOut.addEventListener('click', () => this.setZoom(this.zoomLevel - 0.1));
-    if (this.elements.zoomIn) this.elements.zoomIn.addEventListener('click', () => this.setZoom(this.zoomLevel + 0.1));
+    if (this.elements.zoomOut) this.elements.zoomOut.addEventListener('click', () => {
+        this._targetZoom = null; // Reset animation target
+        this.setZoom(this.zoomLevel - 0.1);
+    });
+    if (this.elements.zoomIn) this.elements.zoomIn.addEventListener('click', () => {
+        this._targetZoom = null; // Reset animation target
+        this.setZoom(this.zoomLevel + 0.1);
+    });
     
     if (this.elements.rotate) {
         this.elements.rotate.addEventListener('click', () => {
@@ -214,6 +220,7 @@ class FullscreenViewer {
     if (this.elements.undoEditBtn) this.elements.undoEditBtn.addEventListener('click', () => {
         if (this.annotationManager && this.annotationManager.isActive) {
             this.annotationManager.undo();
+            this.updateUndoRedoButtons();
         } else {
             this.undo();
         }
@@ -221,6 +228,7 @@ class FullscreenViewer {
     if (this.elements.redoEditBtn) this.elements.redoEditBtn.addEventListener('click', () => {
         if (this.annotationManager && this.annotationManager.isActive) {
             this.annotationManager.redo();
+            this.updateUndoRedoButtons();
         } else {
             this.redo();
         }
@@ -267,39 +275,35 @@ class FullscreenViewer {
       }
     });
     
-    // Wheel for zoom (images) - optimized with exponential factor
+    // Wheel for zoom (images) - smooth animated zoom like Windows 11 Photos
     this.elements.media.addEventListener('wheel', (e) => {
       if (this.currentFile?.type === 'image') {
         e.preventDefault();
         
-        const img = this.elements.media.querySelector('img');
-        if (img && !img.classList.contains('zooming')) {
-            img.classList.add('zooming');
-        }
-        
+        // Normalize delta to a consistent step regardless of device
         let deltaY = e.deltaY;
+        if (e.deltaMode === 1) deltaY *= 16;
+        else if (e.deltaMode === 2) deltaY *= 800;
         
-        // Normalize deltaMode (1 = lines, 2 = pages)
-        if (e.deltaMode === 1) {
-            deltaY *= 16;
-        } else if (e.deltaMode === 2) {
-            deltaY *= 800;
+        // Clamp delta to prevent extreme jumps from high-resolution trackpads
+        deltaY = Math.max(-300, Math.min(300, deltaY));
+        
+        // Use a much gentler zoom factor: ~1.1x per standard wheel notch (100px)
+        const zoomFactor = Math.pow(1.001, -deltaY);
+        
+        // Set target zoom (accumulate for smooth animation)
+        if (!this._targetZoom) this._targetZoom = this.zoomLevel;
+        this._targetZoom = Math.max(0.1, Math.min(10, this._targetZoom * zoomFactor));
+        
+        // Store cursor position for zoom-toward-cursor
+        this._zoomFocusX = e.clientX;
+        this._zoomFocusY = e.clientY;
+        
+        // Start animation loop if not already running
+        if (!this._zoomAnimating) {
+            this._zoomAnimating = true;
+            this._animateZoom();
         }
-
-        // Facteur exponentiel (comme PDF viewer) - plus naturel
-        const delta = -deltaY;
-        const factor = Math.pow(1.01, delta);
-        const newZoom = this.zoomLevel * factor;
-        
-        this.setZoom(newZoom, e.clientX, e.clientY);
-        
-        // Retirer la classe zooming après un délai
-        if (this.zoomingClassTimeout) {
-            clearTimeout(this.zoomingClassTimeout);
-        }
-        this.zoomingClassTimeout = setTimeout(() => {
-            if (img) img.classList.remove('zooming');
-        }, 150);
       }
     }, { passive: false });
     
@@ -563,13 +567,11 @@ class FullscreenViewer {
       toolBtns.forEach(btn => {
           if (btn.dataset.tool === toolId) {
               btn.classList.add('active');
-              btn.style.backgroundColor = 'rgba(101, 105, 208, 0.2)';
-              btn.style.color = '#6569d0';
           } else {
               btn.classList.remove('active');
-              btn.style.backgroundColor = '';
-              btn.style.color = '';
           }
+          btn.style.backgroundColor = '';
+          btn.style.color = '';
       });
 
       if (toolId === 'adjust') {
@@ -604,6 +606,7 @@ class FullscreenViewer {
                                       this.updateUndoRedoButtons();
                                   }
                               });
+                              this.updateUndoRedoButtons();
                           }
                       });
                   }
@@ -1081,6 +1084,11 @@ class FullscreenViewer {
     // Clear media container
     this.elements.media.innerHTML = '';
     
+    // Reset smooth zoom animation state
+    this._targetZoom = null;
+    this._zoomAnimating = false;
+    this._cachedImg = null;
+    
     // Cleanup previous video player if exists
     if (this.videoPlayer) {
       this.videoPlayer.destroy();
@@ -1133,6 +1141,8 @@ class FullscreenViewer {
     
     img.addEventListener('load', () => {
       this.elements.media.appendChild(img);
+      // Cache the img element reference for performance
+      this._cachedImg = img;
       this.resetZoom();
       // Reset adjustments on new load
       this.adjustments = { brightness: 0, exposure: 0, contrast: 0, highlights: 0, shadows: 0, vignette: 0, saturation: 0, warmth: 0, tint: 0, sharpness: 0 };
@@ -1370,6 +1380,47 @@ class FullscreenViewer {
   }
 
   /**
+   * Smooth animated zoom loop (exponential interpolation like Windows 11 Photos)
+   * Called via requestAnimationFrame for buttery-smooth zoom transitions
+   */
+  _animateZoom() {
+    if (!this._targetZoom) {
+        this._zoomAnimating = false;
+        return;
+    }
+    
+    const diff = this._targetZoom - this.zoomLevel;
+    
+    // If close enough to target, snap to it and stop
+    if (Math.abs(diff) < 0.001) {
+        this.setZoom(this._targetZoom, this._zoomFocusX, this._zoomFocusY);
+        this._zoomAnimating = false;
+        this._targetZoom = null;
+        
+        // Re-apply filters after zoom settles
+        const img = this._cachedImg || this.elements.media.querySelector('img');
+        if (img) img.classList.remove('zooming');
+        return;
+    }
+    
+    // Exponential interpolation (lerp) — smoothing factor
+    // 0.15 = responsive but smooth, like Windows 11 Photos
+    const smoothing = 0.15;
+    const newZoom = this.zoomLevel + diff * smoothing;
+    
+    // Apply zooming class for micro-smooth CSS transitions
+    const img = this._cachedImg || this.elements.media.querySelector('img');
+    if (img && !img.classList.contains('zooming')) {
+        img.classList.add('zooming');
+    }
+    
+    this.setZoom(newZoom, this._zoomFocusX, this._zoomFocusY);
+    
+    // Continue animation
+    requestAnimationFrame(() => this._animateZoom());
+  }
+
+  /**
    * Set zoom level with optional focus point
    * @param {number} level - Zoom level
    * @param {number} [focusX] - X coordinate of focus point (client coordinates)
@@ -1377,7 +1428,7 @@ class FullscreenViewer {
    */
   setZoom(level, focusX, focusY) {
     const oldZoom = this.zoomLevel;
-    const newZoom = Math.max(0.1, Math.min(5, level));
+    const newZoom = Math.max(0.1, Math.min(10, level));
     
     // Seuil minimum - éviter les micro-changements
     if (Math.abs(newZoom - oldZoom) < 0.001) return;
@@ -1391,7 +1442,7 @@ class FullscreenViewer {
         this.transform.y = 0;
     } else if (focusX !== undefined && focusY !== undefined) {
         // Calculate zoom towards focus point (cursor/finger position)
-        const img = this.elements.media.querySelector('img');
+        const img = this._cachedImg || this.elements.media.querySelector('img');
         if (img) {
             const rect = this.elements.media.getBoundingClientRect();
             
@@ -1456,13 +1507,13 @@ class FullscreenViewer {
    * Does NOT update filters/adjustments
    */
   applyZoomTransformOnly() {
-    const img = this.elements.media.querySelector('img');
+    const img = this._cachedImg || this.elements.media.querySelector('img');
     const annotationCanvas = this.elements.media.querySelector('.annotation-canvas');
-    const transform = `translate(${this.transform.x}px, ${this.transform.y}px) rotate(${this.rotation}deg) scale(${this.transform.scale})`;
+    const transform = `translate3d(${this.transform.x}px, ${this.transform.y}px, 0) rotate(${this.rotation}deg) scale(${this.transform.scale})`;
     
     if (img) {
         img.style.transform = transform;
-          img.style.cursor = this.transform.scale > 1 && !this.annotationManager?.isActive ? 'grab' : 'default';
+        img.style.cursor = this.transform.scale > 1 && !this.annotationManager?.isActive ? 'grab' : 'default';
     }
     
     if (annotationCanvas) {
@@ -1471,9 +1522,9 @@ class FullscreenViewer {
   }
 
   applyTransform() {
-      const img = this.elements.media.querySelector('img');
+      const img = this._cachedImg || this.elements.media.querySelector('img');
       const annotationCanvas = this.elements.media.querySelector('.annotation-canvas');
-      const transform = `translate(${this.transform.x}px, ${this.transform.y}px) rotate(${this.rotation}deg) scale(${this.transform.scale})`;
+      const transform = `translate3d(${this.transform.x}px, ${this.transform.y}px, 0) rotate(${this.rotation}deg) scale(${this.transform.scale})`;
       
       if (img) {
           img.style.transform = transform;
@@ -1619,13 +1670,28 @@ class FullscreenViewer {
   }
 
   updateUndoRedoButtons() {
+      if (this.annotationManager && this.annotationManager.isActive) {
+          // When annotation mode is active, check annotation manager's history
+          const canUndo = this.annotationManager.historyStep >= 0;
+          const canRedo = this.annotationManager.historyStep < this.annotationManager.history.length - 1;
+          if (this.elements.undoEditBtn) {
+              this.elements.undoEditBtn.disabled = !canUndo;
+              this.elements.undoEditBtn.style.opacity = canUndo ? '1' : '0.5';
+          }
+          if (this.elements.redoEditBtn) {
+              this.elements.redoEditBtn.disabled = !canRedo;
+              this.elements.redoEditBtn.style.opacity = canRedo ? '1' : '0.5';
+          }
+          return;
+      }
+      // Keep existing logic for non-annotation mode (adjust mode etc.)
       if (this.elements.undoEditBtn) {
           this.elements.undoEditBtn.disabled = this.historyStep < 0;
-          this.elements.undoEditBtn.style.opacity = this.historyStep < 0 ? '0.5' : '1';
+          this.elements.undoEditBtn.style.opacity = this.historyStep >= 0 ? '1' : '0.5';
       }
       if (this.elements.redoEditBtn) {
           this.elements.redoEditBtn.disabled = this.historyStep >= this.history.length - 1;
-          this.elements.redoEditBtn.style.opacity = this.historyStep >= this.history.length - 1 ? '0.5' : '1';
+          this.elements.redoEditBtn.style.opacity = this.historyStep < this.history.length - 1 ? '1' : '0.5';
       }
   }
 

@@ -43,15 +43,20 @@
   top: 0;
   left: 0;
   width: 100%;
+  height: 56px;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  padding: var(--space-md) var(--space-lg);
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
-  color: white;
+  padding: 0 var(--space-lg);
+  background-color: var(--surface-color);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: var(--shadow-sm);
+  color: var(--on-surface);
   z-index: var(--z-modal);
   flex-shrink: 0;
   pointer-events: none;
+  box-sizing: border-box;
+  overflow: visible;
 }
 
 .viewer-toolbar > * {
@@ -73,6 +78,8 @@
   align-items: center;
   gap: var(--space-sm);
   justify-self: start;
+  height: 100%;
+  min-width: 0;
 }
 
 .viewer-top-center {
@@ -80,6 +87,8 @@
   align-items: center;
   gap: var(--space-sm);
   justify-content: center;
+  height: 100%;
+  min-width: 0;
 }
 
 .viewer-top-right {
@@ -87,43 +96,46 @@
   align-items: center;
   gap: var(--space-sm);
   justify-self: end;
+  height: 100%;
+  min-width: 0;
 }
 
 .viewer-filename {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-medium);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--on-surface);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   margin-left: var(--space-sm);
+  max-width: 200px;
 }
 
 .viewer-divider {
   width: 1px;
   height: 24px;
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: var(--divider-color);
   margin: 0 var(--space-xs);
 }
 
 .viewer-btn {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border: none;
-  background: rgba(255, 255, 255, 0.15);
-  color: #1a1a1a;
+  background: none;
+  color: var(--on-surface-variant);
   cursor: pointer;
   border-radius: var(--radius-full);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
-  backdrop-filter: blur(10px);
+  transition: background-color 0.2s;
   pointer-events: auto;
 }
 
 .viewer-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  transform: scale(1.05);
+  background-color: var(--surface-variant);
+  color: var(--on-surface);
 }
 
 .viewer-btn:active {
@@ -175,9 +187,9 @@
   cursor: grabbing;
 }
 
-/* Disable transitions during active zoom gestures for 60fps performance */
+/* Micro-smooth transition during zoom gestures for Windows 11 Photos-like fluidity */
 .viewer-media img.zooming {
-  transition: none !important;
+  transition: transform 0.08s ease-out !important;
 }
 
 /* Video Viewer */
@@ -501,7 +513,7 @@
     gap: 8px;
     background: none;
     border: none;
-    color: white;
+    color: var(--on-surface-variant);
     font-size: 14px;
     cursor: pointer;
     padding: 8px 16px;
@@ -510,13 +522,14 @@
 }
 
 .text-icon-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background-color: var(--surface-variant);
+    color: var(--on-surface);
 }
 
 .icon-btn {
   background: none;
   border: none;
-  color: #e8eaed;
+  color: var(--on-surface-variant);
   cursor: pointer;
   padding: 8px;
   border-radius: 50%;
@@ -524,19 +537,19 @@
   align-items: center;
   justify-content: center;
   pointer-events: auto;
+  transition: background-color 0.2s;
 }
 
 .icon-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--surface-variant);
+  color: var(--on-surface);
 }
 
 
 /* Responsive Design */
 @media (max-width: 768px) {
   .viewer-toolbar {
-    padding: var(--space-sm) var(--space-md);
-    flex-wrap: wrap;
-    gap: var(--space-sm);
+    padding: 0 var(--space-md);
   }
   
   .viewer-info {
@@ -564,7 +577,7 @@
 
 @media (max-width: 480px) {
   .viewer-toolbar {
-    padding: var(--space-xs) var(--space-sm);
+    padding: 0 var(--space-sm);
   }
   
   .viewer-btn {
@@ -647,35 +660,17 @@
 /* Light Mode Support */
 @media (prefers-color-scheme: light) {
   .fullscreen-viewer {
-    background-color: #ffffff;
-  }
-
-  .viewer-toolbar {
-    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0));
-    color: #202124;
-  }
-
-  .viewer-btn {
-    background: rgba(0, 0, 0, 0.12);
-  }
-
-  .viewer-btn:hover {
-    background: rgba(0, 0, 0, 0.18);
-  }
-
-  .viewer-divider {
-    background-color: rgba(0, 0, 0, 0.1);
+    background-color: #f8f9fa;
   }
 
   .viewer-content {
-    background-color: #ffffff;
+    background-color: #f8f9fa;
   }
   
   /* Keep video background dark for better viewing experience */
   .viewer-media video {
     background-color: #000000;
   }
-
 
   .keyboard-hint {
     background: rgba(255, 255, 255, 0.9);
@@ -705,7 +700,7 @@
   flex-direction: column;
   gap: 16px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #3c4043;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .adjustment-group:last-child {
@@ -715,7 +710,7 @@
 .adjustment-header {
   font-size: 14px;
   font-weight: 500;
-  color: #e8eaed;
+  color: var(--on-surface);
   margin-bottom: 8px;
 }
 
@@ -730,7 +725,7 @@
   justify-content: space-between;
   align-items: center;
   font-size: 12px;
-  color: #9aa0a6;
+  color: var(--on-surface-variant);
 }
 
 .adjustment-label {
@@ -743,7 +738,7 @@
   width: 100%;
   -webkit-appearance: none;
   height: 2px;
-  background: #5f6368;
+  background: var(--border-color);
   outline: none;
 }
 
@@ -751,7 +746,7 @@
   -webkit-appearance: none;
   width: 12px;
   height: 12px;
-  background: #6569d0;
+  background: var(--primary-color);
   border-radius: 50%;
   cursor: pointer;
   transition: transform 0.1s;
@@ -767,13 +762,13 @@
     flex-direction: column;
     gap: 12px;
     padding: 16px 0;
-    border-bottom: 1px solid #3c4043;
+    border-bottom: 1px solid var(--border-color);
 }
 
 .group-label {
     font-size: 11px;
     font-weight: 500;
-    color: #9aa0a6;
+    color: var(--on-surface-variant);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -782,7 +777,7 @@
 .size-options {
     display: flex;
     gap: 8px;
-    background: #3c4043;
+    background: var(--surface-variant);
     padding: 4px;
     border-radius: 20px;
     width: fit-content;
@@ -798,25 +793,25 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #9aa0a6;
+    color: var(--on-surface-variant);
     transition: all 0.2s;
 }
 
 .size-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--border-color);
 }
 
 .size-btn.active {
-    background: #6569d0;
+    background: var(--primary-color);
     color: #ffffff;
 }
 
 .size-btn.active .size-shape {
-    background-color: #202124; /* Dark shape on active blue button */
+    background-color: var(--surface-color);
 }
 
 .size-shape {
-    background-color: #9aa0a6;
+    background-color: var(--on-surface-variant);
     border-radius: 2px;
 }
 
@@ -843,35 +838,37 @@
 }
 
 .color-btn.active {
-    border-color: white;
+    border-color: var(--on-surface);
     transform: scale(1.1);
-    box-shadow: 0 0 0 2px #202124; /* Double border effect */
+    box-shadow: 0 0 0 2px var(--surface-color);
 }
 
 /* Tool Buttons in Edit Toolbar */
 .tool-btn {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    background: #3c4043; /* Darker background for tools */
-    color: #e8eaed;
+    background: var(--surface-variant);
+    color: var(--on-surface-variant);
     border: none;
-    margin: 0 4px;
+    margin: 0 2px;
     pointer-events: auto;
+    transition: background-color 0.2s, color 0.2s;
 }
 
 .tool-btn:hover {
-    background: #5f6368;
+    background: var(--border-color);
+    color: var(--on-surface);
 }
 
 .tool-btn.active {
-    background: #6569d0; /* Blue active state */
+    background: var(--primary-color);
     color: #ffffff;
 }
 
 /* Save Button in Sidebar */
 #viewer-save-split {
-    background-color: #6569d0;
+    background-color: var(--primary-color);
     color: #ffffff;
     width: 100%;
     justify-content: center;
@@ -879,7 +876,7 @@
 }
 
 #viewer-save-split:hover {
-    background-color: #6569d0;
+    background-color: var(--primary-variant);
 }
 
 .split-btn-container {
@@ -888,12 +885,20 @@
     margin-bottom: 16px;
 }
 
+/* Split button inside toolbar: no margin, proper alignment */
+.viewer-toolbar .split-btn-container {
+    width: auto;
+    margin-bottom: 0;
+    align-items: center;
+}
+
 .split-btn-main {
     flex: 1;
-    background-color: #6569d0;
+    background-color: var(--primary-color);
     color: #ffffff;
     border: none;
-    padding: 10px;
+    height: 36px;
+    padding: 0 16px;
     border-radius: 4px 0 0 4px;
     cursor: pointer;
     display: flex;
@@ -901,31 +906,35 @@
     justify-content: center;
     gap: 8px;
     font-weight: 500;
+    font-size: 14px;
     pointer-events: auto;
+    transition: background-color 0.2s;
 }
 
 .split-btn-arrow {
-    background-color: #6569d0; /* Slightly darker */
+    background-color: var(--primary-color);
     color: #ffffff;
     border: none;
+    height: 36px;
     padding: 0 8px;
     border-radius: 0 4px 4px 0;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-left: 1px solid rgba(0,0,0,0.1);
+    border-left: 1px solid rgba(255,255,255,0.2);
     pointer-events: auto;
+    transition: background-color 0.2s;
 }
 
 .split-btn-dropdown {
     position: absolute;
     top: 100%;
     right: 0;
-    background-color: #2d2e30;
-    border: 1px solid #3c4043;
+    background-color: var(--surface-variant);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    box-shadow: var(--shadow-md);
     display: none;
     flex-direction: column;
     min-width: 180px;
@@ -937,7 +946,7 @@
 .split-btn-item {
     background: none;
     border: none;
-    color: #e8eaed;
+    color: var(--on-surface);
     cursor: pointer;
     padding: 8px 16px;
     display: flex;
@@ -946,4 +955,10 @@
     width: 100%;
     text-align: left;
     pointer-events: auto;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.split-btn-item:hover {
+    background-color: var(--surface-variant);
 }

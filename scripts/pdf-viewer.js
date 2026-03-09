@@ -410,20 +410,13 @@ class PdfViewer {
    * Handle edit mode keys (undo/redo)
    */
   handleEditKeys(e) {
+    // Let text editor handle its own undo/redo to avoid double execution
+    if (this.isTextEditMode && this.textEditor) return;
+
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         
-        // Check if in text edit mode first
-        if (this.isTextEditMode && this.textEditor) {
-            if (e.shiftKey) {
-                this.textEditor.redo();
-            } else {
-                this.textEditor.undo();
-            }
-            return;
-        }
-        
-        // Otherwise use annotation manager
+        // Use annotation manager
         if (this.annotationManager && this.annotationManager.isActive) {
             if (e.shiftKey) {
                 this.annotationManager.redo();
@@ -437,13 +430,7 @@ class PdfViewer {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
         e.preventDefault();
         
-        // Check if in text edit mode first
-        if (this.isTextEditMode && this.textEditor) {
-            this.textEditor.redo();
-            return;
-        }
-        
-        // Otherwise use annotation manager
+        // Use annotation manager
         if (this.annotationManager && this.annotationManager.isActive) {
             this.annotationManager.redo();
         }
@@ -795,13 +782,11 @@ class PdfViewer {
           toolBtns.forEach(btn => {
               if (btn.dataset.tool === toolId) {
                   btn.classList.add('active');
-                  btn.style.backgroundColor = 'rgba(101, 105, 208, 0.2)';
-                  btn.style.color = '#6569d0';
               } else {
                   btn.classList.remove('active');
-                  btn.style.backgroundColor = '';
-                  btn.style.color = '';
               }
+              btn.style.backgroundColor = '';
+              btn.style.color = '';
           });
           return;
       }
@@ -820,13 +805,11 @@ class PdfViewer {
       toolBtns.forEach(btn => {
           if (btn.dataset.tool === toolId) {
               btn.classList.add('active');
-              btn.style.backgroundColor = 'rgba(101, 105, 208, 0.2)';
-              btn.style.color = '#6569d0';
           } else {
               btn.classList.remove('active');
-              btn.style.backgroundColor = '';
-              btn.style.color = '';
           }
+          btn.style.backgroundColor = '';
+          btn.style.color = '';
       });
   }
 
