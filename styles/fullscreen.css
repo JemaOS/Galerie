@@ -155,6 +155,15 @@
   justify-content: center;
   overflow: hidden;
   background-color: #000000;
+  /* Reserve space for the absolute-positioned default toolbar */
+  padding-top: 56px;
+  box-sizing: border-box;
+}
+
+/* When edit toolbar is visible (position:relative, takes flex space),
+   remove the extra padding since the toolbar already occupies space */
+.fullscreen-viewer:has(.edit-mode-toolbar:not(.hidden)) .viewer-content {
+  padding-top: 0;
 }
 
 .viewer-media {
@@ -168,9 +177,11 @@
 
 /* Image Viewer */
 .viewer-media img {
-  /* Dimensions set by JS (Windows Photos-like sizing logic) */
+  /* Default: shrink-to-fit (large images). JS may override for 1:1 display. */
   max-width: 100%;
   max-height: 100%;
+  width: auto;
+  height: auto;
   object-fit: contain;
   transition: transform var(--transition-normal);
   cursor: default;

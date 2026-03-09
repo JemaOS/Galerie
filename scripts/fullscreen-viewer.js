@@ -1209,11 +1209,15 @@ class FullscreenViewer {
   /**
    * Apply Windows Photos-like sizing logic.
    *
-   * Rules:
-   * 1. Small images (< screen): display at 1:1, no stretching
-   * 2. Large images (> screen): shrink-to-fit maintaining aspect ratio
-   * 3. SVGs: rasterize at appropriate DPI-aware resolution
-   * 4. Account for OS DPI scaling; center in available space
+   * The CSS handles the core behavior:
+   *   - max-width: 100%; max-height: 100% → shrink-to-fit for large images
+   *   - width: auto; height: auto → display at 1:1 for small images
+   *   - padding-top: 56px on .viewer-content → reserves space for toolbar
+   *
+   * This method handles:
+   *   - SVG crisp rendering
+   *   - PWA window auto-sizing
+   *   - Storing dimensions for zoom calculations
    *
    * @param {HTMLImageElement} img - The loaded image element
    * @param {{ width: number, height: number, isSVG: boolean }} dimensions - Intrinsic image dimensions
@@ -1221,53 +1225,38 @@ class FullscreenViewer {
   applyPhotosLayout(img, dimensions) {
     const { width: imgW, height: imgH, isSVG } = dimensions;
     const screen = this.getScreenDimensions();
-    const dpr = screen.dpr;
-    
-    // Available space = viewer content area
-    // The toolbar is position:absolute so it overlaps the content area
-    // We subtract toolbar height to avoid image being hidden behind it
     const toolbarHeight = 56;
-    const mediaRect = this.elements.media.getBoundingClientRect();
-    const availW = mediaRect.width || screen.width;
-    const availH = (mediaRect.height || screen.height) - toolbarHeight;
     
-    // For SVGs, scale to DPI-aware resolution for crisp rendering
-    let effectiveW = imgW;
-    let effectiveH = imgH;
+    // Reset any previously set inline sizing (let CSS handle it)
+    img.style.width = '';
+    img.style.height = '';
+    img.style.maxWidth = '';
+    img.style.maxHeight = '';
+    
+    // For SVGs, ensure crisp rendering at device resolution
     if (isSVG) {
-      // Rasterize SVG at device pixel ratio for sharpness
-      effectiveW = imgW * dpr;
-      effectiveH = imgH * dpr;
+      img.style.imageRendering = 'auto';
     }
     
-    let displayW, displayH;
+    // Calculate the actual display size for zoom reference
+    // Available space after toolbar
+    const mediaRect = this.elements.media.getBoundingClientRect();
+    const availW = mediaRect.width || screen.width;
+    const availH = mediaRect.height || (screen.height - toolbarHeight);
     
-    if (effectiveW <= availW && effectiveH <= availH) {
-      // Rule 1: Image is smaller than available space → display at 1:1
+    let displayW, displayH;
+    if (imgW <= availW && imgH <= availH) {
+      // Small image: displayed at 1:1
       displayW = imgW;
       displayH = imgH;
     } else {
-      // Rule 2: Image is larger → shrink-to-fit maintaining aspect ratio
-      const scaleX = availW / imgW;
-      const scaleY = availH / imgH;
-      const scale = Math.min(scaleX, scaleY);
+      // Large image: shrink-to-fit
+      const scale = Math.min(availW / imgW, availH / imgH);
       displayW = Math.round(imgW * scale);
       displayH = Math.round(imgH * scale);
     }
     
-    // Apply sizing to the image element
-    img.style.width = `${displayW}px`;
-    img.style.height = `${displayH}px`;
-    img.style.maxWidth = 'none';
-    img.style.maxHeight = 'none';
-    img.style.objectFit = 'contain';
-    
-    // For SVGs, ensure crisp rendering
-    if (isSVG) {
-      img.style.imageRendering = 'auto'; // Let browser optimize SVG rendering
-    }
-    
-    // Store the initial display dimensions for zoom calculations
+    // Store dimensions for zoom calculations
     this._initialDisplaySize = { width: displayW, height: displayH };
     this._imageNaturalSize = { width: imgW, height: imgH };
     
