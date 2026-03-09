@@ -70,6 +70,11 @@ class FullscreenViewer {
     // Zoom optimization timeouts
     this.filterUpdateTimeout = null;
     this.zoomingClassTimeout = null;
+
+    // Tiled rendering for huge images
+    this.tiledRenderer = null;
+    this.progressiveLoader = null;
+    this.isTiledMode = false;
   }
 
   /**
@@ -176,11 +181,19 @@ class FullscreenViewer {
     
     if (this.elements.zoomOut) this.elements.zoomOut.addEventListener('click', () => {
         this._targetZoom = null; // Reset animation target
-        this.setZoom(this.zoomLevel - 0.1);
+        // Pass viewport center as focus point for consistent zoom behavior
+        const rect = this.elements.media.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        this.setZoom(this.zoomLevel - 0.1, centerX, centerY);
     });
     if (this.elements.zoomIn) this.elements.zoomIn.addEventListener('click', () => {
         this._targetZoom = null; // Reset animation target
-        this.setZoom(this.zoomLevel + 0.1);
+        // Pass viewport center as focus point for consistent zoom behavior
+        const rect = this.elements.media.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        this.setZoom(this.zoomLevel + 0.1, centerX, centerY);
     });
     
     if (this.elements.rotate) {
@@ -316,7 +329,26 @@ class FullscreenViewer {
     // Window resize: re-apply Photos layout when window size changes
     let resizeTimeout = null;
     window.addEventListener('resize', () => {
-      if (!this.isOpen || !this._cachedImg || !this._imageNaturalSize) return;
+      if (!this.isOpen) return;
+
+      // Handle tiled mode resize
+      if (this.isTiledMode && this.tiledRenderer) {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+          this.tiledRenderer.resize();
+          // Recalculate fit scale
+          const containerRect = this.elements.media.getBoundingClientRect();
+          this._tiledFitScale = Math.min(
+              containerRect.width / this._tiledImageWidth,
+              containerRect.height / this._tiledImageHeight
+          );
+          const effectiveScale = this._tiledFitScale * this.zoomLevel;
+          this.tiledRenderer.updateViewport(this.transform.x, this.transform.y, effectiveScale);
+        }, 100);
+        return;
+      }
+
+      if (!this._cachedImg || !this._imageNaturalSize) return;
       if (this._isResizingWindow) return; // Prevent infinite loop from resizeWindowToFit
       clearTimeout(resizeTimeout);
       resizeTimeout = setTimeout(() => {
@@ -1071,6 +1103,7 @@ class FullscreenViewer {
    */
   close() {
       this.isOpen = false;
+      this._cleanupTiledMode();
       this.elements.viewer.classList.remove('active');
       setTimeout(() => {
           this.elements.viewer.classList.add('hidden');
@@ -1101,6 +1134,9 @@ class FullscreenViewer {
     
     // Update filename
     this.elements.filename.textContent = file.name;
+    
+    // Cleanup tiled mode if active
+    this._cleanupTiledMode();
     
     // Clear media container
     this.elements.media.innerHTML = '';
@@ -1212,11 +1248,11 @@ class FullscreenViewer {
    * The CSS handles the core behavior:
    *   - max-width: 100%; max-height: 100% → shrink-to-fit for large images
    *   - width: auto; height: auto → display at 1:1 for small images
-   *   - padding-top: 56px on .viewer-content → reserves space for toolbar
+   *   - In fullscreen: :fullscreen rules force 100% w/h with object-fit: contain
    *
    * This method handles:
    *   - SVG crisp rendering
-   *   - PWA window auto-sizing
+   *   - PWA window auto-sizing (skipped in fullscreen mode)
    *   - Storing dimensions for zoom calculations
    *
    * @param {HTMLImageElement} img - The loaded image element
@@ -1236,6 +1272,20 @@ class FullscreenViewer {
     // For SVGs, ensure crisp rendering at device resolution
     if (isSVG) {
       img.style.imageRendering = 'auto';
+    }
+    
+    // In fullscreen mode, the CSS :fullscreen rules handle sizing —
+    // the image fills the entire viewport via object-fit: contain.
+    // Skip window resizing and use full screen dimensions.
+    if (this.isFullscreen) {
+      const availW = screen.width;
+      const availH = screen.height;
+      const scale = Math.min(availW / imgW, availH / imgH);
+      const displayW = Math.round(imgW * scale);
+      const displayH = Math.round(imgH * scale);
+      this._initialDisplaySize = { width: displayW, height: displayH };
+      this._imageNaturalSize = { width: imgW, height: imgH };
+      return;
     }
     
     // Calculate the actual display size for zoom reference
@@ -1321,6 +1371,36 @@ class FullscreenViewer {
    * @param {Object} file - Image file
    */
   async loadImage(file) {
+    // Check if this image needs tiled rendering (without decoding full image)
+    const blob = file.file || (file.url ? await fetch(file.url).then(r => r.blob()) : null);
+    if (window.TiledImageRenderer && blob instanceof Blob) {
+        try {
+            const dimensions = await this._getImageDimensionsFromHeader(blob);
+            if (dimensions && TiledImageRenderer.needsTiling(dimensions.width, dimensions.height)) {
+                await this._initTiledMode(blob, dimensions);
+                return;
+            }
+        } catch (e) {
+            console.warn('Could not check image dimensions for tiling:', e);
+            // Try fallback: use resized createImageBitmap
+            try {
+                const smallBitmap = await createImageBitmap(blob, { resizeWidth: 2048, resizeQuality: 'low' });
+                // If we got here, the browser can decode it — show the resized version as fallback
+                const canvas = document.createElement('canvas');
+                canvas.width = smallBitmap.width;
+                canvas.height = smallBitmap.height;
+                canvas.getContext('2d').drawImage(smallBitmap, 0, 0);
+                smallBitmap.close();
+                const img = this.elements.media.querySelector('img') || document.createElement('img');
+                img.src = canvas.toDataURL();
+                if (!img.parentNode) this.elements.media.appendChild(img);
+                return;
+            } catch (e2) {
+                console.error('Image too large to display:', e2);
+            }
+        }
+    }
+
     const img = GalleryUtils.createElement('img', {
       src: file.url,
       alt: file.name,
@@ -1355,6 +1435,9 @@ class FullscreenViewer {
         dragStart = { x: e.clientX - this.transform.x, y: e.clientY - this.transform.y };
         img.style.cursor = 'grabbing';
         img.classList.add('zooming');  // Disable CSS transitions during drag
+        if (this.isTiledMode && this.tiledRenderer && this.tiledRenderer.canvas) {
+            this.tiledRenderer.canvas.style.cursor = 'grabbing';
+        }
         e.preventDefault();
       }
     });
@@ -1372,6 +1455,9 @@ class FullscreenViewer {
         isDragging = false;
         img.style.cursor = this.zoomLevel > 1 ? 'grab' : 'default';
         img.classList.remove('zooming');  // Restore CSS transitions
+        if (this.isTiledMode && this.tiledRenderer && this.tiledRenderer.canvas) {
+            this.tiledRenderer.canvas.style.cursor = 'grab';
+        }
         
         // Apply full filters after drag if adjustments are active
         if (this.hasActiveAdjustments()) {
@@ -1379,6 +1465,299 @@ class FullscreenViewer {
         }
       }
     });
+  }
+
+  /**
+   * Initialize tiled rendering mode for huge images
+   * @param {Blob} blob - The image file
+   * @param {Object} [dimensions] - Pre-computed {width, height} from header reading
+   */
+  async _initTiledMode(blob, dimensions) {
+    // Cleanup any previous tiled renderer
+    this._cleanupTiledMode();
+    
+    this.isTiledMode = true;
+    
+    // Get the media container
+    const mediaContainer = this.elements.media;
+    
+    // Hide the regular img element
+    const img = mediaContainer.querySelector('img');
+    if (img) {
+        img.style.display = 'none';
+    }
+    
+    // Create progressive loader
+    this.progressiveLoader = new ProgressiveImageLoader(mediaContainer);
+    const result = await this.progressiveLoader.load(blob, dimensions);
+    
+    if (result.isHuge && result.renderer) {
+        this.tiledRenderer = result.renderer;
+        
+        // Set initial viewport based on "fit to screen" calculation
+        const containerRect = mediaContainer.getBoundingClientRect();
+        const fitScale = Math.min(
+            containerRect.width / result.dimensions.width,
+            containerRect.height / result.dimensions.height
+        );
+        
+        // Store original dimensions for zoom calculations
+        this._tiledImageWidth = result.dimensions.width;
+        this._tiledImageHeight = result.dimensions.height;
+        this._tiledFitScale = fitScale;
+        
+        // Set zoom level to 1 (= fit to screen)
+        this.zoomLevel = 1;
+        this.transform.x = 0;
+        this.transform.y = 0;
+        this.transform.scale = 1;
+        
+        // Initial render
+        this.tiledRenderer.updateViewport(0, 0, fitScale);
+        this.tiledRenderer.resize();
+        
+        // Enable grab cursor on the tiled canvas for panning
+        if (this.tiledRenderer && this.tiledRenderer.canvas) {
+            this.tiledRenderer.canvas.style.cursor = 'grab';
+        }
+        
+        // Setup drag handlers for panning in tiled mode
+        // (The normal drag handlers in loadImage() are not reached because
+        //  _initTiledMode returns early before they are registered.)
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        this.transform = { x: 0, y: 0, scale: 1 };
+        
+        // Store handler references for cleanup
+        // In tiled mode, panning is always allowed (zoomLevel >= 1) because
+        // the tiled renderer uses a canvas-based viewport where panning is
+        // the primary navigation method.
+        const onMouseDown = (e) => {
+            if (this.zoomLevel >= 1 && !this.annotationManager?.isActive) {
+                isDragging = true;
+                dragStart = { x: e.clientX - this.transform.x, y: e.clientY - this.transform.y };
+                if (this.tiledRenderer && this.tiledRenderer.canvas) {
+                    this.tiledRenderer.canvas.style.cursor = 'grabbing';
+                }
+                e.preventDefault();
+            }
+        };
+        
+        const onMouseMove = (e) => {
+            if (isDragging && this.zoomLevel >= 1) {
+                this.transform.x = e.clientX - dragStart.x;
+                this.transform.y = e.clientY - dragStart.y;
+                this.applyZoomTransformOnly();
+            }
+        };
+        
+        const onMouseUp = () => {
+            if (isDragging) {
+                isDragging = false;
+                if (this.tiledRenderer && this.tiledRenderer.canvas) {
+                    this.tiledRenderer.canvas.style.cursor = 'grab';
+                }
+            }
+        };
+        
+        // Touch support for panning in tiled mode
+        const onTouchStart = (e) => {
+            if (e.touches.length === 1 && this.zoomLevel >= 1 && !this.annotationManager?.isActive) {
+                isDragging = true;
+                const touch = e.touches[0];
+                dragStart = { x: touch.clientX - this.transform.x, y: touch.clientY - this.transform.y };
+                if (this.tiledRenderer && this.tiledRenderer.canvas) {
+                    this.tiledRenderer.canvas.style.cursor = 'grabbing';
+                }
+                e.preventDefault();
+            }
+        };
+        
+        const onTouchMove = (e) => {
+            if (isDragging && e.touches.length === 1 && this.zoomLevel >= 1) {
+                const touch = e.touches[0];
+                this.transform.x = touch.clientX - dragStart.x;
+                this.transform.y = touch.clientY - dragStart.y;
+                this.applyZoomTransformOnly();
+                e.preventDefault();
+            }
+        };
+        
+        const onTouchEnd = () => {
+            if (isDragging) {
+                isDragging = false;
+                if (this.tiledRenderer && this.tiledRenderer.canvas) {
+                    this.tiledRenderer.canvas.style.cursor = 'grab';
+                }
+            }
+        };
+        
+        mediaContainer.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        mediaContainer.addEventListener('touchstart', onTouchStart, { passive: false });
+        document.addEventListener('touchmove', onTouchMove, { passive: false });
+        document.addEventListener('touchend', onTouchEnd);
+        
+        // Store references for cleanup in _cleanupTiledMode
+        this._tiledDragHandlers = {
+            onMouseDown, onMouseMove, onMouseUp,
+            onTouchStart, onTouchMove, onTouchEnd,
+            mediaContainer
+        };
+        
+        // Update UI
+        const zoomLevelDisplay = this.elements.viewer.querySelector('.zoom-level');
+        if (zoomLevelDisplay) {
+            zoomLevelDisplay.textContent = `${Math.round(this.zoomLevel * 100)}%`;
+        }
+    }
+  }
+
+  /**
+   * Read image dimensions from file header without decoding pixels.
+   * Supports PNG, JPEG, GIF, BMP, WebP.
+   * @param {Blob} blob - The image file
+   * @returns {Promise<{width: number, height: number}|null>}
+   */
+  async _getImageDimensionsFromHeader(blob) {
+    const buffer = await blob.slice(0, 30).arrayBuffer();
+    const view = new DataView(buffer);
+    
+    // PNG: bytes 0-7 = signature, bytes 16-19 = width, 20-23 = height (big-endian)
+    if (view.getUint8(0) === 0x89 && view.getUint8(1) === 0x50) { // \x89P (PNG)
+        return {
+            width: view.getUint32(16, false),
+            height: view.getUint32(20, false)
+        };
+    }
+    
+    // GIF: bytes 0-2 = "GIF", bytes 6-7 = width, 8-9 = height (little-endian)
+    if (view.getUint8(0) === 0x47 && view.getUint8(1) === 0x49 && view.getUint8(2) === 0x46) {
+        return {
+            width: view.getUint16(6, true),
+            height: view.getUint16(8, true)
+        };
+    }
+    
+    // BMP: bytes 0-1 = "BM", bytes 18-21 = width, 22-25 = height (little-endian)
+    if (view.getUint8(0) === 0x42 && view.getUint8(1) === 0x4D) {
+        return {
+            width: view.getInt32(18, true),
+            height: Math.abs(view.getInt32(22, true))
+        };
+    }
+    
+    // JPEG: need to scan for SOF marker
+    if (view.getUint8(0) === 0xFF && view.getUint8(1) === 0xD8) {
+        return await this._getJpegDimensions(blob);
+    }
+    
+    // WebP: bytes 0-3 = "RIFF", 8-11 = "WEBP"
+    if (view.getUint8(0) === 0x52 && view.getUint8(1) === 0x49 &&
+        view.getUint8(8) === 0x57 && view.getUint8(9) === 0x45) {
+        // VP8 chunk starts at byte 12
+        const chunk = await blob.slice(12, 30).arrayBuffer();
+        const chunkView = new DataView(chunk);
+        const chunkType = String.fromCharCode(chunkView.getUint8(0), chunkView.getUint8(1), chunkView.getUint8(2), chunkView.getUint8(3));
+        if (chunkType === 'VP8 ') {
+            // Lossy WebP: width at offset 14 (26-12), height at 16 (28-12) from chunk start
+            return {
+                width: chunkView.getUint16(10, true) & 0x3FFF,
+                height: chunkView.getUint16(12, true) & 0x3FFF
+            };
+        }
+    }
+    
+    // Fallback: try createImageBitmap with small resize (won't OOM)
+    try {
+        const small = await createImageBitmap(blob, { resizeWidth: 1, resizeQuality: 'low' });
+        // Can't get original dimensions from resized bitmap
+        small.close();
+    } catch(e) {}
+    
+    return null;
+  }
+
+  /**
+   * Read JPEG dimensions by scanning for SOF0/SOF2 marker
+   * @param {Blob} blob
+   * @returns {Promise<{width: number, height: number}|null>}
+   */
+  async _getJpegDimensions(blob) {
+    // Read up to 64KB to find SOF marker
+    const size = Math.min(blob.size, 65536);
+    const buffer = await blob.slice(0, size).arrayBuffer();
+    const data = new Uint8Array(buffer);
+    
+    let offset = 2; // skip SOI marker
+    while (offset < data.length - 1) {
+        if (data[offset] !== 0xFF) {
+            offset++;
+            continue;
+        }
+        const marker = data[offset + 1];
+        
+        // SOF0 (0xC0) or SOF2 (0xC2) — baseline or progressive
+        if (marker === 0xC0 || marker === 0xC2) {
+            if (offset + 9 < data.length) {
+                const view = new DataView(buffer, offset + 5);
+                return {
+                    height: view.getUint16(0, false),
+                    width: view.getUint16(2, false)
+                };
+            }
+        }
+        
+        // Skip to next marker
+        if (marker >= 0xC0 && marker <= 0xFE && marker !== 0xD0 && marker !== 0xD8 && marker !== 0xD9) {
+            if (offset + 3 < data.length) {
+                const segLen = (data[offset + 2] << 8) | data[offset + 3];
+                offset += 2 + segLen;
+            } else {
+                break;
+            }
+        } else {
+            offset += 2;
+        }
+    }
+    return null;
+  }
+
+  /**
+   * Cleanup tiled rendering mode
+   */
+  _cleanupTiledMode() {
+    // Remove tiled-mode drag handlers (mouse + touch)
+    if (this._tiledDragHandlers) {
+        const { onMouseDown, onMouseMove, onMouseUp, onTouchStart, onTouchMove, onTouchEnd, mediaContainer } = this._tiledDragHandlers;
+        mediaContainer.removeEventListener('mousedown', onMouseDown);
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        if (onTouchStart) mediaContainer.removeEventListener('touchstart', onTouchStart);
+        if (onTouchMove) document.removeEventListener('touchmove', onTouchMove);
+        if (onTouchEnd) document.removeEventListener('touchend', onTouchEnd);
+        this._tiledDragHandlers = null;
+    }
+
+    if (this.progressiveLoader) {
+        this.progressiveLoader.destroy();
+        this.progressiveLoader = null;
+    }
+    if (this.tiledRenderer) {
+        this.tiledRenderer.destroy();
+        this.tiledRenderer = null;
+    }
+    this.isTiledMode = false;
+    this._tiledImageWidth = 0;
+    this._tiledImageHeight = 0;
+    this._tiledFitScale = 1;
+    
+    // Show the regular img element again
+    const img = this.elements.media ? this.elements.media.querySelector('img') : null;
+    if (img) {
+        img.style.display = '';
+    }
   }
 
   /**
@@ -1635,8 +2014,35 @@ class FullscreenViewer {
     this.zoomLevel = newZoom;
     this.transform.scale = this.zoomLevel;
     
+    // Tiled mode: zoom anchor uses pan offsets from centered position
+    if (this.isTiledMode && this.tiledRenderer) {
+        const rect = this.elements.media.getBoundingClientRect();
+        const containerCenterX = rect.width / 2;
+        const containerCenterY = rect.height / 2;
+        
+        if (focusX !== undefined && focusY !== undefined) {
+            // Cursor position relative to container
+            const cursorX = focusX - rect.left;
+            const cursorY = focusY - rect.top;
+            
+            // Calculate effective scales
+            const fitScale = this._tiledFitScale || 1;
+            const oldEffective = fitScale * oldZoom;
+            const newEffective = fitScale * this.zoomLevel;
+            const scaleRatio = newEffective / oldEffective;
+            
+            // Zoom toward cursor: keep the image point under cursor stationary
+            this.transform.x = cursorX - containerCenterX - scaleRatio * (cursorX - containerCenterX - this.transform.x);
+            this.transform.y = cursorY - containerCenterY - scaleRatio * (cursorY - containerCenterY - this.transform.y);
+        }
+        // For button zoom (no focus point), zoom toward viewport center — no transform change needed
+        
+        this.applyZoomTransformOnly();
+        return; // Skip the CSS transform path
+    }
+    
     // Reset translation if zoomed out to 1
-    if (this.zoomLevel <= 1) {
+    if (this.zoomLevel <= 1 && !this.isTiledMode) {
         this.transform.x = 0;
         this.transform.y = 0;
     } else if (focusX !== undefined && focusY !== undefined) {
@@ -1658,8 +2064,8 @@ class FullscreenViewer {
             
             // Adjust transform to keep the focus point stationary
             // The formula: newTransform = oldTransform - offset * (scaleRatio - 1)
-            this.transform.x = this.transform.x - offsetX * (scaleRatio - 1);
-            this.transform.y = this.transform.y - offsetY * (scaleRatio - 1);
+            this.transform.x = offsetX * (1 - scaleRatio) + this.transform.x * scaleRatio;
+            this.transform.y = offsetY * (1 - scaleRatio) + this.transform.y * scaleRatio;
         }
     }
     
@@ -1706,6 +2112,13 @@ class FullscreenViewer {
    * Does NOT update filters/adjustments
    */
   applyZoomTransformOnly() {
+    if (this.isTiledMode && this.tiledRenderer) {
+        // In tiled mode, update the tiled renderer's viewport instead of CSS transform
+        const effectiveScale = this._tiledFitScale * this.zoomLevel;
+        this.tiledRenderer.updateViewport(this.transform.x, this.transform.y, effectiveScale);
+        return;
+    }
+
     const img = this._cachedImg || this.elements.media.querySelector('img');
     const annotationCanvas = this.elements.media.querySelector('.annotation-canvas');
     const transform = `translate3d(${this.transform.x}px, ${this.transform.y}px, 0) rotate(${this.rotation}deg) scale(${this.transform.scale})`;

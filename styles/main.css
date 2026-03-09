@@ -744,7 +744,7 @@ input:checked + .slider:before {
 }
 
 .info-label {
-  width: 80px;
+  width: 100px;
   color: var(--on-surface-variant);
   font-weight: var(--font-weight-medium);
   flex-shrink: 0;

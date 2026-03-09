@@ -1866,7 +1866,7 @@ class PdfViewer {
           const renderTask = page.render({
               canvasContext: ctx,
               viewport: viewport,
-              intent: 'print'
+              intent: 'display'  // 'display' is faster than 'print', skips some annotation processing
           });
 
           this.activeRenderTasks.set(num, renderTask);
@@ -1874,9 +1874,17 @@ class PdfViewer {
           
           this.activeRenderTasks.delete(num);
           
-          const oldCanvas = wrapper.querySelector('canvas');
+          const oldCanvas = wrapper.querySelector('canvas:not(.page-placeholder)');
           if (oldCanvas) oldCanvas.remove();
           wrapper.appendChild(canvas);
+
+          // Remove placeholder if present
+          const placeholder = wrapper.querySelector('.page-placeholder');
+          if (placeholder) {
+              placeholder.style.transition = 'opacity 0.2s';
+              placeholder.style.opacity = '0';
+              setTimeout(() => placeholder.remove(), 200);
+          }
           
           wrapper.dataset.loaded = 'true';
           wrapper.dataset.renderScale = (adjustedScale / dpr).toString();
@@ -2106,7 +2114,7 @@ class PdfViewer {
   }
 
   /**
-   * Process the render queue sequentially
+   * Process the render queue with concurrent batching (2 pages at a time)
    * Prioritizes pages closest to the center of the viewport
    */
   async processRenderQueue() {
@@ -2148,17 +2156,30 @@ class PdfViewer {
                   return Math.abs(centerA - centerPoint) - Math.abs(centerB - centerPoint);
               });
 
-              // Pick the best candidate
-              const pageNum = queueArray[0];
-              this.renderQueue.delete(pageNum);
+              // Take up to 2 pages for concurrent rendering
+              const MAX_CONCURRENT = 2;
+              const batch = queueArray.slice(0, MAX_CONCURRENT);
 
-              const wrapper = this.pageWrappers[pageNum];
-              if (wrapper?.dataset.loaded === 'false' && wrapper?.dataset.rendering !== 'true') {
-                  await this.renderPageContent(wrapper);
-                  
-                  // Small delay to yield to main thread
-                  await new Promise(resolve => setTimeout(resolve, 0));
+              // Remove batch from queue
+              for (const pageNum of batch) {
+                  this.renderQueue.delete(pageNum);
               }
+
+              // Render concurrently
+              const promises = batch.map(pageNum => {
+                  const wrapper = this.pageWrappers[pageNum];
+                  if (!wrapper || wrapper.dataset.loaded !== 'false' || wrapper.dataset.rendering === 'true') {
+                      return Promise.resolve();
+                  }
+                  return this.renderPageContent(wrapper).catch(err => {
+                      console.warn(`Failed to render page ${pageNum}:`, err);
+                  });
+              });
+
+              await Promise.all(promises);
+
+              // Yield to main thread between batches
+              await new Promise(resolve => setTimeout(resolve, 0));
           }
       } catch (error) {
           console.error('Error processing render queue:', error);
@@ -2260,6 +2281,9 @@ class PdfViewer {
 
               this.elements.container.appendChild(wrapper);
               this.pageWrappers[i] = wrapper;
+
+              // Add low-res placeholder from sidebar thumbnail if available
+              this._addPagePlaceholder(wrapper, i);
           }
           
           if (wrapper.dataset.loaded === 'false' && wrapper.dataset.rendering !== 'true') {
@@ -2281,6 +2305,45 @@ class PdfViewer {
           this.pageNum = currentPage;
           this.elements.pageNum.value = currentPage;
           this.updateActiveThumbnail(currentPage);
+      }
+  }
+
+  /**
+   * Add a low-resolution placeholder to a page wrapper using sidebar thumbnail data
+   * @param {HTMLElement} wrapper - The page wrapper element
+   * @param {number} pageNum - 1-based page number
+   */
+  _addPagePlaceholder(wrapper, pageNum) {
+      // Don't add placeholder if already rendered
+      if (wrapper.dataset.loaded === 'true') return;
+
+      // Try to get the sidebar thumbnail canvas
+      const thumbWrapper = this.thumbnailWrappers?.[pageNum];
+      const thumbCanvas = thumbWrapper?.querySelector('canvas');
+
+      if (thumbCanvas && thumbCanvas.width > 0 && thumbCanvas.height > 0) {
+          // Create a placeholder canvas from the thumbnail
+          const placeholder = document.createElement('canvas');
+          placeholder.className = 'page-placeholder';
+          placeholder.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;image-rendering:auto;opacity:0.7;filter:blur(1px);pointer-events:none;';
+
+          // Copy thumbnail at its native resolution (small = fast)
+          placeholder.width = thumbCanvas.width;
+          placeholder.height = thumbCanvas.height;
+          try {
+              const ctx = placeholder.getContext('2d');
+              ctx.drawImage(thumbCanvas, 0, 0);
+              wrapper.appendChild(placeholder);
+          } catch (e) {
+              // Silently fail if canvas is tainted or unavailable
+          }
+      } else {
+          // No thumbnail available - add a subtle loading indicator
+          const placeholder = document.createElement('div');
+          placeholder.className = 'page-placeholder';
+          placeholder.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:var(--surface-color, #f5f5f5);display:flex;align-items:center;justify-content:center;pointer-events:none;';
+          placeholder.innerHTML = `<span style="color:var(--text-secondary, #999);font-size:14px;">Page ${pageNum}</span>`;
+          wrapper.appendChild(placeholder);
       }
   }
 

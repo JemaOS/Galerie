@@ -155,16 +155,9 @@
   justify-content: center;
   overflow: hidden;
   background-color: #000000;
-  /* Reserve space for the absolute-positioned default toolbar */
-  padding-top: 56px;
   box-sizing: border-box;
 }
 
-/* When edit toolbar is visible (position:relative, takes flex space),
-   remove the extra padding since the toolbar already occupies space */
-.fullscreen-viewer:has(.edit-mode-toolbar:not(.hidden)) .viewer-content {
-  padding-top: 0;
-}
 
 .viewer-media {
   width: 100%;
@@ -973,4 +966,84 @@
 
 .split-btn-item:hover {
     background-color: var(--surface-variant);
+}
+
+/* ============================================================
+   Fullscreen Mode Overrides (Windows 11 Photos-like behavior)
+   ============================================================
+   Uses the :fullscreen pseudo-class to target true browser
+   fullscreen state. The image fills the entire viewport with
+   a black background, and the toolbar becomes a transparent
+   overlay that auto-hides.
+   ============================================================ */
+
+/* Force black background in fullscreen regardless of color scheme */
+:fullscreen .fullscreen-viewer,
+:fullscreen .viewer-content {
+    background-color: #000000 !important;
+}
+
+:-webkit-full-screen .fullscreen-viewer,
+:-webkit-full-screen .viewer-content {
+    background-color: #000000 !important;
+}
+
+/* Toolbar becomes a transparent overlay in fullscreen */
+:fullscreen .viewer-toolbar {
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: none;
+    box-shadow: none;
+    transition: opacity 0.3s ease;
+}
+
+:-webkit-full-screen .viewer-toolbar {
+    background-color: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: none;
+    box-shadow: none;
+    transition: opacity 0.3s ease;
+}
+
+/* Ensure .viewer-media fills the entire viewport in fullscreen */
+:fullscreen .viewer-media {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+:-webkit-full-screen .viewer-media {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+/* Image fills the container using object-fit: contain for proper aspect ratio */
+:fullscreen .viewer-media img {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    object-fit: contain;
+}
+
+:-webkit-full-screen .viewer-media img {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    object-fit: contain;
+}
+
+/* Ensure viewer-content has no padding in fullscreen */
+:fullscreen .viewer-content {
+    padding: 0 !important;
+}
+
+:-webkit-full-screen .viewer-content {
+    padding: 0 !important;
 }
