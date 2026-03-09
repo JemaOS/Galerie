@@ -312,6 +312,27 @@ class FullscreenViewer {
     document.addEventListener('webkitfullscreenchange', () => this.handleFullscreenChange());
     document.addEventListener('mozfullscreenchange', () => this.handleFullscreenChange());
     document.addEventListener('MSFullscreenChange', () => this.handleFullscreenChange());
+
+    // Window resize: re-apply Photos layout when window size changes
+    let resizeTimeout = null;
+    window.addEventListener('resize', () => {
+      if (!this.isOpen || !this._cachedImg || !this._imageNaturalSize) return;
+      if (this._isResizingWindow) return; // Prevent infinite loop from resizeWindowToFit
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        const img = this._cachedImg;
+        if (img && this._imageNaturalSize) {
+          const isSVG = img.src?.toLowerCase().endsWith('.svg') || false;
+          this._skipWindowResize = true; // Don't re-trigger window resize
+          this.applyPhotosLayout(img, {
+            width: this._imageNaturalSize.width,
+            height: this._imageNaturalSize.height,
+            isSVG
+          });
+          this._skipWindowResize = false;
+        }
+      }, 100);
+    });
   }
 
   /**
@@ -1123,6 +1144,190 @@ class FullscreenViewer {
   }
 
   /**
+   * Get DPI-aware screen dimensions.
+   * Returns the available screen area in CSS pixels, accounting for OS scaling.
+   * @returns {{ width: number, height: number, dpr: number }}
+   */
+  getScreenDimensions() {
+    const dpr = window.devicePixelRatio || 1;
+    // Use window.screen for the full monitor resolution (in CSS pixels, already DPI-adjusted by the browser)
+    // screen.availWidth/Height excludes taskbar on most OSes
+    const width = window.screen.availWidth || window.screen.width;
+    const height = window.screen.availHeight || window.screen.height;
+    return { width, height, dpr };
+  }
+
+  /**
+   * Get the intrinsic dimensions of an image, handling SVG viewBox.
+   * For SVGs without natural dimensions, parses the viewBox attribute.
+   * @param {HTMLImageElement} img - The loaded image element
+   * @param {string} src - The image source URL
+   * @returns {Promise<{ width: number, height: number, isSVG: boolean }>}
+   */
+  async getImageIntrinsicSize(img, src) {
+    const isSVG = src.toLowerCase().endsWith('.svg') ||
+                  (img.src && img.src.includes('data:image/svg'));
+    
+    let width = img.naturalWidth;
+    let height = img.naturalHeight;
+    
+    if (isSVG && (width === 0 || height === 0 || width === 150)) {
+      // SVG may not report natural dimensions; fetch and parse viewBox
+      try {
+        const response = await fetch(src);
+        const text = await response.text();
+        const parser = new DOMParser();
+        const svgDoc = parser.parseFromString(text, 'image/svg+xml');
+        const svgEl = svgDoc.querySelector('svg');
+        
+        if (svgEl) {
+          const viewBox = svgEl.getAttribute('viewBox');
+          const svgWidth = svgEl.getAttribute('width');
+          const svgHeight = svgEl.getAttribute('height');
+          
+          if (viewBox) {
+            const parts = viewBox.split(/[\s,]+/).map(Number);
+            if (parts.length === 4) {
+              width = parts[2];
+              height = parts[3];
+            }
+          }
+          // Explicit width/height attributes override viewBox
+          if (svgWidth && svgHeight) {
+            width = parseFloat(svgWidth) || width;
+            height = parseFloat(svgHeight) || height;
+          }
+        }
+      } catch (e) {
+        console.warn('[Viewer] Could not parse SVG dimensions:', e);
+      }
+    }
+    
+    return { width, height, isSVG };
+  }
+
+  /**
+   * Apply Windows Photos-like sizing logic.
+   *
+   * Rules:
+   * 1. Small images (< screen): display at 1:1, no stretching
+   * 2. Large images (> screen): shrink-to-fit maintaining aspect ratio
+   * 3. SVGs: rasterize at appropriate DPI-aware resolution
+   * 4. Account for OS DPI scaling; center in available space
+   *
+   * @param {HTMLImageElement} img - The loaded image element
+   * @param {{ width: number, height: number, isSVG: boolean }} dimensions - Intrinsic image dimensions
+   */
+  applyPhotosLayout(img, dimensions) {
+    const { width: imgW, height: imgH, isSVG } = dimensions;
+    const screen = this.getScreenDimensions();
+    const dpr = screen.dpr;
+    
+    // Available space = viewer content area
+    // The toolbar is position:absolute so it overlaps the content area
+    // We subtract toolbar height to avoid image being hidden behind it
+    const toolbarHeight = 56;
+    const mediaRect = this.elements.media.getBoundingClientRect();
+    const availW = mediaRect.width || screen.width;
+    const availH = (mediaRect.height || screen.height) - toolbarHeight;
+    
+    // For SVGs, scale to DPI-aware resolution for crisp rendering
+    let effectiveW = imgW;
+    let effectiveH = imgH;
+    if (isSVG) {
+      // Rasterize SVG at device pixel ratio for sharpness
+      effectiveW = imgW * dpr;
+      effectiveH = imgH * dpr;
+    }
+    
+    let displayW, displayH;
+    
+    if (effectiveW <= availW && effectiveH <= availH) {
+      // Rule 1: Image is smaller than available space → display at 1:1
+      displayW = imgW;
+      displayH = imgH;
+    } else {
+      // Rule 2: Image is larger → shrink-to-fit maintaining aspect ratio
+      const scaleX = availW / imgW;
+      const scaleY = availH / imgH;
+      const scale = Math.min(scaleX, scaleY);
+      displayW = Math.round(imgW * scale);
+      displayH = Math.round(imgH * scale);
+    }
+    
+    // Apply sizing to the image element
+    img.style.width = `${displayW}px`;
+    img.style.height = `${displayH}px`;
+    img.style.maxWidth = 'none';
+    img.style.maxHeight = 'none';
+    img.style.objectFit = 'contain';
+    
+    // For SVGs, ensure crisp rendering
+    if (isSVG) {
+      img.style.imageRendering = 'auto'; // Let browser optimize SVG rendering
+    }
+    
+    // Store the initial display dimensions for zoom calculations
+    this._initialDisplaySize = { width: displayW, height: displayH };
+    this._imageNaturalSize = { width: imgW, height: imgH };
+    
+    // Try to resize the PWA window to fit the image (standalone mode only)
+    if (!this._skipWindowResize) {
+      this.resizeWindowToFit(displayW, displayH + toolbarHeight);
+    }
+  }
+
+  /**
+   * Attempt to resize the PWA window to fit the content.
+   * Only works in standalone/PWA mode. Falls back gracefully in browser tabs.
+   * Also centers the window on screen.
+   *
+   * @param {number} contentW - Desired content width
+   * @param {number} contentH - Desired content height
+   */
+  resizeWindowToFit(contentW, contentH) {
+    const screen = this.getScreenDimensions();
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+                         window.matchMedia('(display-mode: window-controls-overlay)').matches ||
+                         window.navigator.standalone === true;
+    
+    if (!isStandalone) return; // Don't resize browser tabs
+    
+    // Add padding for window chrome (title bar, borders)
+    const chromeW = window.outerWidth - window.innerWidth;
+    const chromeH = window.outerHeight - window.innerHeight;
+    
+    // Minimum window size
+    const minW = 400;
+    const minH = 300;
+    
+    let targetW = Math.max(minW, contentW + chromeW);
+    let targetH = Math.max(minH, contentH + chromeH);
+    
+    // Don't exceed screen bounds
+    targetW = Math.min(targetW, screen.width);
+    targetH = Math.min(targetH, screen.height);
+    
+    try {
+      this._isResizingWindow = true;
+      // Resize window
+      window.resizeTo(targetW, targetH);
+      
+      // Center on screen
+      const left = Math.round((screen.width - targetW) / 2);
+      const top = Math.round((screen.height - targetH) / 2);
+      window.moveTo(left, top);
+      
+      // Clear flag after a short delay to allow resize event to fire
+      setTimeout(() => { this._isResizingWindow = false; }, 200);
+    } catch (e) {
+      this._isResizingWindow = false;
+      // Silently fail - browser may block window manipulation
+      console.debug('[Viewer] Window resize not available:', e.message);
+    }
+  }
+
+  /**
    * Load image
    * @param {Object} file - Image file
    */
@@ -1139,10 +1344,15 @@ class FullscreenViewer {
     let dragStart = { x: 0, y: 0 };
     this.transform = { x: 0, y: 0, scale: 1 };
     
-    img.addEventListener('load', () => {
+    img.addEventListener('load', async () => {
       this.elements.media.appendChild(img);
       // Cache the img element reference for performance
       this._cachedImg = img;
+      
+      // Apply Windows Photos-like sizing logic
+      const dimensions = await this.getImageIntrinsicSize(img, file.url);
+      this.applyPhotosLayout(img, dimensions);
+      
       this.resetZoom();
       // Reset adjustments on new load
       this.adjustments = { brightness: 0, exposure: 0, contrast: 0, highlights: 0, shadows: 0, vignette: 0, saturation: 0, warmth: 0, tint: 0, sharpness: 0 };

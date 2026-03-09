@@ -168,8 +168,9 @@
 
 /* Image Viewer */
 .viewer-media img {
-  width: 100%;
-  height: 100%;
+  /* Dimensions set by JS (Windows Photos-like sizing logic) */
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   transition: transform var(--transition-normal);
   cursor: default;
