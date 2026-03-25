@@ -293,29 +293,55 @@ class FullscreenViewer {
       if (this.currentFile?.type === 'image') {
         e.preventDefault();
         
-        // Normalize delta to a consistent step regardless of device
-        let deltaY = e.deltaY;
-        if (e.deltaMode === 1) deltaY *= 16;
-        else if (e.deltaMode === 2) deltaY *= 800;
-        
-        // Clamp delta to prevent extreme jumps from high-resolution trackpads
-        deltaY = Math.max(-300, Math.min(300, deltaY));
-        
-        // Use a much gentler zoom factor: ~1.1x per standard wheel notch (100px)
-        const zoomFactor = Math.pow(1.001, -deltaY);
-        
-        // Set target zoom (accumulate for smooth animation)
-        if (!this._targetZoom) this._targetZoom = this.zoomLevel;
-        this._targetZoom = Math.max(0.1, Math.min(10, this._targetZoom * zoomFactor));
-        
-        // Store cursor position for zoom-toward-cursor
-        this._zoomFocusX = e.clientX;
-        this._zoomFocusY = e.clientY;
-        
-        // Start animation loop if not already running
-        if (!this._zoomAnimating) {
-            this._zoomAnimating = true;
-            this._animateZoom();
+        if (e.ctrlKey) {
+            // Trackpad pinch-to-zoom
+            // deltaY is usually small, e.g., 1-5 per event
+            // We want immediate, 1:1 response
+            const zoomFactor = Math.exp(-e.deltaY * 0.01);
+            const newZoom = Math.max(0.1, Math.min(10, this.zoomLevel * zoomFactor));
+            
+            // Cancel any ongoing animation
+            this._targetZoom = null;
+            this._zoomAnimating = false;
+            
+            // Add pinching class to disable CSS transitions during gesture
+            const img = this.elements.media.querySelector('img');
+            if (img) {
+                img.classList.add('pinching');
+                
+                // Remove pinching class after a short delay of no wheel events
+                if (this._pinchTimeout) clearTimeout(this._pinchTimeout);
+                this._pinchTimeout = setTimeout(() => {
+                    img.classList.remove('pinching');
+                }, 100);
+            }
+            
+            this.setZoom(newZoom, e.clientX, e.clientY);
+        } else {
+            // Normalize delta to a consistent step regardless of device
+            let deltaY = e.deltaY;
+            if (e.deltaMode === 1) deltaY *= 16;
+            else if (e.deltaMode === 2) deltaY *= 800;
+            
+            // Clamp delta to prevent extreme jumps from high-resolution trackpads
+            deltaY = Math.max(-300, Math.min(300, deltaY));
+            
+            // Use a much gentler zoom factor: ~1.1x per standard wheel notch (100px)
+            const zoomFactor = Math.pow(1.001, -deltaY);
+            
+            // Set target zoom (accumulate for smooth animation)
+            if (!this._targetZoom) this._targetZoom = this.zoomLevel;
+            this._targetZoom = Math.max(0.1, Math.min(10, this._targetZoom * zoomFactor));
+            
+            // Store cursor position for zoom-toward-cursor
+            this._zoomFocusX = e.clientX;
+            this._zoomFocusY = e.clientY;
+            
+            // Start animation loop if not already running
+            if (!this._zoomAnimating) {
+                this._zoomAnimating = true;
+                this._animateZoom();
+            }
         }
       }
     }, { passive: false });
@@ -420,6 +446,7 @@ class FullscreenViewer {
       let initialScale = 1;
       let isPinching = false;
       let pinchRafId = null;
+      let lastPinchCenter = null;
 
       this.elements.viewer.addEventListener('touchstart', (e) => {
           // Handle pinch-to-zoom (2 fingers)
@@ -427,16 +454,24 @@ class FullscreenViewer {
               isPinching = true;
               initialPinchDistance = this.getDistance(e.touches[0], e.touches[1]);
               initialScale = this.zoomLevel;
+              lastPinchCenter = {
+                  x: (e.touches[0].clientX + e.touches[1].clientX) / 2,
+                  y: (e.touches[0].clientY + e.touches[1].clientY) / 2
+              };
               
-              // Add zooming class to disable CSS transitions during gesture
+              // Add pinching class to disable CSS transitions during gesture
               const img = this.elements.media.querySelector('img');
-              if (img) img.classList.add('zooming');
+              if (img) img.classList.add('pinching');
+              
+              // Cancel any ongoing animation
+              this._targetZoom = null;
+              this._zoomAnimating = false;
           } else {
               // Single touch - swipe support
               this.touchStartX = e.changedTouches[0].screenX;
               this.touchStartY = e.changedTouches[0].screenY;
           }
-      }, { passive: true });
+      }, { passive: false });
 
       this.elements.viewer.addEventListener('touchmove', (e) => {
           if (isPinching && e.touches.length === 2) {
@@ -447,9 +482,21 @@ class FullscreenViewer {
               const newCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
               const newCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
               
+              // Calculate pan delta
+              const panX = newCenterX - lastPinchCenter.x;
+              const panY = newCenterY - lastPinchCenter.y;
+              
+              // Update last center
+              lastPinchCenter = { x: newCenterX, y: newCenterY };
+              
               // Use requestAnimationFrame for smooth 60fps updates
               if (!pinchRafId) {
                   pinchRafId = requestAnimationFrame(() => {
+                      // Apply pan first
+                      this.transform.x += panX;
+                      this.transform.y += panY;
+                      
+                      // Then apply zoom
                       this.setZoom(scale, newCenterX, newCenterY);
                       pinchRafId = null;
                   });
@@ -461,10 +508,11 @@ class FullscreenViewer {
           if (isPinching && e.touches.length < 2) {
               isPinching = false;
               initialPinchDistance = null;
+              lastPinchCenter = null;
               
-              // Remove zooming class to restore CSS transitions
+              // Remove pinching class to restore CSS transitions
               const img = this.elements.media.querySelector('img');
-              if (img) img.classList.remove('zooming');
+              if (img) img.classList.remove('pinching');
               
               // Cancel any pending animation frame
               if (pinchRafId) {

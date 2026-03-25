@@ -197,6 +197,11 @@
   transition: transform 0.08s ease-out !important;
 }
 
+/* No transition during pinch-to-zoom for 1:1 tracking */
+.viewer-media img.pinching {
+  transition: none !important;
+}
+
 /* Video Viewer */
 .viewer-media video {
   max-width: 100%;
