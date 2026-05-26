@@ -125,6 +125,23 @@ class JemaOSGallery {
         if (registration.waiting) {
           this.showUpdateNotification(registration);
         }
+
+        // Check for updates when network comes back online
+        globalThis.addEventListener('online', () => {
+          console.log('🌐 Network online - checking for updates...');
+          registration.update().catch(err => {
+            console.warn('Update check failed:', err);
+          });
+        });
+
+        // Periodic update check (every 60 minutes when app is open)
+        setInterval(() => {
+          if (navigator.onLine) {
+            registration.update().catch(err => {
+              console.warn('Periodic update check failed:', err);
+            });
+          }
+        }, 60 * 60 * 1000);
         
       } catch (error) {
         console.warn('⚠️ Service Worker registration failed:', error);

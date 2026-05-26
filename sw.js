@@ -16,12 +16,13 @@
  */
 
 // Service Worker for JemaOS Gallery PWA
-const CACHE_NAME = 'jemaos-gallery-v1.3.6';
+const CACHE_NAME = 'jemaos-gallery-v1.4.0';
 const urlsToCache = [
   './',
   './index.html',
   './manifest.json',
   './scripts/loader.js',
+  './styles/fonts.css',
   './styles/main.css',
   './styles/grid.css',
   './styles/fullscreen.css',
@@ -36,19 +37,23 @@ const urlsToCache = [
   './scripts/file-handler.js',
   './scripts/ui-controller.js',
   './scripts/fullscreen-viewer.js',
+  './scripts/tiled-image-renderer.js',
+  './scripts/tile-worker.js',
   './scripts/pdf-viewer.js',
   './scripts/pdf-text-editor.js',
   './scripts/audio-player.js',
   './scripts/video-player.js',
   './scripts/annotation-manager.js',
+  './libs/pdf.min.js',
+  './libs/pdf.worker.min.js',
+  './libs/pdf-lib.min.js',
+  './fonts/roboto-latin.woff2',
+  './fonts/roboto-latin-ext.woff2',
+  './fonts/roboto-italic-latin.woff2',
+  './fonts/material-icons.woff2',
   './icons/icon.svg',
   './icons/icon-192x192.svg',
-  './icons/icon-512x512.svg',
-  'https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap',
-  'https://fonts.googleapis.com/icon?family=Material+Icons',
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js',
-  'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js'
+  './icons/icon-512x512.svg'
 ];
 
 // Install event - cache resources
