@@ -315,6 +315,20 @@
   cursor: crosshair;
 }
 
+/* Text Layer : partage la géométrie et le transform (zoom/pan) du canvas
+   pour que les annotations texte restent ancrées à l'image */
+.annotation-text-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.annotation-text-layer .text-input-wrapper {
+  pointer-events: all;
+}
+
 .annotation-canvas.eraser-mode {
   cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>') 12 12, auto;
 }

@@ -152,7 +152,7 @@ class AnnotationManager {
       this.detachCanvasListeners(page.canvas);
 
       // Save text wrappers
-      const pageTexts = this.textWrappers.filter(w => w.parentElement === page.container);
+      const pageTexts = this.textWrappers.filter(w => w.parentElement === page.container || w.parentElement === page.canvas.textLayer);
       const textStates = pageTexts.map(w => this.serializeTextWrapper(w));
       this.savedText.set(id, textStates);
       
@@ -166,8 +166,9 @@ class AnnotationManager {
           if (idx > -1) this.textWrappers.splice(idx, 1);
       });
       
-      // Remove canvas
+      // Remove canvas and its text layer
       page.canvas.remove();
+      page.canvas.textLayer?.remove();
       this.pages.delete(id);
   }
 
@@ -222,7 +223,10 @@ class AnnotationManager {
           this.cursorElement.remove();
           this.cursorElement = null;
       }
-      this.pages.forEach(p => p.canvas.remove());
+      this.pages.forEach(p => {
+          p.canvas.remove();
+          p.canvas.textLayer?.remove();
+      });
       this.pages.clear();
       this.savedContent.clear();
       this.savedText.clear();
@@ -260,7 +264,58 @@ class AnnotationManager {
     this.updateCanvasSize(canvas, target);
     canvas.targetElement = target;
     container.appendChild(canvas);
+
+    // Calque texte : partage la géométrie du canvas et reçoit le même
+    // transform (zoom/pan) pour que les textes restent ancrés à l'image
+    const textLayer = document.createElement('div');
+    textLayer.className = 'annotation-text-layer';
+    textLayer.style.width = canvas.style.width || '100%';
+    textLayer.style.height = canvas.style.height || '100%';
+    container.appendChild(textLayer);
+    canvas.textLayer = textLayer;
+    textLayer.sourceCanvas = canvas;
+
     return canvas;
+  }
+
+  // Convertit une position pointeur (écran) vers l'espace de coordonnées
+  // du canvas d'annotation (tient compte du transform CSS zoom/pan)
+  getCanvasSpacePoint(e, canvas = this.activeCanvas) {
+    if (!canvas) return { x: e.clientX, y: e.clientY };
+    const container = canvas.parentElement;
+    const containerRect = container.getBoundingClientRect();
+    const px = e.clientX - containerRect.left;
+    const py = e.clientY - containerRect.top;
+    const t = globalThis.getComputedStyle(canvas).transform;
+    if (!t || t === 'none') {
+      return { x: px, y: py };
+    }
+    try {
+      const inv = new DOMMatrixReadOnly(t).inverse();
+      const pt = new DOMPoint(px, py).matrixTransform(inv);
+      return { x: pt.x, y: pt.y };
+    } catch {
+      return { x: px, y: py };
+    }
+  }
+
+  // Convertit un delta écran (dx, dy) en delta dans l'espace du canvas
+  screenDeltaToCanvas(dx, dy, canvas = this.activeCanvas) {
+    if (!canvas) return { dx, dy };
+    const t = globalThis.getComputedStyle(canvas).transform;
+    if (!t || t === 'none') return { dx, dy };
+    try {
+      const inv = new DOMMatrixReadOnly(t).inverse();
+      const origin = new DOMPoint(0, 0).matrixTransform(inv);
+      const p = new DOMPoint(dx, dy).matrixTransform(inv);
+      return { dx: p.x - origin.x, dy: p.y - origin.y };
+    } catch {
+      return { dx, dy };
+    }
+  }
+
+  getTextLayer() {
+    return this.activeCanvas?.textLayer || this.activeCanvas?.parentElement;
   }
 
   updateCanvasSize(canvas, target) {
@@ -649,12 +704,8 @@ class AnnotationManager {
 
     if (this.currentTool === 'text') {
         this.isCreatingText = true;
-        const container = this.activeCanvas.parentElement;
-        const containerRect = container.getBoundingClientRect();
-        this.textStartPoint = {
-            x: e.clientX - containerRect.left,
-            y: e.clientY - containerRect.top
-        };
+        const container = this.getTextLayer();
+        this.textStartPoint = this.getCanvasSpacePoint(e);
         
         this.selectionBox = document.createElement('div');
         this.selectionBox.style.position = 'absolute';
@@ -706,10 +757,9 @@ class AnnotationManager {
     }
 
     if (this.isCreatingText && this.selectionBox) {
-        const container = this.activeCanvas.parentElement;
-        const rect = container.getBoundingClientRect();
-        const currentX = e.clientX - rect.left;
-        const currentY = e.clientY - rect.top;
+        const current = this.getCanvasSpacePoint(e);
+        const currentX = current.x;
+        const currentY = current.y;
         const width = currentX - this.textStartPoint.x;
         const height = currentY - this.textStartPoint.y;
         this.selectionBox.style.width = `${Math.abs(width)}px`;
@@ -934,10 +984,10 @@ class AnnotationManager {
   serializeTextWrapper(wrapper) {
       const input = wrapper.querySelector('textarea');
       const container = wrapper.parentElement;
-      // Find pageId by matching the container (more reliable than canvas querySelector)
+      // Find pageId by matching the container or its text layer (more reliable than canvas querySelector)
       let pageId = null;
       for (const [id, page] of this.pages) {
-          if (page.container === container) {
+          if (page.container === container || page.canvas.textLayer === container) {
               pageId = id;
               break;
           }
@@ -999,7 +1049,7 @@ class AnnotationManager {
   }
 
   createTextInput(x, y, width, height) {
-      const container = this.activeCanvas.parentElement;
+      const container = this.getTextLayer();
       const wrapper = document.createElement('div');
       // Using crypto.randomUUID() for generating unique element IDs - safe for this use case
       wrapper.id = `text-${Date.now()}-${crypto.randomUUID().substring(0, 8)}`;
@@ -1203,11 +1253,11 @@ class AnnotationManager {
       const startY = e.clientY;
       const initialLeft = Number.parseFloat(wrapper.style.left);
       const initialTop = Number.parseFloat(wrapper.style.top);
+      const canvas = wrapper.parentElement?.sourceCanvas || this.activeCanvas;
       const onMouseMove = (e) => {
-          const dx = e.clientX - startX;
-          const dy = e.clientY - startY;
-          wrapper.style.left = `${initialLeft + dx}px`;
-          wrapper.style.top = `${initialTop + dy}px`;
+          const d = this.screenDeltaToCanvas(e.clientX - startX, e.clientY - startY, canvas);
+          wrapper.style.left = `${initialLeft + d.dx}px`;
+          wrapper.style.top = `${initialTop + d.dy}px`;
       };
       this._currentMouseUpHandler = this._createInteractionEndHandler(wrapper, onMouseMove);
       document.addEventListener('mousemove', onMouseMove);
@@ -1224,9 +1274,11 @@ class AnnotationManager {
           const initialHeight = Number.parseFloat(wrapper.style.height);
           const initialLeft = Number.parseFloat(wrapper.style.left);
           const initialTop = Number.parseFloat(wrapper.style.top);
+          const canvas = wrapper.parentElement?.sourceCanvas || this.activeCanvas;
           const onMouseMove = (e) => {
-              const dx = e.clientX - startX;
-              const dy = e.clientY - startY;
+              const d = this.screenDeltaToCanvas(e.clientX - startX, e.clientY - startY, canvas);
+              const dx = d.dx;
+              const dy = d.dy;
               let newWidth = initialWidth;
               let newHeight = initialHeight;
               let newLeft = initialLeft;
@@ -1280,7 +1332,7 @@ class AnnotationManager {
           // Find page for this wrapper
           let page = null;
           for (const p of this.pages.values()) {
-              if (p.container === wrapper.parentElement) {
+              if (p.container === wrapper.parentElement || p.canvas.textLayer === wrapper.parentElement) {
                   page = p;
                   break;
               }

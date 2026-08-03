@@ -2169,6 +2169,7 @@ class FullscreenViewer {
 
     const img = this._cachedImg || this.elements.media.querySelector('img');
     const annotationCanvas = this.elements.media.querySelector('.annotation-canvas');
+    const textLayer = this.elements.media.querySelector('.annotation-text-layer');
     const transform = `translate3d(${this.transform.x}px, ${this.transform.y}px, 0) rotate(${this.rotation}deg) scale(${this.transform.scale})`;
     
     if (img) {
@@ -2179,11 +2180,16 @@ class FullscreenViewer {
     if (annotationCanvas) {
         annotationCanvas.style.transform = transform;
     }
+    
+    if (textLayer) {
+        textLayer.style.transform = transform;
+    }
   }
 
   applyTransform() {
       const img = this._cachedImg || this.elements.media.querySelector('img');
       const annotationCanvas = this.elements.media.querySelector('.annotation-canvas');
+      const textLayer = this.elements.media.querySelector('.annotation-text-layer');
       const transform = `translate3d(${this.transform.x}px, ${this.transform.y}px, 0) rotate(${this.rotation}deg) scale(${this.transform.scale})`;
       
       if (img) {
@@ -2194,6 +2200,10 @@ class FullscreenViewer {
       
       if (annotationCanvas) {
           annotationCanvas.style.transform = transform;
+      }
+      
+      if (textLayer) {
+          textLayer.style.transform = transform;
       }
   }
 
