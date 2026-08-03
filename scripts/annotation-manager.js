@@ -291,6 +291,18 @@ class AnnotationManager {
     const style = globalThis.getComputedStyle(canvas);
     const t = style.transform;
     if (!t || t === 'none') {
+      // Pas de transform propre, mais un ancêtre peut transformer (zoom PDF) :
+      // le rect visuel du canvas intègre tous les transforms ancêtres
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width && canvas.offsetWidth) {
+        const scale = rect.width / canvas.offsetWidth;
+        if (Math.abs(scale - 1) > 0.001) {
+          return {
+            x: (e.clientX - rect.left) * (canvas.offsetWidth / rect.width),
+            y: (e.clientY - rect.top) * (canvas.offsetHeight / rect.height)
+          };
+        }
+      }
       return { x: px, y: py };
     }
     try {
@@ -304,11 +316,24 @@ class AnnotationManager {
     }
   }
 
+  // Échelle visuelle du canvas incluant les transforms de ses ANCÊTRES
+  // (le zoom PDF applique scale() sur un conteneur parent, pas sur le canvas)
+  getVisualScale(canvas = this.activeCanvas) {
+    if (!canvas) return 1;
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !canvas.offsetWidth) return 1;
+    return rect.width / canvas.offsetWidth || 1;
+  }
+
   // Convertit un delta écran (dx, dy) en delta dans l'espace du canvas
   screenDeltaToCanvas(dx, dy, canvas = this.activeCanvas) {
     if (!canvas) return { dx, dy };
     const t = globalThis.getComputedStyle(canvas).transform;
-    if (!t || t === 'none') return { dx, dy };
+    if (!t || t === 'none') {
+      // Transform sur un ancêtre (zoom PDF) : diviser par l'échelle visuelle
+      const s = this.getVisualScale(canvas);
+      return s !== 1 ? { dx: dx / s, dy: dy / s } : { dx, dy };
+    }
     try {
       const inv = new DOMMatrixReadOnly(t).inverse();
       const origin = new DOMPoint(0, 0).matrixTransform(inv);
@@ -327,7 +352,7 @@ class AnnotationManager {
   getCanvasScale(canvas = this.activeCanvas) {
     if (!canvas) return 1;
     const t = globalThis.getComputedStyle(canvas).transform;
-    if (!t || t === 'none') return 1;
+    if (!t || t === 'none') return this.getVisualScale(canvas);
     try {
       const m = new DOMMatrixReadOnly(t);
       return Math.hypot(m.a, m.b) || 1;

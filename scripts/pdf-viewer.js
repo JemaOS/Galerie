@@ -1874,9 +1874,18 @@ class PdfViewer {
           
           this.activeRenderTasks.delete(num);
           
-          const oldCanvas = wrapper.querySelector('canvas:not(.page-placeholder)');
+          // Cibler uniquement le canvas de rendu PDF : ne jamais toucher au
+          // canvas d'annotation (outils, tracés) ni à son calque texte
+          const oldCanvas = wrapper.querySelector('canvas.pdf-page-canvas');
           if (oldCanvas) oldCanvas.remove();
-          wrapper.appendChild(canvas);
+          // Insérer SOUS le canvas d'annotation pour préserver l'ordre
+          // d'empilement et la réception des événements pointeur
+          const annotationCanvas = wrapper.querySelector('.annotation-canvas');
+          if (annotationCanvas) {
+              wrapper.insertBefore(canvas, annotationCanvas);
+          } else {
+              wrapper.appendChild(canvas);
+          }
 
           // Remove placeholder if present
           const placeholder = wrapper.querySelector('.page-placeholder');
