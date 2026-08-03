@@ -279,21 +279,26 @@ class AnnotationManager {
   }
 
   // Convertit une position pointeur (écran) vers l'espace de coordonnées
-  // du canvas d'annotation (tient compte du transform CSS zoom/pan)
+  // du canvas d'annotation (tient compte du transform CSS zoom/pan
+  // ET de son transform-origin : la matrice calculée ne l'inclut pas,
+  // il faut donc recentrer manuellement autour de l'origine)
   getCanvasSpacePoint(e, canvas = this.activeCanvas) {
     if (!canvas) return { x: e.clientX, y: e.clientY };
     const container = canvas.parentElement;
     const containerRect = container.getBoundingClientRect();
     const px = e.clientX - containerRect.left;
     const py = e.clientY - containerRect.top;
-    const t = globalThis.getComputedStyle(canvas).transform;
+    const style = globalThis.getComputedStyle(canvas);
+    const t = style.transform;
     if (!t || t === 'none') {
       return { x: px, y: py };
     }
     try {
+      const [ox, oy] = style.transformOrigin.split(' ').map(v => Number.parseFloat(v) || 0);
       const inv = new DOMMatrixReadOnly(t).inverse();
-      const pt = new DOMPoint(px, py).matrixTransform(inv);
-      return { x: pt.x, y: pt.y };
+      // local = origine + M⁻¹ · (parent − origine)
+      const pt = new DOMPoint(px - ox, py - oy).matrixTransform(inv);
+      return { x: pt.x + ox, y: pt.y + oy };
     } catch {
       return { x: px, y: py };
     }
