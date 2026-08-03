@@ -318,6 +318,19 @@ class AnnotationManager {
     return this.activeCanvas?.textLayer || this.activeCanvas?.parentElement;
   }
 
+  // Échelle uniforme actuelle du transform CSS du canvas (zoom)
+  getCanvasScale(canvas = this.activeCanvas) {
+    if (!canvas) return 1;
+    const t = globalThis.getComputedStyle(canvas).transform;
+    if (!t || t === 'none') return 1;
+    try {
+      const m = new DOMMatrixReadOnly(t);
+      return Math.hypot(m.a, m.b) || 1;
+    } catch {
+      return 1;
+    }
+  }
+
   updateCanvasSize(canvas, target) {
     if (!target || !canvas) return;
     
@@ -1121,7 +1134,7 @@ class AnnotationManager {
       input.style.outline = 'none';
       input.style.background = 'transparent';
       input.style.fontFamily = this.currentFont;
-      input.style.fontSize = `${this.currentFontSize}px`;
+      input.style.fontSize = `${this.currentFontSize / this.getCanvasScale()}px`;
       input.style.color = this.currentColor;
       input.style.fontWeight = this.isBold ? 'bold' : 'normal';
       input.style.fontStyle = this.isItalic ? 'italic' : 'normal';
@@ -1352,7 +1365,8 @@ class AnnotationManager {
           const canvasHeight = rect.height * scaleY;
           const rotation = Number.parseFloat(wrapper.dataset.rotation || 0);
           const style = globalThis.getComputedStyle(input);
-          const fontSize = Number.parseFloat(style.fontSize) * scaleX;
+          const zoomScale = this.getCanvasScale(page.canvas);
+          const fontSize = Number.parseFloat(style.fontSize) * scaleX * zoomScale;
           const fontFamily = style.fontFamily;
           const color = style.color;
           const fontWeight = style.fontWeight;
@@ -1589,7 +1603,7 @@ class AnnotationManager {
       if (!this.activeInput) return;
       const oldState = this.activeWrapper ? this.serializeTextWrapper(this.activeWrapper) : null;
       this.activeInput.style.fontFamily = this.currentFont;
-      this.activeInput.style.fontSize = `${this.currentFontSize}px`;
+      this.activeInput.style.fontSize = `${this.currentFontSize / this.getCanvasScale(this.activeWrapper?.parentElement?.sourceCanvas)}px`;
       this.activeInput.style.color = this.currentColor;
       this.activeInput.style.fontWeight = this.isBold ? 'bold' : 'normal';
       this.activeInput.style.fontStyle = this.isItalic ? 'italic' : 'normal';
