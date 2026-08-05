@@ -1107,6 +1107,9 @@ class FullscreenViewer {
       this.isOpen = true;
       
       this.elements.viewer.classList.remove('hidden');
+      // Force a reflow so the opacity/visibility transition actually plays
+      // (going from display:none to opacity:1 in the same frame skips it)
+      void this.elements.viewer.offsetWidth;
       this.elements.viewer.classList.add('active');
       
       this.loadFile(file);

@@ -96,6 +96,10 @@
   font-family: 'Material Icons';
   font-style: normal;
   font-weight: 400;
+  /* Keep icons invisible until the font arrives instead of showing raw
+     ligature text (e.g. "zoom_in"). The font is preloaded in index.html
+     and precached by the service worker, so the block period is short. */
+  font-display: block;
   src: url(../fonts/material-icons.woff2) format('woff2');
 }
 
@@ -111,6 +115,7 @@
   white-space: nowrap;
   word-wrap: normal;
   direction: ltr;
+  font-feature-settings: 'liga';
   -webkit-font-feature-settings: 'liga';
   -webkit-font-smoothing: antialiased;
 }

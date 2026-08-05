@@ -156,6 +156,16 @@
   overflow: hidden;
   background-color: #000000;
   box-sizing: border-box;
+  /* Reserve space for the absolute-positioned toolbar (56px) so the
+     image is fitted/centered in the area BELOW it — like Windows Photos —
+     instead of having its top 56px hidden behind the toolbar. */
+  padding-top: 56px;
+}
+
+/* In edit mode the edit toolbar is position:relative (in flow) and the
+   default toolbar is hidden, so the extra padding would double the offset. */
+.fullscreen-viewer:has(.edit-mode-toolbar:not(.hidden)) .viewer-content {
+  padding-top: 0;
 }
 
 
