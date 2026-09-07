@@ -378,13 +378,9 @@ const I18N_TRANSLATIONS = {
   },
 };
 
-// Get system language from navigator.language ('fr' if French, else 'en')
-function getSystemLang() {
-  const sysLang = (typeof navigator !== 'undefined' && (navigator.language || navigator.userLanguage)) || 'en';
-  return sysLang.split('-')[0].toLowerCase() === 'fr' ? 'fr' : 'en';
-}
-
-let currentLang = getSystemLang();
+// French by default for JemaOS PWAs; the language selector is a
+// session-only override (never persisted).
+let currentLang = 'fr';
 
 /**
  * Translate a key in the current language, with optional {param} placeholders.
@@ -437,8 +433,8 @@ function applyI18n(root = document) {
 }
 
 /**
- * Change the UI language at runtime (manual override only - the system
- * language always wins on page load and on the languagechange event).
+ * Change the UI language at runtime (manual override only - the app
+ * always starts in French).
  * @param {string} lang - Language code ('en' or 'fr')
  */
 function setI18nLang(lang) {
@@ -454,11 +450,6 @@ function setI18nLang(lang) {
     updateLanguageSelectorUI();
     document.dispatchEvent(new CustomEvent('i18n:changed', { detail: { lang } }));
   }
-}
-
-// The system language always wins when the OS language changes
-if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-  window.addEventListener('languagechange', () => setI18nLang(getSystemLang()));
 }
 
 // ============ LANGUAGE SELECTOR (ported from JemaPDF LanguageSelector.jsx) ============
@@ -557,7 +548,6 @@ function setupLanguageSelectorVisibility() {
 
 globalThis.I18N_LANGUAGES = I18N_LANGUAGES;
 globalThis.I18N_TRANSLATIONS = I18N_TRANSLATIONS;
-globalThis.getSystemLang = getSystemLang;
 globalThis.t = t;
 globalThis.applyI18n = applyI18n;
 globalThis.setI18nLang = setI18nLang;
@@ -574,5 +564,5 @@ if (typeof document !== 'undefined' && document.documentElement) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { I18N_LANGUAGES, I18N_TRANSLATIONS, getSystemLang, t, applyI18n, setI18nLang };
+  module.exports = { I18N_LANGUAGES, I18N_TRANSLATIONS, t, applyI18n, setI18nLang };
 }
