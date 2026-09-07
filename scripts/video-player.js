@@ -97,7 +97,7 @@ class VideoPlayer {
         const volumeContainer = document.createElement('div');
         volumeContainer.className = 'volume-container';
         
-        this.elements.volumeBtn = this.createButton('volume_up', 'Volume', () => this.toggleMute());
+        this.elements.volumeBtn = this.createButton('volume_up', t('volume'), () => this.toggleMute());
         this.elements.volumeSlider = document.createElement('input');
         this.elements.volumeSlider.type = 'range';
         this.elements.volumeSlider.className = 'volume-slider';
@@ -113,9 +113,9 @@ class VideoPlayer {
         const centerControls = document.createElement('div');
         centerControls.className = 'center-controls';
         
-        this.elements.skipBackBtn = this.createButton('replay_10', 'Reculer de 10s', () => this.skip(-10));
-        this.elements.playPauseBtn = this.createButton('play_arrow', 'Lecture', () => this.togglePlayPause());
-        this.elements.skipFwdBtn = this.createButton('forward_10', 'Avancer de 10s', () => this.skip(10));
+        this.elements.skipBackBtn = this.createButton('replay_10', t('rewind10'), () => this.skip(-10));
+        this.elements.playPauseBtn = this.createButton('play_arrow', t('play'), () => this.togglePlayPause());
+        this.elements.skipFwdBtn = this.createButton('forward_10', t('forward10'), () => this.skip(10));
         
         centerControls.appendChild(this.elements.skipBackBtn);
         centerControls.appendChild(this.elements.playPauseBtn);
@@ -125,7 +125,7 @@ class VideoPlayer {
         const rightControls = document.createElement('div');
         rightControls.className = 'right-controls';
         
-        this.elements.fullscreenBtn = this.createButton('fullscreen', 'Plein écran', () => this.toggleFullscreen());
+        this.elements.fullscreenBtn = this.createButton('fullscreen', t('fullscreen'), () => this.toggleFullscreen());
         
         rightControls.appendChild(this.elements.fullscreenBtn);
         
@@ -193,7 +193,7 @@ class VideoPlayer {
         const rightSection = document.createElement('div');
         rightSection.className = 'top-bar-right';
         
-        const infoBtn = this.createButton('info', 'Infos', () => this.showInfo());
+        const infoBtn = this.createButton('info', t('info'), () => this.showInfo());
         infoBtn.classList.add('video-info-btn');
         
         rightSection.appendChild(infoBtn);
@@ -260,14 +260,14 @@ class VideoPlayer {
             let errorMessage;
             if (this.video.error) {
                 switch (this.video.error.code) {
-                    case 1: errorMessage = 'Lecture annulée'; break;
-                    case 2: errorMessage = 'Erreur réseau'; break;
-                    case 3: errorMessage = 'Erreur de décodage'; break;
-                    case 4: errorMessage = 'Format non supporté'; break;
-                    default: errorMessage = 'Erreur inconnue';
+                    case 1: errorMessage = t('playbackCancelled'); break;
+                    case 2: errorMessage = t('networkError'); break;
+                    case 3: errorMessage = t('decodingError'); break;
+                    case 4: errorMessage = t('unsupportedFormat'); break;
+                    default: errorMessage = t('unknownError');
                 }
             } else {
-                errorMessage = 'Format non supporté';
+                errorMessage = t('unsupportedFormat');
             }
 
             const errorDisplay = document.createElement('div');
@@ -282,7 +282,7 @@ class VideoPlayer {
             errorDisplay.style.textAlign = 'center';
             errorDisplay.innerHTML = `
                 <i class="material-icons" style="font-size: 48px; margin-bottom: 8px;">error_outline</i>
-                <p>Erreur de lecture</p>
+                <p>${t('playbackError')}</p>
                 <p style="font-size: 12px; color: #9aa0a6;">${errorMessage}</p>
             `;
             this.container.appendChild(errorDisplay);

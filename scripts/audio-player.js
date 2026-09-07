@@ -204,7 +204,7 @@ class AudioPlayer {
 
         // Update UI
         this.elements.title.textContent = file.name;
-        this.elements.artist.textContent = 'Artiste inconnu'; // Placeholder
+        this.elements.artist.textContent = t('unknownArtist');
         
         // Update Playlist Highlight
         this.updatePlaylistHighlight();
@@ -407,7 +407,7 @@ class AudioPlayer {
                 <span class="track-number">${index + 1}</span>
                 <div class="track-info-list">
                     <span class="track-title-list">${file.name}</span>
-                    <span class="track-artist-list">Artiste inconnu</span>
+                    <span class="track-artist-list">${t('unknownArtist')}</span>
                 </div>
                 <span class="track-duration">--:--</span>
             `;

@@ -673,7 +673,7 @@ class PdfViewer {
       
       const targets = this.collectAnnotationTargets();
       if (targets.length === 0) {
-          this.uiController.showToast('Impossible d\'annoter : aucun document chargé', 'error');
+          this.uiController.showToast(t('cannotAnnotate'), 'error');
           this.toggleEditMode(false);
           return;
       }
@@ -709,7 +709,7 @@ class PdfViewer {
           return true;
       } catch (e) {
           console.error('Failed to load annotation manager', e);
-          this.uiController.showToast('Erreur de chargement des outils d\'édition', 'error');
+          this.uiController.showToast(t('editToolsLoadError'), 'error');
           this.uiController.showLoading(false);
           this.isEditMode = false;
           return false;
@@ -870,7 +870,7 @@ class PdfViewer {
           return true;
       } catch (e) {
           console.error('Failed to load text editor:', e);
-          this.uiController.showToast('Erreur de chargement de l\'éditeur de texte', 'error');
+          this.uiController.showToast(t('textEditorLoadError'), 'error');
           this.uiController.showLoading(false);
           this.isTextEditMode = false;
           return false;
@@ -912,7 +912,7 @@ class PdfViewer {
           indicator.className = 'pdf-edit-mode-indicator';
           indicator.innerHTML = `
               <i class="material-icons">edit_note</i>
-              <span>Mode Édition de Texte - Cliquez sur le texte pour le modifier</span>
+              <span>${t('textEditModeIndicator')}</span>
           `;
           document.body.appendChild(indicator);
       }
@@ -941,7 +941,7 @@ class PdfViewer {
       await this.loadPdfDocument(file);
     } catch (error) {
       console.error('Error loading PDF:', error);
-      this.uiController.showToast('Erreur lors du chargement du fichier PDF', 'error');
+      this.uiController.showToast(t('pdfLoadError'), 'error');
     }
   }
 
@@ -1286,7 +1286,7 @@ class PdfViewer {
           
       } catch (error) {
           console.error('Error refreshing preview:', error);
-          this.uiController.showToast('Erreur lors de la mise à jour de l\'aperçu', 'error');
+          this.uiController.showToast(t('previewUpdateError'), 'error');
           this.uiController.showLoading(false);
       }
   }
@@ -1319,7 +1319,7 @@ class PdfViewer {
    * Handle successful save - restore state and UI
    */
   async handleSaveSuccess(state) {
-    this.uiController.showToast('PDF enregistré', 'success');
+    this.uiController.showToast(t('pdfSaved'), 'success');
     this.rotation = 0;
     if (this.annotationManager) this.annotationManager.clear();
     
@@ -1349,7 +1349,7 @@ class PdfViewer {
     const state = this.getSaveState();
 
     try {
-        this.uiController.showToast('Enregistrement du PDF...', 'info');
+        this.uiController.showToast(t('savingPdf'), 'info');
         
         const blob = await this.generatePdfBlob();
         const success = await this.fileHandler.saveFile(this.currentFile, blob);
@@ -1362,7 +1362,7 @@ class PdfViewer {
         
     } catch (error) {
         console.error('Error saving PDF:', error);
-        this.uiController.showToast('Erreur lors de l\'enregistrement', 'error');
+        this.uiController.showToast(t('saveError'), 'error');
     }
   }
 
@@ -1372,22 +1372,22 @@ class PdfViewer {
   async saveAs(blob = null) {
       if (!this.currentFile) return;
 
-      try {
-          if (!blob) {
-              this.uiController.showToast('Préparation du fichier...', 'info');
-              blob = await this.generatePdfBlob();
-          }
+    try {
+        if (!blob) {
+            this.uiController.showToast(t('preparingFile'), 'info');
+            blob = await this.generatePdfBlob();
+        }
 
-          const newFile = await this.fileHandler.saveFileAs(this.currentFile, blob);
-          
-          if (newFile) {
-              this.uiController.showToast('Fichier enregistré', 'success');
-              this.open(newFile);
-          }
-      } catch (error) {
-          console.error('Error saving PDF as:', error);
-          this.uiController.showToast('Erreur lors de l\'enregistrement', 'error');
-      }
+        const newFile = await this.fileHandler.saveFileAs(this.currentFile, blob);
+        
+        if (newFile) {
+            this.uiController.showToast(t('fileSavedToast'), 'success');
+            this.open(newFile);
+        }
+    } catch (error) {
+        console.error('Error saving PDF as:', error);
+        this.uiController.showToast(t('saveError'), 'error');
+    }
   }
 
   /**

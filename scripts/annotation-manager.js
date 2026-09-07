@@ -401,7 +401,7 @@ class AnnotationManager {
     sizeGroup.className = 'sidebar-group size-group';
     const sizeLabel = document.createElement('div');
     sizeLabel.className = 'group-label';
-    sizeLabel.textContent = 'TAILLE';
+    sizeLabel.textContent = t('groupSize');
     sizeGroup.appendChild(sizeLabel);
     const sizeOptions = document.createElement('div');
     sizeOptions.className = 'size-options';
@@ -432,7 +432,7 @@ class AnnotationManager {
     fontGroup.className = 'sidebar-group';
     const fontLabel = document.createElement('div');
     fontLabel.className = 'group-label';
-    fontLabel.textContent = 'Police';
+    fontLabel.textContent = t('font');
     fontGroup.appendChild(fontLabel);
     const fontControls = document.createElement('div');
     fontControls.className = 'font-controls';
@@ -472,7 +472,7 @@ class AnnotationManager {
     styleGroup.className = 'sidebar-group';
     const styleLabel = document.createElement('div');
     styleLabel.className = 'group-label';
-    styleLabel.textContent = 'Styles';
+    styleLabel.textContent = t('styles');
     styleGroup.appendChild(styleLabel);
     const styleControls = document.createElement('div');
     styleControls.className = 'style-controls';
@@ -521,7 +521,7 @@ class AnnotationManager {
     textColorGroup.className = 'sidebar-group';
     const textColorLabel = document.createElement('div');
     textColorLabel.className = 'group-label';
-    textColorLabel.textContent = 'Couleur du texte';
+    textColorLabel.textContent = t('textColor');
     textColorGroup.appendChild(textColorLabel);
     const textColorGrid = document.createElement('div');
     textColorGrid.className = 'color-grid';
@@ -543,7 +543,7 @@ class AnnotationManager {
     colorGroup.className = 'sidebar-group color-group';
     const colorLabel = document.createElement('div');
     colorLabel.className = 'group-label';
-    colorLabel.textContent = 'COULEUR';
+    colorLabel.textContent = t('groupColor');
     colorGroup.appendChild(colorLabel);
     const colorGrid = document.createElement('div');
     colorGrid.className = 'color-grid';
@@ -565,7 +565,7 @@ class AnnotationManager {
     const toggleContainer = document.createElement('div');
     toggleContainer.className = 'toggle-container';
     const toggleLabel = document.createElement('span');
-    toggleLabel.textContent = 'Appliquer automatiquement';
+    toggleLabel.textContent = t('applyAutomatically');
     toggleContainer.appendChild(toggleLabel);
     const toggleSwitch = document.createElement('label');
     toggleSwitch.className = 'toggle-switch';
@@ -586,7 +586,7 @@ class AnnotationManager {
     sliderLabel.style.display = 'flex';
     sliderLabel.style.alignItems = 'center';
     sliderLabel.style.gap = '8px';
-    sliderLabel.innerHTML = '<i class="material-icons" style="font-size: 18px;">radio_button_checked</i> Taille du pinceau';
+    sliderLabel.innerHTML = `<i class="material-icons" style="font-size: 18px;">radio_button_checked</i> ${t('brushSize')}`;
     sliderHeader.appendChild(sliderLabel);
     const sliderValue = document.createElement('span');
     sliderValue.className = 'slider-value';

@@ -1871,8 +1871,6 @@ class PdfTextEditor {
         return { textColor: finalTextColor, bgColor: finalBgColor };
     }
 
-    }
-
     /**
      * Helper: Render a single text item
      * @private
@@ -2437,7 +2435,7 @@ class PdfTextEditor {
             <div class="text-editor-properties">
                 <div class="text-editor-prop-group">
                     <p style="font-size: 12px; color: #666;">
-                        Cliquez sur le texte pour le modifier. Les modifications seront enregistrées lors de la sauvegarde du document.
+                        ${t('textEditorHint')}
                     </p>
                 </div>
             </div>

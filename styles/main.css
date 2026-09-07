@@ -762,6 +762,102 @@ input:checked + .slider:before {
   justify-content: flex-end;
 }
 
+/* Language Selector */
+.language-selector {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 1500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-full);
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0.72;
+  box-shadow: var(--shadow-sm);
+  transition: opacity var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.language-selector:hover,
+.language-selector.open {
+  opacity: 1;
+  background-color: var(--surface-variant);
+  color: var(--on-surface);
+}
+
+.language-selector.lang-hidden {
+  display: none !important;
+}
+
+.language-selector .lang-icon {
+  display: flex;
+  align-items: center;
+}
+
+.language-selector .lang-icon svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.language-selector .lang-text {
+  font-size: 12px;
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+}
+
+.language-selector .lang-arrow {
+  font-size: 9px;
+  line-height: 1;
+}
+
+.language-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 140px;
+  padding: var(--space-xs);
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  display: none;
+  z-index: var(--z-popover);
+}
+
+.language-selector.open .language-dropdown {
+  display: block;
+}
+
+.language-option {
+  display: flex;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-sm);
+  color: var(--on-surface-variant);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.language-option:hover {
+  background-color: var(--surface-variant);
+  color: var(--on-surface);
+}
+
+.language-option.active {
+  background-color: rgba(var(--primary-rgb), 0.12);
+  color: var(--primary-color);
+  font-weight: var(--font-weight-medium);
+}
+
 /* Window Controls Overlay Support */
 @media (display-mode: window-controls-overlay) {
   .landing-top-bar {

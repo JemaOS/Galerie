@@ -48,6 +48,9 @@ class JemaOSGallery {
         });
       }
       
+      // Apply translations (initial language comes from the system)
+      applyI18n();
+      
       // Initialize components
       await this.initializeComponents();
       
@@ -66,11 +69,15 @@ class JemaOSGallery {
       // Hide loading screen
       this.showLoadingScreen(false);
       
+      // Re-apply translations after the loading screen is hidden
+      applyI18n();
+      updateLanguageSelectorVisibility();
+      
       console.log('✅ JemaOS Gallery initialized successfully');
       
     } catch (error) {
       console.error('❌ Failed to initialize JemaOS Gallery:', error);
-      this.showError('Échec de l\'initialisation de la galerie. Veuillez rafraîchir la page.');
+      this.showError(t('initFailed'));
     }
   }
 
@@ -174,7 +181,7 @@ class JemaOSGallery {
     
     globalThis.addEventListener('appinstalled', () => {
       console.log('📱 PWA was installed');
-      this.showToast('Galerie installée avec succès !', 'success');
+      this.showToast(t('installedSuccessfully'), 'success');
     });
   }
 
@@ -234,7 +241,7 @@ class JemaOSGallery {
         if (event.data.type === 'SHARED_FILES') {
           const { files } = event.data;
           const loadedFiles = await this.fileHandler.loadFiles(files);
-          this.uiController.showToast(`Fichiers partagés : ${files.length}`, 'success');
+          this.uiController.showToast(t('sharedFiles', { count: files.length }), 'success');
 
           // Auto-open first file
           if (loadedFiles.length > 0) {
@@ -274,7 +281,7 @@ class JemaOSGallery {
     // File error handler
     globalThis.addEventListener('fileerror', (event) => {
       console.error('💥 File error:', event.detail);
-      this.uiController.showToast(`Erreur lors du chargement du fichier : ${event.detail.filename}`, 'error');
+      this.uiController.showToast(t('fileLoadError', { filename: event.detail.filename }), 'error');
     });
   }
 
@@ -287,8 +294,7 @@ class JemaOSGallery {
     console.error('Application error:', error);
     
     // Show user-friendly message
-    // Always show French message for notifications
-    const message = 'Une erreur inattendue est survenue';
+    const message = t('unexpectedError');
     this.uiController.showToast(message, 'error');
     
     // Send error to analytics (if implemented)
@@ -347,11 +353,11 @@ class JemaOSGallery {
       style: 'cursor: pointer;'
     }, [
       GalleryUtils.createElement('i', { className: 'material-icons' }, 'system_update'),
-      GalleryUtils.createElement('span', {}, 'Nouvelle version disponible !'),
+      GalleryUtils.createElement('span', {}, t('newVersionAvailable')),
       GalleryUtils.createElement('button', {
         className: 'update-btn',
         style: 'margin-left: auto; padding: 4px 8px; background: var(--primary-color); color: white; border: none; border-radius: 4px; cursor: pointer;'
-      }, 'Mettre à jour')
+      }, t('update'))
     ]);
     
     toast.addEventListener('click', () => {
@@ -406,7 +412,7 @@ class JemaOSGallery {
     return {
       name: 'Galerie',
       version: this.getVersion(),
-      description: 'Une galerie de JemaOS pour visualiser des images, des vidéos et des fichiers audio',
+      description: t('appDescription'),
       features: [
         'Multi-format support (Images, Videos, Audio)',
         'Fullscreen viewing with navigation',
@@ -424,7 +430,7 @@ class JemaOSGallery {
    * Clear all data
    */
   clearAllData() {
-    if (confirm('Ceci effacera toutes les données de la galerie. Êtes-vous sûr ?')) {
+    if (confirm(t('clearDataConfirm'))) {
       // Clear files
       this.fileHandler.files = [];
       this.fileHandler.filteredFiles = [];
@@ -438,7 +444,7 @@ class JemaOSGallery {
       
       // Re-render UI
       this.uiController.renderFiles();
-      this.uiController.showToast('Toutes les données ont été effacées', 'success');
+      this.uiController.showToast(t('allDataCleared'), 'success');
     }
   }
 
@@ -462,7 +468,7 @@ class JemaOSGallery {
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     
     GalleryUtils.downloadFile(URL.createObjectURL(dataBlob), 'gallery-settings.json');
-    this.uiController.showToast('Paramètres exportés', 'success');
+    this.uiController.showToast(t('settingsExported'), 'success');
   }
 
   /**
@@ -475,7 +481,7 @@ class JemaOSGallery {
       
       // Validate settings
       if (!settings.version || !settings.preferences) {
-        throw new Error('Fichier de paramètres invalide');
+        throw new Error(t('invalidSettingsFile'));
       }
       
       // Apply preferences
@@ -487,10 +493,10 @@ class JemaOSGallery {
       // Update UI
       this.uiController.updateUI();
       
-      this.uiController.showToast('Paramètres importés', 'success');
+      this.uiController.showToast(t('settingsImported'), 'success');
     } catch (error) {
       console.error('Failed to import settings:', error);
-      this.uiController.showToast('Échec de l\'importation des paramètres', 'error');
+      this.uiController.showToast(t('settingsImportFailed'), 'error');
     }
   }
 

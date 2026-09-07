@@ -57,7 +57,7 @@
     <!-- Loading Screen -->
     <div id="loading-screen" class="loading-screen">
         <div class="loading-spinner"></div>
-        <p>Chargement de la galerie...</p>
+        <p data-i18n="loadingGallery"></p>
     </div>
 
     <!-- Main Application -->
@@ -68,7 +68,7 @@
             <div id="drop-zone" class="drop-zone hidden">
                 <div class="drop-message">
                     <i class="material-icons">cloud_upload</i>
-                    <p>Déposez des fichiers ici pour les ajouter à la galerie</p>
+                    <p data-i18n="dropFilesHere"></p>
                 </div>
             </div>
 
@@ -87,6 +87,19 @@
         <div id="toast-container" class="toast-container"></div>
     </div>
 
+    <!-- Language Selector (runtime override; the JemaOS system language always wins on load) -->
+    <div id="language-selector" class="language-selector" data-i18n-title="language" data-i18n-aria="language" role="button" aria-haspopup="true" aria-expanded="false">
+        <span class="lang-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 8l6 6M4 14h8M5.5 14l2-6h1l2 6" />
+                <path d="M14 5h6M17 5v9M14 9h6" />
+            </svg>
+        </span>
+        <span class="lang-text">EN/FR</span>
+        <span class="lang-arrow">▼</span>
+        <div class="language-dropdown"></div>
+    </div>
+
     <!-- Fullscreen Viewer -->
     <div id="fullscreen-viewer" class="fullscreen-viewer hidden">
         <!-- Default Toolbar -->
@@ -94,25 +107,25 @@
             <div class="viewer-top-left">
                 <span id="viewer-filename" class="viewer-filename"></span>
                 <div class="viewer-divider"></div>
-                <button id="viewer-info" class="viewer-btn" title="Infos">
+                <button id="viewer-info" class="viewer-btn" title="Infos" data-i18n-title="info">
                     <i class="material-icons">info_outline</i>
                 </button>
-                <button id="viewer-print" class="viewer-btn" title="Imprimer">
+                <button id="viewer-print" class="viewer-btn" title="Imprimer" data-i18n-title="print">
                     <i class="material-icons">print</i>
                 </button>
             </div>
             
             <div class="viewer-top-center">
-                <button id="viewer-zoom-out" class="viewer-btn" title="Zoom arrière">
+                <button id="viewer-zoom-out" class="viewer-btn" title="Zoom arrière" data-i18n-title="zoomOut">
                     <i class="material-icons">zoom_out</i>
                 </button>
-                <button id="viewer-zoom-in" class="viewer-btn" title="Zoom avant">
+                <button id="viewer-zoom-in" class="viewer-btn" title="Zoom avant" data-i18n-title="zoomIn">
                     <i class="material-icons">zoom_in</i>
                 </button>
             </div>
             
             <div class="viewer-top-right">
-                <button id="viewer-rotate" class="viewer-btn" title="Pivoter">
+                <button id="viewer-rotate" class="viewer-btn" title="Pivoter" data-i18n-title="rotate">
                     <i class="material-icons">rotate_right</i>
                 </button>
                 <div class="viewer-divider"></div>
@@ -127,16 +140,16 @@
                     </button>
                     <div id="viewer-toolbar-save-dropdown" class="split-btn-dropdown">
                         <button id="viewer-toolbar-save-as-split" class="split-btn-item">
-                            <i class="material-icons">save_as</i> Enregistrer sous
+                            <i class="material-icons">save_as</i><span data-i18n="saveAs"></span>
                         </button>
                     </div>
                 </div>
 
-                <button id="viewer-edit-mode" class="viewer-btn" title="Modifier / Annoter">
+                <button id="viewer-edit-mode" class="viewer-btn" title="Modifier / Annoter" data-i18n-title="editAnnotate">
                     <i class="material-icons">edit</i>
                 </button>
                 <div class="viewer-divider"></div>
-                <button id="viewer-fullscreen" class="viewer-btn" title="Plein écran">
+                <button id="viewer-fullscreen" class="viewer-btn" title="Plein écran" data-i18n-title="fullscreen">
                     <i class="material-icons">fullscreen</i>
                 </button>
             </div>
@@ -145,22 +158,22 @@
         <!-- Edit Toolbar (Hidden by default) -->
         <div class="viewer-toolbar edit-mode-toolbar hidden" id="viewer-edit-toolbar">
              <div class="viewer-top-left">
-                <button id="viewer-exit-edit" class="viewer-btn" title="Terminer">
+                <button id="viewer-exit-edit" class="viewer-btn" title="Terminer" data-i18n-title="done">
                     <i class="material-icons">arrow_back</i>
                 </button>
-                <span class="viewer-filename">Mode Édition</span>
+                <span class="viewer-filename" data-i18n="editMode"></span>
              </div>
              <div class="viewer-top-center">
-                <button class="viewer-btn tool-btn" data-tool="adjust" title="Ajuster"><i class="material-icons">wb_sunny</i></button>
+                <button class="viewer-btn tool-btn" data-tool="adjust" title="Ajuster" data-i18n-title="adjust"><i class="material-icons">wb_sunny</i></button>
                 <div class="viewer-divider"></div>
-                <button class="viewer-btn tool-btn" data-tool="pen" title="Stylo"><i class="material-icons">edit</i></button>
-                <button class="viewer-btn tool-btn" data-tool="marker" title="Surligneur"><i class="material-icons">brush</i></button>
-                <button class="viewer-btn tool-btn" data-tool="eraser" title="Gomme"><i class="material-icons">auto_fix_normal</i></button>
-                <button class="viewer-btn tool-btn" data-tool="text" title="Texte"><i class="material-icons">text_fields</i></button>
+                <button class="viewer-btn tool-btn" data-tool="pen" title="Stylo" data-i18n-title="pen"><i class="material-icons">edit</i></button>
+                <button class="viewer-btn tool-btn" data-tool="marker" title="Surligneur" data-i18n-title="marker"><i class="material-icons">brush</i></button>
+                <button class="viewer-btn tool-btn" data-tool="eraser" title="Gomme" data-i18n-title="eraser"><i class="material-icons">auto_fix_normal</i></button>
+                <button class="viewer-btn tool-btn" data-tool="text" title="Texte" data-i18n-title="text"><i class="material-icons">text_fields</i></button>
              </div>
              <div class="viewer-top-right">
-                <button id="viewer-undo-edit" class="viewer-btn" title="Annuler"><i class="material-icons">undo</i></button>
-                <button id="viewer-redo-edit" class="viewer-btn" title="Rétablir"><i class="material-icons">redo</i></button>
+                <button id="viewer-undo-edit" class="viewer-btn" title="Annuler" data-i18n-title="undo"><i class="material-icons">undo</i></button>
+                <button id="viewer-redo-edit" class="viewer-btn" title="Rétablir" data-i18n-title="redo"><i class="material-icons">redo</i></button>
              </div>
         </div>
         
@@ -176,14 +189,14 @@
                 <!-- Split Button -->
                 <div class="split-btn-container">
                     <button id="viewer-save-split" class="split-btn-main">
-                        <i class="material-icons">save</i> Enregistrer
+                        <i class="material-icons">save</i><span data-i18n="save"></span>
                     </button>
                     <button id="viewer-save-options" class="split-btn-arrow">
                         <i class="material-icons">arrow_drop_down</i>
                     </button>
                     <div id="viewer-save-dropdown" class="split-btn-dropdown">
                         <button id="viewer-save-as-split" class="split-btn-item">
-                            <i class="material-icons">save_as</i> Enregistrer sous
+                            <i class="material-icons">save_as</i><span data-i18n="saveAs"></span>
                         </button>
                     </div>
                 </div>
@@ -201,52 +214,52 @@
         <!-- Default Toolbar -->
         <div class="pdf-toolbar" id="pdf-default-toolbar">
             <div class="pdf-toolbar-left">
-                <button id="pdf-sidebar-toggle" class="pdf-btn" title="Afficher/Masquer la barre latérale">
+                <button id="pdf-sidebar-toggle" class="pdf-btn" title="Afficher/Masquer la barre latérale" data-i18n-title="toggleSidebar">
                     <i class="material-icons">chevron_right</i>
                 </button>
                 <span id="pdf-filename" class="pdf-filename">Document.pdf</span>
                 <div class="pdf-divider"></div>
-                <button id="pdf-info" class="pdf-btn" title="Infos du fichier">
+                <button id="pdf-info" class="pdf-btn" title="Infos du fichier" data-i18n-title="fileInfo">
                     <i class="material-icons">info_outline</i>
                 </button>
-                <button id="pdf-print" class="pdf-btn" title="Imprimer">
+                <button id="pdf-print" class="pdf-btn" title="Imprimer" data-i18n-title="print">
                     <i class="material-icons">print</i>
                 </button>
-                <button id="pdf-layout" class="pdf-btn" title="Mise en page">
+                <button id="pdf-layout" class="pdf-btn" title="Mise en page" data-i18n-title="layout">
                     <i class="material-icons">grid_view</i>
                 </button>
             </div>
             
             <div class="pdf-toolbar-center">
                 <div class="pdf-page-nav">
-                    <button id="pdf-prev-page" class="pdf-nav-btn" title="Page précédente">
+                    <button id="pdf-prev-page" class="pdf-nav-btn" title="Page précédente" data-i18n-title="prevPage">
                         <i class="material-icons">chevron_left</i>
                     </button>
                     <input type="number" id="pdf-page-num" value="1" min="1">
                     <span>/</span>
                     <span id="pdf-page-count">1</span>
-                    <button id="pdf-next-page" class="pdf-nav-btn" title="Page suivante">
+                    <button id="pdf-next-page" class="pdf-nav-btn" title="Page suivante" data-i18n-title="nextPage">
                         <i class="material-icons">chevron_right</i>
                     </button>
                 </div>
                 <div class="pdf-divider"></div>
-                <button id="pdf-zoom-out" class="pdf-btn" title="Zoom arrière">
+                <button id="pdf-zoom-out" class="pdf-btn" title="Zoom arrière" data-i18n-title="zoomOut">
                     <i class="material-icons">remove</i>
                 </button>
                 <span id="pdf-zoom-level" class="pdf-zoom-level">100%</span>
-                <button id="pdf-zoom-in" class="pdf-btn" title="Zoom avant">
+                <button id="pdf-zoom-in" class="pdf-btn" title="Zoom avant" data-i18n-title="zoomIn">
                     <i class="material-icons">add</i>
                 </button>
-                <button id="pdf-fit-width" class="pdf-btn" title="Adapter à la largeur">
+                <button id="pdf-fit-width" class="pdf-btn" title="Adapter à la largeur" data-i18n-title="fitWidth">
                     <i class="material-icons">swap_horiz</i>
                 </button>
-                <button id="pdf-fit-page" class="pdf-btn" title="Adapter à la page">
+                <button id="pdf-fit-page" class="pdf-btn" title="Adapter à la page" data-i18n-title="fitPage">
                     <i class="material-icons">fit_screen</i>
                 </button>
             </div>
             
             <div class="pdf-toolbar-right">
-                <button id="pdf-rotate" class="pdf-btn" title="Pivoter">
+                <button id="pdf-rotate" class="pdf-btn" title="Pivoter" data-i18n-title="rotate">
                     <i class="material-icons">rotate_right</i>
                 </button>
                 <div class="pdf-divider"></div>
@@ -261,12 +274,12 @@
                     </button>
                     <div id="pdf-toolbar-save-dropdown" class="split-btn-dropdown">
                         <button id="pdf-toolbar-save-as-split" class="split-btn-item">
-                            <i class="material-icons">save_as</i> Enregistrer sous
+                            <i class="material-icons">save_as</i><span data-i18n="saveAs"></span>
                         </button>
                     </div>
                 </div>
 
-                <button id="pdf-edit-mode" class="pdf-btn" title="Modifier / Annoter">
+                <button id="pdf-edit-mode" class="pdf-btn" title="Modifier / Annoter" data-i18n-title="editAnnotate">
                     <i class="material-icons">edit</i>
                 </button>
                 <div class="pdf-divider"></div>
@@ -274,32 +287,32 @@
         </div>
 
         <!-- Edit Toolbar (Hidden by default) -->
-        <div class="pdf-toolbar hidden" id="pdf-edit-toolbar">
+         <div class="pdf-toolbar hidden" id="pdf-edit-toolbar">
              <div class="pdf-toolbar-left">
-                <button id="pdf-exit-edit" class="pdf-btn" title="Terminer">
+                <button id="pdf-exit-edit" class="pdf-btn" title="Terminer" data-i18n-title="done">
                     <i class="material-icons">arrow_back</i>
                 </button>
-                <span class="pdf-filename">Mode Édition</span>
+                <span class="pdf-filename" data-i18n="editMode"></span>
              </div>
              <div class="pdf-toolbar-center">
-                <button class="pdf-btn tool-btn" data-tool="text-edit" title="Éditer le texte (OCR)" style="display: none;"><i class="material-icons">edit_note</i></button>
+                <button class="pdf-btn tool-btn" data-tool="text-edit" title="Éditer le texte (OCR)" data-i18n-title="editTextOcr" style="display: none;"><i class="material-icons">edit_note</i></button>
                 <div class="pdf-divider"></div>
-                <button class="pdf-btn tool-btn" data-tool="pen" title="Stylo"><i class="material-icons">edit</i></button>
-                <button class="pdf-btn tool-btn" data-tool="marker" title="Surligneur"><i class="material-icons">brush</i></button>
-                <button class="pdf-btn tool-btn" data-tool="eraser" title="Gomme"><i class="material-icons">auto_fix_normal</i></button>
-                <button class="pdf-btn tool-btn" data-tool="text" title="Texte"><i class="material-icons">text_fields</i></button>
+                <button class="pdf-btn tool-btn" data-tool="pen" title="Stylo" data-i18n-title="pen"><i class="material-icons">edit</i></button>
+                <button class="pdf-btn tool-btn" data-tool="marker" title="Surligneur" data-i18n-title="marker"><i class="material-icons">brush</i></button>
+                <button class="pdf-btn tool-btn" data-tool="eraser" title="Gomme" data-i18n-title="eraser"><i class="material-icons">auto_fix_normal</i></button>
+                <button class="pdf-btn tool-btn" data-tool="text" title="Texte" data-i18n-title="text"><i class="material-icons">text_fields</i></button>
                 <div class="pdf-divider"></div>
-                <button id="pdf-edit-zoom-out" class="pdf-btn" title="Zoom arrière">
+                <button id="pdf-edit-zoom-out" class="pdf-btn" title="Zoom arrière" data-i18n-title="zoomOut">
                     <i class="material-icons">remove</i>
                 </button>
                 <span id="pdf-edit-zoom-level" class="pdf-zoom-level">100%</span>
-                <button id="pdf-edit-zoom-in" class="pdf-btn" title="Zoom avant">
+                <button id="pdf-edit-zoom-in" class="pdf-btn" title="Zoom avant" data-i18n-title="zoomIn">
                     <i class="material-icons">add</i>
                 </button>
              </div>
              <div class="pdf-toolbar-right">
-                <button id="pdf-undo-edit" class="pdf-btn" title="Annuler"><i class="material-icons">undo</i></button>
-                <button id="pdf-redo-edit" class="pdf-btn" title="Rétablir"><i class="material-icons">redo</i></button>
+                <button id="pdf-undo-edit" class="pdf-btn" title="Annuler" data-i18n-title="undo"><i class="material-icons">undo</i></button>
+                <button id="pdf-redo-edit" class="pdf-btn" title="Rétablir" data-i18n-title="redo"><i class="material-icons">redo</i></button>
              </div>
         </div>
         
@@ -317,14 +330,14 @@
                 <!-- Split Button -->
                 <div class="split-btn-container">
                     <button id="pdf-save-split" class="split-btn-main">
-                        <i class="material-icons">save</i> Enregistrer
+                        <i class="material-icons">save</i><span data-i18n="save"></span>
                     </button>
                     <button id="pdf-save-options" class="split-btn-arrow">
                         <i class="material-icons">arrow_drop_down</i>
                     </button>
                     <div id="pdf-save-dropdown" class="split-btn-dropdown">
                         <button id="pdf-save-as-split" class="split-btn-item">
-                            <i class="material-icons">save_as</i> Enregistrer sous
+                            <i class="material-icons">save_as</i><span data-i18n="saveAs"></span>
                         </button>
                     </div>
                 </div>
@@ -342,7 +355,7 @@
                 <button id="audio-back-btn" class="audio-back-btn">
                     <i class="material-icons">arrow_back</i>
                 </button>
-                <h2>Lecture en cours</h2>
+                <h2 data-i18n="nowPlaying"></h2>
             </div>
             <div id="audio-playlist-items" class="audio-playlist">
                 <!-- Playlist items injected here -->
@@ -356,8 +369,8 @@
             </div>
             
             <div class="current-track-info">
-                <div id="audio-track-title" class="current-track-title">Titre de la piste</div>
-                <div id="audio-track-artist" class="current-track-artist">Nom de l'artiste</div>
+                <div id="audio-track-title" class="current-track-title" data-i18n="trackTitle"></div>
+                <div id="audio-track-artist" class="current-track-artist" data-i18n="trackArtist"></div>
             </div>
 
             <div class="player-controls">
@@ -382,26 +395,26 @@
 
                     <!-- Center: Playback -->
                     <div class="center-controls">
-                        <button id="audio-prev" class="control-btn" title="Précédent">
+                        <button id="audio-prev" class="control-btn" title="Précédent" data-i18n-title="previous">
                             <i class="material-icons">skip_previous</i>
                         </button>
-                        <button id="audio-play-pause" class="control-btn large" title="Lecture/Pause">
+                        <button id="audio-play-pause" class="control-btn large" title="Lecture/Pause" data-i18n-title="playPause">
                             <i class="material-icons">play_arrow</i>
                         </button>
-                        <button id="audio-next" class="control-btn" title="Suivant">
+                        <button id="audio-next" class="control-btn" title="Suivant" data-i18n-title="next">
                             <i class="material-icons">skip_next</i>
                         </button>
                     </div>
 
                     <!-- Right: Shuffle/Repeat -->
                     <div class="right-controls">
-                        <button id="audio-info" class="control-btn" title="Infos">
+                        <button id="audio-info" class="control-btn" title="Infos" data-i18n-title="info">
                             <i class="material-icons">info_outline</i>
                         </button>
-                        <button id="audio-shuffle" class="control-btn" title="Aléatoire">
+                        <button id="audio-shuffle" class="control-btn" title="Aléatoire" data-i18n-title="shuffle">
                             <i class="material-icons">shuffle</i>
                         </button>
-                        <button id="audio-repeat" class="control-btn" title="Répéter">
+                        <button id="audio-repeat" class="control-btn" title="Répéter" data-i18n-title="repeat">
                             <i class="material-icons">repeat</i>
                         </button>
                     </div>
@@ -414,38 +427,39 @@
     <div id="info-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Informations du fichier</h3>
+                <h3 data-i18n="fileInformation"></h3>
                 <button id="modal-close-btn" class="icon-btn"><i class="material-icons">close</i></button>
             </div>
             <div class="modal-body">
                 <div class="info-row">
-                    <span class="info-label">Nom :</span>
+                    <span class="info-label" data-i18n="nameLabel"></span>
                     <span id="modal-filename" class="info-value"></span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">Type :</span>
+                    <span class="info-label" data-i18n="typeLabel"></span>
                     <span id="modal-filetype" class="info-value"></span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">Taille :</span>
+                    <span class="info-label" data-i18n="sizeLabel"></span>
                     <span id="modal-filesize" class="info-value"></span>
                 </div>
                 <div class="info-row">
-                    <span class="info-label">Date :</span>
+                    <span class="info-label" data-i18n="dateLabel"></span>
                     <span id="modal-filedate" class="info-value"></span>
                 </div>
                 <div class="info-row" id="modal-dimensions-row" style="display: none;">
-                    <span class="info-label">Dimensions :</span>
+                    <span class="info-label" data-i18n="dimensionsLabel"></span>
                     <span id="modal-dimensions" class="info-value"></span>
                 </div>
             </div>
             <div class="modal-footer">
-                <button id="modal-close-action" class="primary-btn">Fermer</button>
+                <button id="modal-close-action" class="primary-btn" data-i18n="close"></button>
             </div>
         </div>
     </div>
 
     <!-- Scripts -->
+    <script src="scripts/i18n.js" defer></script>
     <script src="scripts/loader.js" defer></script>
     <script src="scripts/utils.js" defer></script>
     <script src="scripts/file-handler.js" defer></script>

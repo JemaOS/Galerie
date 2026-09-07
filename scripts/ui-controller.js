@@ -398,11 +398,11 @@ class UIController {
     });
     
     const menuItems = [
-      { icon: 'visibility', text: 'Ouvrir', action: () => this.openInFullscreen(file) },
-      { icon: 'content_copy', text: 'Copier', action: () => this.copyFiles([file]) },
-      { icon: 'download', text: 'Télécharger', action: () => this.downloadFiles([file]) },
-      { icon: 'edit', text: 'Renommer', action: () => this.renameFiles([file]) },
-      { icon: 'delete', text: 'Supprimer', action: () => this.deleteFiles([file.id]) }
+      { icon: 'visibility', text: t('open'), action: () => this.openInFullscreen(file) },
+      { icon: 'content_copy', text: t('copy'), action: () => this.copyFiles([file]) },
+      { icon: 'download', text: t('download'), action: () => this.downloadFiles([file]) },
+      { icon: 'edit', text: t('rename'), action: () => this.renameFiles([file]) },
+      { icon: 'delete', text: t('delete'), action: () => this.deleteFiles([file.id]) }
     ];
     
     menuItems.forEach(item => {
@@ -556,7 +556,7 @@ class UIController {
       this.showLoading(false);
       
       if (newFiles.length === 0) {
-        this.showToast('Aucun fichier compatible trouvé dans ce dossier', 'warning');
+        this.showToast(t('noCompatibleFiles'), 'warning');
         return;
       }
       
@@ -589,7 +589,7 @@ class UIController {
     } catch (error) {
       if (error.name !== 'AbortError') {
         console.error('Error requesting folder access:', error);
-        this.showToast('Erreur d\'accès au dossier', 'error');
+        this.showToast(t('folderAccessError'), 'error');
       }
       this.showLoading(false);
     }
@@ -599,7 +599,7 @@ class UIController {
    * Open settings (placeholder)
    */
   openSettings() {
-    this.showToast('Panneau de paramètres bientôt disponible !', 'info');
+    this.showToast(t('settingsComingSoon'), 'info');
   }
 
   /**
@@ -641,7 +641,7 @@ class UIController {
       }
     } catch (error) {
       console.error('Failed to load audio player:', error);
-      this.showToast('Erreur lors du chargement du lecteur audio', 'error');
+      this.showToast(t('audioPlayerLoadError'), 'error');
       this.showLoading(false);
       return false;
     }
@@ -663,7 +663,7 @@ class UIController {
       }
     } catch (error) {
       console.error('Failed to load PDF viewer:', error);
-      this.showToast('Erreur lors du chargement du lecteur PDF', 'error');
+      this.showToast(t('pdfViewerLoadError'), 'error');
       this.showLoading(false);
       return false;
     }
@@ -761,11 +761,12 @@ class UIController {
     const selectedFiles = this.fileHandler.getSelectedFiles();
     if (selectedFiles.length === 0) return;
     
-    if (confirm(`Supprimer ${selectedFiles.length} fichier${selectedFiles.length === 1 ? '' : 's'} ?`)) {
+    const count = selectedFiles.length;
+    if (confirm(t(count === 1 ? 'deleteFileConfirm' : 'deleteFilesConfirm', { count }))) {
       const fileIds = selectedFiles.map(f => f.id);
       this.fileHandler.removeFiles(fileIds);
       this.renderFiles();
-      this.showToast(`${selectedFiles.length} fichier${selectedFiles.length === 1 ? '' : 's'} supprimé${selectedFiles.length === 1 ? '' : 's'}`, 'success');
+      this.showToast(t(count === 1 ? 'fileDeleted' : 'filesDeleted', { count }), 'success');
     }
   }
 
@@ -774,10 +775,10 @@ class UIController {
    * @param {Array<string>} fileIds - Array of file IDs
    */
   deleteFiles(fileIds) {
-    if (confirm(`Supprimer ${fileIds.length} fichier${fileIds.length === 1 ? '' : 's'} ?`)) {
+    if (confirm(t(fileIds.length === 1 ? 'deleteFileConfirm' : 'deleteFilesConfirm', { count: fileIds.length }))) {
       this.fileHandler.removeFiles(fileIds);
       this.renderFiles();
-      this.showToast(`${fileIds.length} fichier${fileIds.length === 1 ? '' : 's'} supprimé${fileIds.length === 1 ? '' : 's'}`, 'success');
+      this.showToast(t(fileIds.length === 1 ? 'fileDeleted' : 'filesDeleted', { count: fileIds.length }), 'success');
 
       // Notify viewers
       if (globalThis.fullscreenViewer?.isViewerOpen()) {
@@ -802,9 +803,10 @@ class UIController {
     
     const success = await this.shareFiles(selectedFiles);
     if (success) {
-      this.showToast(`Partagé ${selectedFiles.length} fichier${selectedFiles.length === 1 ? '' : 's'}`, 'success');
+      const count = selectedFiles.length;
+      this.showToast(t(count === 1 ? 'fileShared' : 'filesShared', { count }), 'success');
     } else {
-      this.showToast('Échec du partage des fichiers', 'error');
+      this.showToast(t('shareFailed'), 'error');
     }
   }
 
@@ -815,11 +817,11 @@ class UIController {
   async shareFiles(files) {
     try {
       if (files.length === 1) {
-        return await GalleryUtils.shareFiles(files[0].file, files[0].name, 'Partagé depuis Galerie');
+        return await GalleryUtils.shareFiles(files[0].file, files[0].name, t('sharedFromGallery'));
       } else {
         // For multiple files, create a zip or use native share with multiple files
         const fileList = files.map(f => f.file);
-        return await GalleryUtils.shareFiles(fileList, 'Fichiers de la galerie', 'Partagé depuis Galerie');
+        return await GalleryUtils.shareFiles(fileList, t('galleryFiles'), t('sharedFromGallery'));
       }
     } catch (error) {
       console.error('Error sharing files:', error);
@@ -836,7 +838,8 @@ class UIController {
     
     const success = await this.copyFiles(selectedFiles);
     if (success) {
-      this.showToast(`${selectedFiles.length} fichier${selectedFiles.length === 1 ? '' : 's'} copié${selectedFiles.length === 1 ? '' : 's'} dans le presse-papiers`, 'success');
+      const count = selectedFiles.length;
+      this.showToast(t(count === 1 ? 'fileCopied' : 'filesCopied', { count }), 'success');
     }
   }
 
@@ -867,7 +870,7 @@ class UIController {
    * Rename selected files (placeholder)
    */
   renameSelected() {
-    this.showToast('Fonctionnalité de renommage bientôt disponible !', 'info');
+    this.showToast(t('renameComingSoon'), 'info');
   }
 
   /**
@@ -875,7 +878,7 @@ class UIController {
    * @param {Array<Object>} files - Files to rename
    */
   renameFiles(files) {
-    this.showToast('Fonctionnalité de renommage bientôt disponible !', 'info');
+    this.showToast(t('renameComingSoon'), 'info');
   }
 
   /**
@@ -886,7 +889,7 @@ class UIController {
     files.forEach(file => {
       GalleryUtils.downloadFile(file.url, file.name);
     });
-    this.showToast(`${files.length} fichier${files.length === 1 ? '' : 's'} téléchargé${files.length === 1 ? '' : 's'}`, 'success');
+    this.showToast(t(files.length === 1 ? 'fileDownloaded' : 'filesDownloaded', { count: files.length }), 'success');
   }
 
   /**

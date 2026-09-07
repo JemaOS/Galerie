@@ -612,7 +612,7 @@ class FullscreenViewer {
    */
   async toggleEditMode(active) {
       if (this.currentFile?.type !== 'image') {
-          this.uiController.showToast('L\'édition n\'est disponible que pour les images', 'info');
+          this.uiController.showToast(t('editImagesOnly'), 'info');
           return;
       }
 
@@ -627,7 +627,7 @@ class FullscreenViewer {
                   this.annotationManager = new AnnotationManager(this.uiController);
               } catch (e) {
                   console.error('Failed to load annotation manager', e);
-                  this.uiController.showToast('Erreur de chargement des outils d\'édition', 'error');
+                  this.uiController.showToast(t('editToolsLoadError'), 'error');
                   this.uiController.showLoading(false);
                   this.isEditMode = false;
                   return;
@@ -724,23 +724,23 @@ class FullscreenViewer {
 
       const groups = [
           {
-              title: 'Clair',
+              title: t('adjustLight'),
               items: [
-                  { id: 'brightness', label: 'Luminosité', icon: 'brightness_5', min: -100, max: 100 },
-                  { id: 'exposure', label: 'Exposition', icon: 'exposure', min: -100, max: 100 },
-                  { id: 'contrast', label: 'Contraste', icon: 'contrast', min: -100, max: 100 },
-                  { id: 'highlights', label: 'Essentiel', icon: 'highlight', min: -100, max: 100 },
-                  { id: 'shadows', label: 'Ombres', icon: 'brightness_4', min: -100, max: 100 },
-                  { id: 'vignette', label: 'Vignette', icon: 'vignette', min: 0, max: 100 }
+                  { id: 'brightness', label: t('brightness'), icon: 'brightness_5', min: -100, max: 100 },
+                  { id: 'exposure', label: t('exposure'), icon: 'exposure', min: -100, max: 100 },
+                  { id: 'contrast', label: t('contrast'), icon: 'contrast', min: -100, max: 100 },
+                  { id: 'highlights', label: t('highlights'), icon: 'highlight', min: -100, max: 100 },
+                  { id: 'shadows', label: t('shadows'), icon: 'brightness_4', min: -100, max: 100 },
+                  { id: 'vignette', label: t('vignette'), icon: 'vignette', min: 0, max: 100 }
               ]
           },
           {
-              title: 'Couleur',
+              title: t('adjustColor'),
               items: [
-                  { id: 'saturation', label: 'Saturation', icon: 'invert_colors', min: -100, max: 100 },
-                  { id: 'warmth', label: 'Chaleur', icon: 'thermostat', min: 0, max: 100 },
-                  { id: 'tint', label: 'Teinte', icon: 'water_drop', min: -100, max: 100 },
-                  { id: 'sharpness', label: 'Netteté', icon: 'diamond', min: 0, max: 100 }
+                  { id: 'saturation', label: t('saturation'), icon: 'invert_colors', min: -100, max: 100 },
+                  { id: 'warmth', label: t('warmth'), icon: 'thermostat', min: 0, max: 100 },
+                  { id: 'tint', label: t('tint'), icon: 'water_drop', min: -100, max: 100 },
+                  { id: 'sharpness', label: t('sharpness'), icon: 'diamond', min: 0, max: 100 }
               ]
           }
       ];
@@ -979,7 +979,7 @@ class FullscreenViewer {
         const success = await this.fileHandler.saveFile(this.currentFile, blob);
         
         if (success) {
-            this.uiController.showToast('Modifications enregistrées', 'success');
+            this.uiController.showToast(t('changesSaved'), 'success');
             // Reset state
             this.rotation = 0;
             if (this.annotationManager) this.annotationManager.clear(); // Clear history after save
@@ -1052,7 +1052,7 @@ class FullscreenViewer {
         
     } catch (error) {
         console.error('Error saving changes:', error);
-        this.uiController.showToast('Erreur lors de l\'enregistrement', 'error');
+        this.uiController.showToast(t('saveError'), 'error');
     } finally {
         this.showLoading(false);
     }
@@ -1075,12 +1075,12 @@ class FullscreenViewer {
           const newFile = await this.fileHandler.saveFileAs(this.currentFile, blob);
           
           if (newFile) {
-              this.uiController.showToast('Fichier enregistré', 'success');
+              this.uiController.showToast(t('fileSavedToast'), 'success');
               this.open(newFile, this.currentIndex); // Switch to new file? Or just reload?
           }
       } catch (error) {
           console.error('Error saving file as:', error);
-          this.uiController.showToast('Erreur lors de l\'enregistrement', 'error');
+          this.uiController.showToast(t('saveError'), 'error');
       } finally {
           this.showLoading(false);
       }
@@ -1224,7 +1224,7 @@ class FullscreenViewer {
       }
     } catch (error) {
       console.error('Error loading file:', error);
-      this.showError('Échec du chargement du fichier');
+      this.showError(t('fileLoadFailed'));
     } finally {
       this.showLoading(false);
     }
@@ -1976,7 +1976,7 @@ class FullscreenViewer {
     if (this.elements.fullscreenBtn) {
         const iconEl = this.elements.fullscreenBtn.querySelector('i');
         if (iconEl) iconEl.textContent = icon;
-        this.elements.fullscreenBtn.title = this.isFullscreen ? 'Quitter plein écran' : 'Plein écran';
+        this.elements.fullscreenBtn.title = this.isFullscreen ? t('exitFullscreen') : t('fullscreen');
     }
 
     // Update dynamic video controls
@@ -2002,7 +2002,7 @@ class FullscreenViewer {
     this.elements.media.innerHTML = `
       <div class="viewer-error">
         <i class="material-icons">error</i>
-        <h3>Erreur</h3>
+        <h3>${t('error')}</h3>
         <p>${message}</p>
       </div>
     `;

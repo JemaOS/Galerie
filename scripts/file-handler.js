@@ -95,7 +95,7 @@ class FileHandler {
       return files;
     } catch (error) {
       console.error('Error loading from directory:', error);
-      this.showToast('Erreur lors du chargement du dossier', 'error');
+      this.showToast(t('folderLoadError'), 'error');
       return [];
     }
   }
@@ -122,7 +122,7 @@ class FileHandler {
       return files;
     } catch (error) {
       console.error('Error loading files:', error);
-      this.showToast('Erreur lors du chargement des fichiers', 'error');
+      this.showToast(t('filesLoadError'), 'error');
       return [];
     }
   }
@@ -137,7 +137,7 @@ class FileHandler {
       if (result) {
         files.push(result);
       } else {
-        errors.push(`${file.name} : Fichier non supporté ou invalide`);
+        errors.push(t('unsupportedFile', { filename: file.name }));
       }
     }
   }
@@ -171,7 +171,7 @@ class FileHandler {
     if (result) {
       files.push(result);
     } else {
-      errors.push(`${file.name || item.name} : Fichier non supporté ou invalide`);
+      errors.push(t('unsupportedFile', { filename: file.name || item.name }));
     }
   }
 
@@ -190,7 +190,7 @@ class FileHandler {
         return null;
       }
       console.error('Error getting file from handle:', e);
-      errors.push(`${handleItem.name} : Échec de la lecture du fichier`);
+      errors.push(t('fileReadFailed', { filename: handleItem.name }));
       return null;
     }
   }
@@ -207,7 +207,7 @@ class FileHandler {
     if (result) {
       files.push(result);
     } else {
-      errors.push(`${file.name} : Fichier non supporté ou invalide`);
+      errors.push(t('unsupportedFile', { filename: file.name }));
     }
   }
 
@@ -223,7 +223,7 @@ class FileHandler {
     this.saveToStorage();
 
     if (errors.length > 0) {
-      this.showToast(`Certains fichiers n'ont pas pu être chargés : ${errors.join(', ')}`, 'warning');
+      this.showToast(t('someFilesFailed', { errors: errors.join(', ') }), 'warning');
     }
   }
 
@@ -1171,8 +1171,7 @@ class FileHandler {
    * @private
    */
   _showPasteSuccessToast(count) {
-    const pluralSuffix = count !== 1 ? 's' : '';
-    this.showToast(`${count} fichier${pluralSuffix} collé${pluralSuffix}`, 'success');
+    this.showToast(t(count === 1 ? 'filePasted' : 'filesPasted', { count }), 'success');
   }
 
   /**
