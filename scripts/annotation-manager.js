@@ -986,7 +986,7 @@ class AnnotationManager {
       this.isRestoring = true;
       const action = this.history[this.historyStep];
       
-      if (!action.type || action.type === 'drawing') {
+      if (!action.type || action.type === 'drawing' || action.type === 'shape') {
           this.historyStep--;
           this.undoDrawingAction(action);
       } else {
@@ -1038,7 +1038,7 @@ class AnnotationManager {
       this.historyStep++;
       const action = this.history[this.historyStep];
       
-      if (!action.type || action.type === 'drawing') {
+      if (!action.type || action.type === 'drawing' || action.type === 'shape') {
           this.redrawPage(action.pageId);
       } else {
           this.redoTextAction(action);
