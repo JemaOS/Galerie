@@ -269,10 +269,9 @@ class AnnotationManager {
     // transform (zoom/pan) pour que les textes restent ancrés à l'image
     const textLayer = document.createElement('div');
     textLayer.className = 'annotation-text-layer';
-    textLayer.style.width = canvas.style.width || '100%';
-    textLayer.style.height = canvas.style.height || '100%';
     container.appendChild(textLayer);
     canvas.textLayer = textLayer;
+    this._syncTextLayer(canvas);
     textLayer.sourceCanvas = canvas;
 
     return canvas;
@@ -284,36 +283,15 @@ class AnnotationManager {
   // il faut donc recentrer manuellement autour de l'origine)
   getCanvasSpacePoint(e, canvas = this.activeCanvas) {
     if (!canvas) return { x: e.clientX, y: e.clientY };
-    const container = canvas.parentElement;
-    const containerRect = container.getBoundingClientRect();
-    const px = e.clientX - containerRect.left;
-    const py = e.clientY - containerRect.top;
-    const style = globalThis.getComputedStyle(canvas);
-    const t = style.transform;
-    if (!t || t === 'none') {
-      // Pas de transform propre, mais un ancêtre peut transformer (zoom PDF) :
-      // le rect visuel du canvas intègre tous les transforms ancêtres
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width && canvas.offsetWidth) {
-        const scale = rect.width / canvas.offsetWidth;
-        if (Math.abs(scale - 1) > 0.001) {
-          return {
-            x: (e.clientX - rect.left) * (canvas.offsetWidth / rect.width),
-            y: (e.clientY - rect.top) * (canvas.offsetHeight / rect.height)
-          };
-        }
-      }
-      return { x: px, y: py };
-    }
-    try {
-      const [ox, oy] = style.transformOrigin.split(' ').map(v => Number.parseFloat(v) || 0);
-      const inv = new DOMMatrixReadOnly(t).inverse();
-      // local = origine + M⁻¹ · (parent − origine)
-      const pt = new DOMPoint(px - ox, py - oy).matrixTransform(inv);
-      return { x: pt.x + ox, y: pt.y + oy };
-    } catch {
-      return { x: px, y: py };
-    }
+    // Le rect du canvas intègre sa position ET son transform (zoom/pan, y
+    // compris ceux des ancêtres), donc ce mapping reste juste quel que soit
+    // l'endroit où l'overlay est posé (il n'est plus forcément à 0,0).
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return { x: e.clientX, y: e.clientY };
+    return {
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top) * (canvas.height / rect.height)
+    };
   }
 
   // Échelle visuelle du canvas incluant les transforms de ses ANCÊTRES
@@ -363,33 +341,66 @@ class AnnotationManager {
 
   updateCanvasSize(canvas, target) {
     if (!target || !canvas) return;
-    
+
     let width, height;
-    
+
     if (target.tagName === 'IMG') {
-      width = target.naturalWidth || target.width;
-      height = target.naturalHeight || target.height;
-      
-      if (width === 0) width = target.clientWidth;
-      if (height === 0) height = target.clientHeight;
-      
-      canvas.width = width;
-      canvas.height = height;
-      
-      canvas.style.width = target.style.width || '100%';
-      canvas.style.height = target.style.height || '100%';
-      canvas.style.objectFit = getComputedStyle(target).objectFit;
-      
+      width = target.naturalWidth || target.width || target.clientWidth;
+      height = target.naturalHeight || target.height || target.clientHeight;
     } else if (target.tagName === 'CANVAS') {
       width = target.width;
       height = target.height;
-      
+    } else {
+      return;
+    }
+
+    // Reallocate the bitmap only when the intrinsic size actually changes, so a
+    // relayout (window resize) never wipes the drawn annotations.
+    if (canvas.width !== width || canvas.height !== height) {
       canvas.width = width;
       canvas.height = height;
-      
-      canvas.style.width = target.style.width;
-      canvas.style.height = target.style.height;
     }
+
+    this.layoutCanvas(canvas, target, width, height);
+  }
+
+  // Positionne/size l'overlay d'annotation sur le contenu VISIBLE de l'image,
+  // pas sur tout le conteneur média : l'image est letterboxée
+  // (object-fit: contain) et souvent plus petite que son conteneur, donc un
+  // overlay à 100% laissait dessiner/écrire sur le fond autour de l'image.
+  layoutCanvas(canvas, target, naturalW, naturalH) {
+    if (!target || target.tagName !== 'IMG') {
+      canvas.style.width = (target && target.style.width) || '100%';
+      canvas.style.height = (target && target.style.height) || '100%';
+      if (target) canvas.style.objectFit = getComputedStyle(target).objectFit;
+      this._syncTextLayer(canvas);
+      return;
+    }
+    const elW = target.offsetWidth || target.clientWidth;
+    const elH = target.offsetHeight || target.clientHeight;
+    if (!elW || !elH || !naturalW || !naturalH) return;
+    const s = Math.min(elW / naturalW, elH / naturalH);
+    const dispW = Math.round(naturalW * s);
+    const dispH = Math.round(naturalH * s);
+    const offX = target.offsetLeft + Math.round((elW - dispW) / 2);
+    const offY = target.offsetTop + Math.round((elH - dispH) / 2);
+    canvas.style.width = `${dispW}px`;
+    canvas.style.height = `${dispH}px`;
+    canvas.style.left = `${offX}px`;
+    canvas.style.top = `${offY}px`;
+    // La boîte de l'overlay = l'image exacte : on étire (pas de letterbox).
+    canvas.style.objectFit = 'fill';
+    this._syncTextLayer(canvas);
+  }
+
+  // Le calque texte partage exactement la géométrie du canvas.
+  _syncTextLayer(canvas) {
+    const tl = canvas && canvas.textLayer;
+    if (!tl) return;
+    tl.style.left = canvas.style.left || '0';
+    tl.style.top = canvas.style.top || '0';
+    tl.style.width = canvas.style.width || '100%';
+    tl.style.height = canvas.style.height || '100%';
   }
 
   renderProperties(container) {
@@ -685,7 +696,15 @@ class AnnotationManager {
   handleResize() {
       if (this.resizeTimeout) clearTimeout(this.resizeTimeout);
       this.resizeTimeout = setTimeout(() => {
-          // Handle resize if needed
+          if (!this.isActive) return;
+          // Réaligner l'overlay sur l'image après un changement de taille
+          // (layoutCanvas ne réalloue pas le bitmap : le dessin est conservé).
+          this.pages.forEach((page) => {
+              const c = page.canvas;
+              if (c && c.targetElement) {
+                  this.layoutCanvas(c, c.targetElement, c.width, c.height);
+              }
+          });
       }, 100);
   }
 
