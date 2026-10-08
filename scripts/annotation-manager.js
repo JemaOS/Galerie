@@ -31,14 +31,18 @@ class AnnotationManager {
     this.savedText = new Map(); // id -> Array of text states
     
     // State
-    this.currentTool = 'pen'; // pen, marker, eraser, text
+    this.currentTool = 'pen'; // pen, marker, eraser, text, line, arrow, rect, ellipse
     this.currentColor = '#ef5350'; // Default red
     
     // Tool specific sizes
     this.toolSizes = {
         pen: 4,
         marker: 10,
-        eraser: 30
+        eraser: 30,
+        line: 4,
+        arrow: 4,
+        rect: 4,
+        ellipse: 4
     };
     this.currentSize = this.toolSizes['pen'];
     
@@ -49,6 +53,11 @@ class AnnotationManager {
     this.textAlign = 'left';
     this.isDrawing = false;
     this.lastPoint = null;
+    // Shape tools (line/arrow/rect/ellipse): start point, last end point and a
+    // snapshot of the canvas used to redraw the live preview on each move.
+    this.shapeStart = null;
+    this.shapeEnd = null;
+    this.shapeSnapshot = null;
     this.activeInput = null; // For text tool
     this.textWrappers = []; // Store active text objects (DOM elements)
     
@@ -784,6 +793,18 @@ class AnnotationManager {
     }
     
 
+    if (this.isShapeTool(this.currentTool)) {
+        this.isDrawing = true;
+        this.shapeStart = this._pointFromEvent(e);
+        this.shapeEnd = this.shapeStart;
+        // Snapshot the canvas so the live preview can be restored on each move.
+        this.shapeSnapshot = document.createElement('canvas');
+        this.shapeSnapshot.width = this.activeCanvas.width;
+        this.shapeSnapshot.height = this.activeCanvas.height;
+        this.shapeSnapshot.getContext('2d').drawImage(this.activeCanvas, 0, 0);
+        return;
+    }
+
     this.isDrawing = true;
     
     // Setup context for drawing
@@ -840,6 +861,12 @@ class AnnotationManager {
         return;
     }
 
+    if (this.isDrawing && this.shapeStart) {
+        this.shapeEnd = this._pointFromEvent(e);
+        this.drawShapePreview(this.shapeEnd);
+        return;
+    }
+
     if (this.currentTool === 'text') return;
     if (!this.isDrawing) return;
     if (e.target !== this.activeCanvas) return;
@@ -872,6 +899,12 @@ class AnnotationManager {
     
     if (this.isCreatingText) {
         this.handleTextCreation();
+        return;
+    }
+
+    if (this.isDrawing && this.shapeStart) {
+        this.shapeEnd = this._pointFromEvent(e) || this.shapeEnd;
+        this.handleShapeEnd();
         return;
     }
 
@@ -1564,6 +1597,101 @@ class AnnotationManager {
     this.ctx.moveTo(point.x, point.y);
   }
 
+  // ---- Shape tools (line, arrow, rect, ellipse) --------------------------
+
+  isShapeTool(toolId) {
+      return toolId === 'line' || toolId === 'arrow' || toolId === 'rect' || toolId === 'ellipse';
+  }
+
+  // Point in canvas coordinates, using the same mapping as the freehand tool.
+  _pointFromEvent(e) {
+      if (!this.canvasRect) return this.getCanvasSpacePoint(e);
+      const offX = this.offsetX || 0;
+      const offY = this.offsetY || 0;
+      const sx = this.scaleX || 1;
+      const sy = this.scaleY || 1;
+      return {
+          x: (e.clientX - this.canvasRect.left - offX) * sx,
+          y: (e.clientY - this.canvasRect.top - offY) * sy,
+          pressure: e.pressure || 0.5
+      };
+  }
+
+  drawShape(ctx, tool, a, b, color, size) {
+      if (!ctx || !a || !b) return;
+      ctx.save();
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1, size);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const x1 = a.x;
+      const y1 = a.y;
+      const x2 = b.x;
+      const y2 = b.y;
+      ctx.beginPath();
+      if (tool === 'line' || tool === 'arrow') {
+          ctx.moveTo(x1, y1);
+          ctx.lineTo(x2, y2);
+          if (tool === 'arrow') {
+              const ang = Math.atan2(y2 - y1, x2 - x1);
+              const head = Math.max(12, ctx.lineWidth * 4);
+              const spread = Math.PI / 7;
+              ctx.moveTo(x2, y2);
+              ctx.lineTo(x2 - head * Math.cos(ang - spread), y2 - head * Math.sin(ang - spread));
+              ctx.moveTo(x2, y2);
+              ctx.lineTo(x2 - head * Math.cos(ang + spread), y2 - head * Math.sin(ang + spread));
+          }
+      } else if (tool === 'rect') {
+          ctx.rect(Math.min(x1, x2), Math.min(y1, y2), Math.abs(x2 - x1), Math.abs(y2 - y1));
+      } else if (tool === 'ellipse') {
+          const rx = Math.abs(x2 - x1) / 2;
+          const ry = Math.abs(y2 - y1) / 2;
+          const cx = (x1 + x2) / 2;
+          const cy = (y1 + y2) / 2;
+          if (ctx.ellipse) {
+              ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+          } else {
+              ctx.arc(cx, cy, Math.max(rx, ry), 0, Math.PI * 2);
+          }
+      }
+      ctx.stroke();
+      ctx.restore();
+  }
+
+  drawShapePreview(end) {
+      const canvas = this.activeCanvas;
+      const ctx = this.ctx;
+      if (!canvas || !ctx || !this.shapeStart) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (this.shapeSnapshot) ctx.drawImage(this.shapeSnapshot, 0, 0);
+      this.drawShape(ctx, this.currentTool, this.shapeStart, end, this.currentColor, this.currentSize);
+  }
+
+  handleShapeEnd() {
+      this.isDrawing = false;
+      const a = this.shapeStart;
+      const b = this.shapeEnd || a;
+      this.shapeStart = null;
+      this.shapeEnd = null;
+      this.shapeSnapshot = null;
+      if (!a || !b) return;
+      // Ignore an accidental click (no real shape drawn).
+      if (Math.abs(b.x - a.x) < 3 && Math.abs(b.y - a.y) < 3) return;
+      const pageId = this.findPageIdByCanvas(this.activeCanvas);
+      if (pageId) {
+          this.addAction({
+              type: 'shape',
+              pageId: pageId,
+              tool: this.currentTool,
+              color: this.currentColor,
+              size: this.currentSize,
+              start: a,
+              end: b
+          });
+      }
+  }
+
   setTool(toolId) {
     this.currentTool = toolId;
     if (this.toolSizes[toolId] !== undefined) {
@@ -1834,8 +1962,11 @@ class AnnotationManager {
       // Replay history
       for (let i = 0; i <= this.historyStep; i++) {
           const action = this.history[i];
-          if (action.pageId === pageId && (!action.type || action.type === 'drawing')) {
+          if (action.pageId !== pageId) continue;
+          if (!action.type || action.type === 'drawing') {
               this.drawStroke(ctx, action.points, action.color, action.size, action.tool, action.scale);
+          } else if (action.type === 'shape') {
+              this.drawShape(ctx, action.tool, action.start, action.end, action.color, action.size);
           }
       }
   }
