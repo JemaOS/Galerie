@@ -801,14 +801,23 @@ class AnnotationManager {
 
     if (this.isCreatingText && this.selectionBox) {
         const current = this.getCanvasSpacePoint(e);
-        const currentX = current.x;
-        const currentY = current.y;
-        const width = currentX - this.textStartPoint.x;
-        const height = currentY - this.textStartPoint.y;
+        const canvas = this.activeCanvas;
+        const cw = canvas?.width || 0;
+        const ch = canvas?.height || 0;
+        // Clamp both corners to the image (canvas) bounds so the box can never
+        // be drawn outside the picture.
+        const clampX = (v) => (cw ? Math.min(Math.max(v, 0), cw) : v);
+        const clampY = (v) => (ch ? Math.min(Math.max(v, 0), ch) : v);
+        const currentX = clampX(current.x);
+        const currentY = clampY(current.y);
+        const startX = clampX(this.textStartPoint.x);
+        const startY = clampY(this.textStartPoint.y);
+        const width = currentX - startX;
+        const height = currentY - startY;
         this.selectionBox.style.width = `${Math.abs(width)}px`;
         this.selectionBox.style.height = `${Math.abs(height)}px`;
-        this.selectionBox.style.left = `${width < 0 ? currentX : this.textStartPoint.x}px`;
-        this.selectionBox.style.top = `${height < 0 ? currentY : this.textStartPoint.y}px`;
+        this.selectionBox.style.left = `${width < 0 ? currentX : startX}px`;
+        this.selectionBox.style.top = `${height < 0 ? currentY : startY}px`;
         return;
     }
 
@@ -1299,8 +1308,17 @@ class AnnotationManager {
       const canvas = wrapper.parentElement?.sourceCanvas || this.activeCanvas;
       const onMouseMove = (e) => {
           const d = this.screenDeltaToCanvas(e.clientX - startX, e.clientY - startY, canvas);
-          wrapper.style.left = `${initialLeft + d.dx}px`;
-          wrapper.style.top = `${initialTop + d.dy}px`;
+          const cw = canvas?.width || 0;
+          const ch = canvas?.height || 0;
+          const w = Number.parseFloat(wrapper.style.width) || 0;
+          const h = Number.parseFloat(wrapper.style.height) || 0;
+          let nl = initialLeft + d.dx;
+          let nt = initialTop + d.dy;
+          // Keep the text box inside the image (canvas) bounds.
+          if (cw) nl = Math.min(Math.max(nl, 0), Math.max(0, cw - w));
+          if (ch) nt = Math.min(Math.max(nt, 0), Math.max(0, ch - h));
+          wrapper.style.left = `${nl}px`;
+          wrapper.style.top = `${nt}px`;
       };
       this._currentMouseUpHandler = this._createInteractionEndHandler(wrapper, onMouseMove);
       document.addEventListener('mousemove', onMouseMove);
@@ -1330,6 +1348,18 @@ class AnnotationManager {
               if (pos.includes('l')) { newWidth = initialWidth - dx; newLeft = initialLeft + dx; }
               if (pos.includes('b')) newHeight = initialHeight + dy;
               if (pos.includes('t')) { newHeight = initialHeight - dy; newTop = initialTop + dy; }
+              // Keep the box inside the image (canvas) bounds: clamp the moving
+              // edges so a resize can never push the annotation past the picture.
+              const cw = canvas?.width || 0;
+              const ch = canvas?.height || 0;
+              if (cw) {
+                  if (newLeft < 0) { newWidth += newLeft; newLeft = 0; }
+                  if (newLeft + newWidth > cw) newWidth = cw - newLeft;
+              }
+              if (ch) {
+                  if (newTop < 0) { newHeight += newTop; newTop = 0; }
+                  if (newTop + newHeight > ch) newHeight = ch - newTop;
+              }
               if (newWidth > 20) { wrapper.style.width = `${newWidth}px`; wrapper.style.left = `${newLeft}px`; }
               if (newHeight > 20) { wrapper.style.height = `${newHeight}px`; wrapper.style.top = `${newTop}px`; }
           };
