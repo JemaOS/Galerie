@@ -292,14 +292,19 @@ class AnnotationManager {
   // il faut donc recentrer manuellement autour de l'origine)
   getCanvasSpacePoint(e, canvas = this.activeCanvas) {
     if (!canvas) return { x: e.clientX, y: e.clientY };
-    // Le rect du canvas intègre sa position ET son transform (zoom/pan, y
-    // compris ceux des ancêtres), donc ce mapping reste juste quel que soit
-    // l'endroit où l'overlay est posé (il n'est plus forcément à 0,0).
     const rect = canvas.getBoundingClientRect();
-    if (!rect.width || !rect.height) return { x: e.clientX, y: e.clientY };
+    if (!rect.width || !rect.height || !canvas.offsetWidth || !canvas.offsetHeight) {
+      return { x: e.clientX, y: e.clientY };
+    }
+    // Coordonnées dans l'espace CSS/layout NON-transformé du canvas, RELATIVES
+    // au canvas : c'est l'espace des wrappers texte (le calque texte partage la
+    // boîte du canvas) et celui qu'utilise drawTextObjects. On divise par
+    // l'échelle totale (transform propre + ancêtres, ex. zoom PDF) via
+    // offsetWidth/rect.width. On ne convertit PAS vers le bitmap (canvas.width)
+    // sinon un canvas redimensionné (PDF, image scalée) décale le texte.
     return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height)
+      x: (e.clientX - rect.left) * (canvas.offsetWidth / rect.width),
+      y: (e.clientY - rect.top) * (canvas.offsetHeight / rect.height)
     };
   }
 
@@ -842,8 +847,8 @@ class AnnotationManager {
     if (this.isCreatingText && this.selectionBox) {
         const current = this.getCanvasSpacePoint(e);
         const canvas = this.activeCanvas;
-        const cw = canvas?.width || 0;
-        const ch = canvas?.height || 0;
+        const cw = canvas?.offsetWidth || 0;
+        const ch = canvas?.offsetHeight || 0;
         // Clamp both corners to the image (canvas) bounds so the box can never
         // be drawn outside the picture.
         const clampX = (v) => (cw ? Math.min(Math.max(v, 0), cw) : v);
@@ -1360,8 +1365,8 @@ class AnnotationManager {
       const canvas = wrapper.parentElement?.sourceCanvas || this.activeCanvas;
       const onMouseMove = (e) => {
           const d = this.screenDeltaToCanvas(e.clientX - startX, e.clientY - startY, canvas);
-          const cw = canvas?.width || 0;
-          const ch = canvas?.height || 0;
+          const cw = canvas?.offsetWidth || 0;
+          const ch = canvas?.offsetHeight || 0;
           const w = Number.parseFloat(wrapper.style.width) || 0;
           const h = Number.parseFloat(wrapper.style.height) || 0;
           let nl = initialLeft + d.dx;
@@ -1402,8 +1407,8 @@ class AnnotationManager {
               if (pos.includes('t')) { newHeight = initialHeight - dy; newTop = initialTop + dy; }
               // Keep the box inside the image (canvas) bounds: clamp the moving
               // edges so a resize can never push the annotation past the picture.
-              const cw = canvas?.width || 0;
-              const ch = canvas?.height || 0;
+              const cw = canvas?.offsetWidth || 0;
+              const ch = canvas?.offsetHeight || 0;
               if (cw) {
                   if (newLeft < 0) { newWidth += newLeft; newLeft = 0; }
                   if (newLeft + newWidth > cw) newWidth = cw - newLeft;
