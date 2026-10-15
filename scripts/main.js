@@ -38,6 +38,7 @@ class JemaOSGallery {
   _pendingLaunchFiles = null;
   _launchDecisionPromise = null;
   _resolveLaunchDecision = null;
+  swRegistration = null;
 
   constructor() {
     this._launchDecisionPromise = new Promise(resolve => {
@@ -156,47 +157,59 @@ class JemaOSGallery {
     if ('serviceWorker' in navigator) {
       try {
         const registration = await navigator.serviceWorker.register('./sw.js');
+        this.swRegistration = registration;
         console.log('📱 Service Worker registered:', registration.scope);
 
-        // A new worker is either already installing/waiting, or will appear via
-        // `updatefound`. Handle both so an update is never missed.
+        // The update prompt is driven by a *waiting* worker: while one exists it
+        // must be offered, on every launch, until the user applies it.
+        this._announceUpdate = () => {
+          if (registration.waiting) this.showUpdateNotification(registration);
+        };
+
         const watchForUpdate = worker => {
           if (!worker) return;
           worker.addEventListener('statechange', () => {
-            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-              this.showUpdateNotification(registration);
-            }
+            if (worker.state === 'installed') this._announceUpdate();
           });
         };
+
         registration.addEventListener('updatefound', () => {
           watchForUpdate(registration.installing);
         });
+        // A worker may already be installing/waiting (the update was found before
+        // this ran), or may be waiting from a previous session. Handle all three.
         watchForUpdate(registration.installing || registration.waiting);
-        if (registration.waiting) {
-          this.showUpdateNotification(registration);
-        }
+        this._announceUpdate();
 
-        // Check for a new deployment on every launch (not only every 60 min).
-        registration.update().catch(err => {
-          console.warn('Startup update check failed:', err);
+        // Check for a new deployment on every launch: right away, once the worker
+        // is ready, and once more shortly after for slow networks.
+        const checkForUpdate = () => registration.update().catch(err => {
+          console.warn('Update check failed:', err);
         });
+        checkForUpdate();
+        navigator.serviceWorker.ready.then(checkForUpdate).catch(() => {});
+        setTimeout(checkForUpdate, 4000);
 
-        // Check for updates when network comes back online
+        // Check for updates when the network comes back online.
         globalThis.addEventListener('online', () => {
           console.log('🌐 Network online - checking for updates...');
-          registration.update().catch(err => {
-            console.warn('Update check failed:', err);
-          });
+          checkForUpdate();
         });
 
-        // Periodic update check (every 60 minutes when app is open)
+        // Re-announce (and re-check) periodically while the app stays open, so a
+        // pending update is never silently forgotten.
         setInterval(() => {
-          if (navigator.onLine) {
-            registration.update().catch(err => {
-              console.warn('Periodic update check failed:', err);
-            });
-          }
-        }, 60 * 60 * 1000);
+          this._announceUpdate();
+          if (navigator.onLine) checkForUpdate();
+        }, 60 * 1000);
+
+        // Coming back to the foreground (PWA window re-opened from the shelf)
+        // should offer the update again too.
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState !== 'visible') return;
+          this._announceUpdate();
+          if (navigator.onLine) checkForUpdate();
+        });
         
       } catch (error) {
         console.warn('⚠️ Service Worker registration failed:', error);
@@ -474,16 +487,22 @@ class JemaOSGallery {
       }, t('update'))
     ]);
     
+    let reloaded = false;
+    const reload = () => {
+      if (reloaded) return;
+      reloaded = true;
+      globalThis.location.reload();
+    };
+
     toast.addEventListener('click', () => {
       if (registration?.waiting) {
+        // Let the new worker take over, then reload once it controls the page.
+        navigator.serviceWorker.addEventListener('controllerchange', reload, { once: true });
         registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        
-        // Wait for the new service worker to take control
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          globalThis.location.reload();
-        }, { once: true });
+        // Fallback in case `controllerchange` never fires.
+        setTimeout(reload, 2000);
       } else {
-        globalThis.location.reload();
+        reload();
       }
     });
     
