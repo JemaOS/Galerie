@@ -17,12 +17,19 @@
 
 // Service Worker for JemaOS Gallery PWA
 //
-// IMPORTANT: bump CACHE_NAME on every deploy that changes any precached asset
-// (index.html, styles/, scripts/, libs/, ...). The fetch handler serves static
-// assets cache-first, so without a bump the browser keeps serving the previous
-// versions. Changing this string also makes the browser detect a new worker and
-// offer the in-app "update available" prompt.
-const CACHE_NAME = 'jemaos-gallery-v1.6.1';
+// Update strategy: a new deployment reaches users WITHOUT a manual version bump.
+//   - Documents (index.html, navigations): network-first, cache only as an
+//     offline fallback.
+//   - Static assets (scripts/, styles/, libs/, fonts/, icons/): stale-while-
+//     revalidate. The cached copy is served immediately, then refreshed from the
+//     network in the background and written back to the cache. The next load is
+//     therefore up to date even when CACHE_NAME is unchanged.
+//
+// CACHE_NAME still exists to namespace the cache and purge the previous one on
+// activate. Bumping it is no longer required for content changes to land, but it
+// is still the way to force an immediate service-worker update (and thus the
+// in-app "update available" prompt) when the worker logic itself changes.
+const CACHE_NAME = 'jemaos-gallery-v1.6.2';
 const urlsToCache = [
   './',
   './index.html',
@@ -119,12 +126,24 @@ self.addEventListener('fetch', event => {
     event.request.url.endsWith('/') ||
     event.request.url.endsWith('index.html');
 
-  event.respondWith(isDocument ? networkFirst(event.request) : cacheFirst(event.request));
+  if (isDocument) {
+    event.respondWith(networkFirst(event.request));
+    return;
+  }
+
+  // Static assets: stale-while-revalidate. Start the background refresh here so
+  // it can be tied to the event's lifetime, then serve the cached copy if we
+  // have one. This is what makes a new deployment reach the user on the next
+  // load even when CACHE_NAME was not bumped manually -- the old cache-first
+  // strategy kept serving stale JS/CSS and never surfaced an update.
+  const refresh = refreshFromNetwork(event.request);
+  event.waitUntil(refresh.catch(() => {}));
+  event.respondWith(serveStale(event.request, refresh));
 });
 
 async function networkFirst(request) {
   try {
-    const response = await fetch(request);
+    const response = await fetch(request, { cache: 'no-cache' });
     if (response && response.status === 200 && response.type === 'basic') {
       const cache = await caches.open(CACHE_NAME);
       cache.put(request, response.clone());
@@ -142,25 +161,36 @@ async function networkFirst(request) {
   }
 }
 
-async function cacheFirst(request) {
+// Fetch a fresh copy and keep the cache up to date. Revalidates against the
+// server (conditional request) so an unchanged asset costs a cheap 304.
+async function refreshFromNetwork(request) {
+  const response = await fetch(request, { cache: 'no-cache' });
+  if (response && response.status === 200 && response.type === 'basic') {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(request, response.clone());
+  }
+  return response;
+}
+
+// Serve the cached copy immediately when present; otherwise wait for the network
+// response. Offline with no cache falls back to a 503.
+async function serveStale(request, refresh) {
   const cached = await caches.match(request);
   if (cached) {
     return cached;
   }
   try {
-    const response = await fetch(request);
-    if (response && response.status === 200 && response.type === 'basic') {
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(request, response.clone());
+    const response = await refresh;
+    if (response) {
+      return response;
     }
-    return response;
   } catch (error) {
     console.error('[SW] Fetch failed:', error);
-    if (request.mode === 'navigate') {
-      return caches.match('./index.html');
-    }
-    return new Response('Service Unavailable', { status: 503, statusText: 'Service Unavailable' });
   }
+  if (request.mode === 'navigate') {
+    return caches.match('./index.html');
+  }
+  return new Response('Service Unavailable', { status: 503, statusText: 'Service Unavailable' });
 }
 
 // Handle file share target

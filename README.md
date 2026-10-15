@@ -81,11 +81,15 @@ See [`msix/README.md`](msix/README.md) for detailed packaging instructions.
 The app is a static PWA (no build step). After deploying, confirm the load is
 cached-offline once in the browser.
 
-**Always bump `CACHE_NAME` in `sw.js` before a deploy that changes any precached
-asset** (`index.html`, `styles/`, `scripts/`, `libs/`, ...). Static assets are
-served cache-first, so without a bump the browser keeps serving the previous
-files. Bumping it also makes the browser detect a new service worker and show the
-in-app **"update available"** prompt, which reloads onto the fresh cache.
+Content changes reach users automatically: `index.html`/navigations are served
+network-first, and every other asset (`styles/`, `scripts/`, `libs/`, `fonts/`,
+`icons/`) is served stale-while-revalidate, so the next load picks up the new
+files even without touching the service worker.
+
+**Bump `CACHE_NAME` in `sw.js` only when the service-worker logic itself changes.**
+That is what makes the browser install a new worker and show the in-app
+**"update available"** prompt (which reloads onto the fresh cache). It is no
+longer required for ordinary content deploys.
 
 ## License
 
