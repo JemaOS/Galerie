@@ -266,6 +266,7 @@ class JemaOSGallery {
     globalThis.launchQueue.setConsumer((launchData) => {
       const files = launchData?.files || [];
       this._launchReported = true;
+      console.log(`[launch] launchQueue reported ${files.length} file(s)`);
 
       if (files.length > 0) {
         // Mark synchronously (before any await) so init() skips the home page
@@ -296,14 +297,21 @@ class JemaOSGallery {
     if (this._launchReported) return;
     if (!('launchQueue' in globalThis)) return;
 
-    const isWindowed = ['standalone', 'minimal-ui', 'window-controls-overlay']
-      .some(mode => globalThis.matchMedia?.(`(display-mode: ${mode})`)?.matches);
-    if (!isWindowed) return;
+    // A plain browser tab never receives launch params, so it must not be
+    // delayed. Every other display mode (standalone, minimal-ui, tabbed,
+    // fullscreen, overlay, ...) can be a file-handler launch, so wait for the
+    // File Handling API to report before showing the home page.
+    const isBrowserTab = globalThis.matchMedia?.('(display-mode: browser)')?.matches === true;
+    if (isBrowserTab) return;
 
+    const started = Date.now();
     await Promise.race([
       this._launchDecisionPromise,
-      new Promise(resolve => setTimeout(resolve, 1000))
+      new Promise(resolve => setTimeout(resolve, 3000))
     ]);
+    if (!this._launchReported) {
+      console.warn(`[launch] no launch params after ${Date.now() - started}ms; showing the home page`);
+    }
   }
 
   /**

@@ -30,14 +30,18 @@ async function installLaunchQueue(page, base64) {
 // Simulate the real JemaOS timing: the app runs as an installed (windowed)
 // PWA and the File Handling API delivers the file only after a delay, well after
 // a microtask. The launch decision must wait for it instead of revealing the
-// home page.
-async function installDelayedLaunchQueue(page, base64, delayMs) {
-  await page.addInitScript(({ b64, delay }) => {
+// home page. `standalone: false` models a windowed launch that does NOT report
+// the `standalone` display mode (the case that used to flash the home page).
+async function installDelayedLaunchQueue(page, base64, delayMs, { standalone = true } = {}) {
+  await page.addInitScript(({ b64, delay, isStandalone }) => {
     const nativeMatchMedia = window.matchMedia.bind(window);
     window.matchMedia = (query) => {
-      if (String(query).includes('display-mode: standalone')) {
+      const q = String(query);
+      const isDisplayMode = q.includes('display-mode:');
+      if (isDisplayMode) {
+        const wanted = q.includes('display-mode: standalone') ? isStandalone : false;
         return {
-          matches: true,
+          matches: wanted,
           media: query,
           addEventListener() {}, removeEventListener() {},
           addListener() {}, removeListener() {},
@@ -56,7 +60,24 @@ async function installDelayedLaunchQueue(page, base64, delayMs) {
       },
     };
     Object.defineProperty(window, 'launchQueue', { value: q, configurable: true, writable: true });
-  }, { b64: base64, delay: delayMs });
+  }, { b64: base64, delay: delayMs, isStandalone: standalone });
+}
+
+// Records whether #app ever became visible, from the first paint onwards.
+async function watchAppVisibility(page) {
+  await page.addInitScript(() => {
+    window.__appEverVisible = false;
+    const check = () => {
+      const app = document.getElementById('app');
+      if (app && getComputedStyle(app).display !== 'none') window.__appEverVisible = true;
+    };
+    document.addEventListener('DOMContentLoaded', () => {
+      check();
+      const mo = new MutationObserver(check);
+      mo.observe(document.documentElement, { attributes: true, subtree: true, attributeFilter: ['class', 'style'] });
+    });
+    setInterval(check, 5);
+  });
 }
 
 test.describe('Direct file launch', () => {
@@ -105,19 +126,7 @@ test.describe('Direct file launch', () => {
     // Flag if #app ever becomes visible, from the first paint until well after
     // the launch settles. A premature reveal (e.g. during component init) shows
     // the home page for a frame before the viewer, which is what flashing is.
-    await page.addInitScript(() => {
-      window.__appEverVisible = false;
-      const check = () => {
-        const app = document.getElementById('app');
-        if (app && getComputedStyle(app).display !== 'none') window.__appEverVisible = true;
-      };
-      document.addEventListener('DOMContentLoaded', () => {
-        check();
-        const mo = new MutationObserver(check);
-        mo.observe(document.documentElement, { attributes: true, subtree: true, attributeFilter: ['class', 'style'] });
-      });
-      setInterval(check, 5);
-    });
+    await watchAppVisibility(page);
 
     await installLaunchQueue(page, jpegBase64);
     await page.goto('/', { waitUntil: 'load' });
@@ -129,23 +138,22 @@ test.describe('Direct file launch', () => {
   });
 
   test('a launch reported late (real JemaOS timing) still avoids the home flash', async ({ page }) => {
-    // Flag if #app ever becomes visible, from the first paint until well after
-    // the launch settles.
-    await page.addInitScript(() => {
-      window.__appEverVisible = false;
-      const check = () => {
-        const app = document.getElementById('app');
-        if (app && getComputedStyle(app).display !== 'none') window.__appEverVisible = true;
-      };
-      document.addEventListener('DOMContentLoaded', () => {
-        check();
-        const mo = new MutationObserver(check);
-        mo.observe(document.documentElement, { attributes: true, subtree: true, attributeFilter: ['class', 'style'] });
-      });
-      setInterval(check, 5);
-    });
-
+    await watchAppVisibility(page);
     await installDelayedLaunchQueue(page, jpegBase64, 300);
+    await page.goto('/', { waitUntil: 'load' });
+
+    await page.waitForFunction(() => document.body.classList.contains('launching'), null, { timeout: 10000 });
+    await page.waitForSelector('.viewer-media img.viewer-image', { timeout: 10000 });
+    await page.waitForTimeout(400);
+
+    expect(await page.evaluate(() => window.__appEverVisible)).toBe(false);
+  });
+
+  test('a late launch in a windowed mode that is NOT standalone still avoids the home flash', async ({ page }) => {
+    // The old gate only waited for standalone/minimal-ui/overlay, so any other
+    // windowed mode revealed the home page before the file. It must not.
+    await watchAppVisibility(page);
+    await installDelayedLaunchQueue(page, jpegBase64, 300, { standalone: false });
     await page.goto('/', { waitUntil: 'load' });
 
     await page.waitForFunction(() => document.body.classList.contains('launching'), null, { timeout: 10000 });
