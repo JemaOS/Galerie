@@ -86,10 +86,11 @@
 
         <!-- File Input -->
         <input type="file" id="file-input" multiple accept="image/*,video/*,audio/*" style="display: none;">
-
-        <!-- Toast Notifications -->
-        <div id="toast-container" class="toast-container"></div>
     </div>
+
+    <!-- Toast Notifications (outside #app so they stay visible even when the app
+         is hidden during a direct file launch, and above the fullscreen viewer) -->
+    <div id="toast-container" class="toast-container"></div>
 
     <!-- Language Selector (runtime override; the JemaOS system language always wins on load) -->
     <div id="language-selector" class="language-selector" data-i18n-title="language" data-i18n-aria="language" role="button" aria-haspopup="true" aria-expanded="false">

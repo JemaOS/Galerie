@@ -71,4 +71,31 @@ test.describe('Direct file launch', () => {
     expect(state.appDisplay).not.toBe('none');
     expect(state.viewerActive).toBe(false);
   });
+
+  test('an update notification is visible during a direct launch (not hidden with #app)', async ({ page }) => {
+    await installLaunchQueue(page, jpegBase64);
+    await page.goto('/', { waitUntil: 'load' });
+    await page.waitForFunction(() => document.body.classList.contains('launching'), null, { timeout: 10000 });
+    await page.waitForSelector('.viewer-media img.viewer-image', { timeout: 10000 });
+
+    // Simulate an "update available" toast while the app is in launch mode.
+    const visible = await page.evaluate(() => {
+      const tc = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'toast info update-notification';
+      toast.textContent = 'update';
+      tc.appendChild(toast);
+      const rect = toast.getBoundingClientRect();
+      return {
+        appHidden: getComputedStyle(document.getElementById('app')).display === 'none',
+        toastContainerInApp: !!tc.closest('#app'),
+        toastVisible: rect.width > 0 && rect.height > 0,
+      };
+    });
+
+    // #app is hidden (direct launch) but the toast is outside it and therefore visible.
+    expect(visible.appHidden).toBe(true);
+    expect(visible.toastContainerInApp).toBe(false);
+    expect(visible.toastVisible).toBe(true);
+  });
 });

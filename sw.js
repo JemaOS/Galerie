@@ -22,7 +22,7 @@
 // assets cache-first, so without a bump the browser keeps serving the previous
 // versions. Changing this string also makes the browser detect a new worker and
 // offer the in-app "update available" prompt.
-const CACHE_NAME = 'jemaos-gallery-v1.6.0';
+const CACHE_NAME = 'jemaos-gallery-v1.6.1';
 const urlsToCache = [
   './',
   './index.html',
