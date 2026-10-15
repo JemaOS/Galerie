@@ -76,6 +76,17 @@ See [`msix/README.md`](msix/README.md) for detailed packaging instructions.
 - **JavaScript (Vanilla)**
 - **Service Workers** (for PWA functionality)
 
+## Deployment
+
+The app is a static PWA (no build step). After deploying, confirm the load is
+cached-offline once in the browser.
+
+**Always bump `CACHE_NAME` in `sw.js` before a deploy that changes any precached
+asset** (`index.html`, `styles/`, `scripts/`, `libs/`, ...). Static assets are
+served cache-first, so without a bump the browser keeps serving the previous
+files. Bumping it also makes the browser detect a new service worker and show the
+in-app **"update available"** prompt, which reloads onto the fresh cache.
+
 ## License
 
 This project is open source and available under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. See the [LICENSE](LICENSE) file for more details.

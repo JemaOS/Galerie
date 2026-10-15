@@ -16,7 +16,13 @@
  */
 
 // Service Worker for JemaOS Gallery PWA
-const CACHE_NAME = 'jemaos-gallery-v1.5.0';
+//
+// IMPORTANT: bump CACHE_NAME on every deploy that changes any precached asset
+// (index.html, styles/, scripts/, libs/, ...). The fetch handler serves static
+// assets cache-first, so without a bump the browser keeps serving the previous
+// versions. Changing this string also makes the browser detect a new worker and
+// offer the in-app "update available" prompt.
+const CACHE_NAME = 'jemaos-gallery-v1.5.1';
 const urlsToCache = [
   './',
   './index.html',
