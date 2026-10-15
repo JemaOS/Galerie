@@ -386,9 +386,38 @@ const I18N_TRANSLATIONS = {
   },
 };
 
-// French by default for JemaOS PWAs; the language selector is a
-// session-only override (never persisted).
-let currentLang = 'fr';
+// localStorage key holding the user's language choice, read on startup so the
+// selection survives reloads and re-launches.
+const I18N_STORAGE_KEY = 'jemaos-language';
+
+/**
+ * Read the persisted language, if any and if it is a known language.
+ * @returns {string|null}
+ */
+function readStoredLang() {
+  try {
+    const stored = globalThis.localStorage?.getItem(I18N_STORAGE_KEY);
+    if (stored && I18N_TRANSLATIONS[stored]) return stored;
+  } catch (error) {
+    // Storage unavailable (private mode / disabled): fall back to the default.
+  }
+  return null;
+}
+
+/**
+ * Persist the language choice (best effort).
+ * @param {string} lang - Language code
+ */
+function persistLang(lang) {
+  try {
+    globalThis.localStorage?.setItem(I18N_STORAGE_KEY, lang);
+  } catch (error) {
+    // Storage unavailable (private mode / disabled): the choice is not saved.
+  }
+}
+
+// French by default for JemaOS PWAs; a manual choice is remembered across launches.
+let currentLang = readStoredLang() || 'fr';
 
 /**
  * Translate a key in the current language, with optional {param} placeholders.
@@ -441,8 +470,7 @@ function applyI18n(root = document) {
 }
 
 /**
- * Change the UI language at runtime (manual override only - the app
- * always starts in French).
+ * Change the UI language at runtime and remember the choice.
  * @param {string} lang - Language code ('en' or 'fr')
  */
 function setI18nLang(lang) {
@@ -450,6 +478,7 @@ function setI18nLang(lang) {
     lang = 'en';
   }
   currentLang = lang;
+  persistLang(lang);
   if (typeof document !== 'undefined') {
     if (document.documentElement) {
       document.documentElement.lang = lang;
@@ -560,6 +589,7 @@ globalThis.t = t;
 globalThis.applyI18n = applyI18n;
 globalThis.setI18nLang = setI18nLang;
 globalThis.getCurrentI18nLang = () => currentLang;
+globalThis.I18N_STORAGE_KEY = I18N_STORAGE_KEY;
 
 // Initial application (script is deferred, DOM is parsed at this point)
 if (typeof document !== 'undefined' && document.documentElement) {
@@ -572,5 +602,5 @@ if (typeof document !== 'undefined' && document.documentElement) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { I18N_LANGUAGES, I18N_TRANSLATIONS, t, applyI18n, setI18nLang };
+  module.exports = { I18N_LANGUAGES, I18N_TRANSLATIONS, I18N_STORAGE_KEY, t, applyI18n, setI18nLang, readStoredLang, persistLang, getCurrentI18nLang: () => currentLang };
 }

@@ -592,7 +592,8 @@ class JemaOSGallery {
         showFileInfo: this.uiController.showFileInfo,
         sortBy: this.fileHandler.currentSort.field,
         sortOrder: this.fileHandler.currentSort.order,
-        filter: this.fileHandler.currentFilter
+        filter: this.fileHandler.currentFilter,
+        language: globalThis.getCurrentI18nLang?.() || 'fr'
       },
       errorLogs: JSON.parse(localStorage.getItem('gallery-error-logs') || '[]')
     };
@@ -622,6 +623,9 @@ class JemaOSGallery {
       this.uiController.showFileInfo = prefs.showFileInfo !== false;
       this.fileHandler.setSorting(prefs.sortBy || 'name', prefs.sortOrder || 'asc');
       this.fileHandler.setFilter(prefs.filter || 'all');
+      if (prefs.language) {
+        globalThis.setI18nLang?.(prefs.language);
+      }
       
       // Update UI
       this.uiController.updateUI();
