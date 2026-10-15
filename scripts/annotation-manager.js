@@ -27,7 +27,6 @@ class AnnotationManager {
     this.pages = new Map();
     
     // Persistence
-    this.savedContent = new Map(); // id -> HTMLCanvasElement (snapshot)
     this.savedText = new Map(); // id -> Array of text states
     
     // State
@@ -58,6 +57,7 @@ class AnnotationManager {
     this.shapeStart = null;
     this.shapeEnd = null;
     this.shapeSnapshot = null;
+    this.shapeDirty = null; // dirty rect of the current shape preview
     this.activeInput = null; // For text tool
     this.textWrappers = []; // Store active text objects (DOM elements)
     
@@ -102,7 +102,6 @@ class AnnotationManager {
     
     this.isActive = true;
     this.pages.clear();
-    this.savedContent.clear();
     this.savedText.clear();
     this.history = [];
     this.historyStep = -1;
@@ -237,7 +236,6 @@ class AnnotationManager {
           p.canvas.textLayer?.remove();
       });
       this.pages.clear();
-      this.savedContent.clear();
       this.savedText.clear();
       this.textWrappers = [];
       this.isActive = false;
@@ -807,6 +805,7 @@ class AnnotationManager {
         this.shapeSnapshot.width = this.activeCanvas.width;
         this.shapeSnapshot.height = this.activeCanvas.height;
         this.shapeSnapshot.getContext('2d').drawImage(this.activeCanvas, 0, 0);
+        this.shapeDirty = null;
         return;
     }
 
@@ -1668,9 +1667,48 @@ class AnnotationManager {
       const canvas = this.activeCanvas;
       const ctx = this.ctx;
       if (!canvas || !ctx || !this.shapeStart) return;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (this.shapeSnapshot) ctx.drawImage(this.shapeSnapshot, 0, 0);
+      // Dirty-rect: only clear and restore the region touched by the previous
+      // and current preview instead of the whole (possibly huge) canvas.
+      const next = this._shapePreviewRect(this.shapeStart, end, this.currentTool, this.currentSize, canvas);
+      const dirty = this._unionRect(this.shapeDirty, next);
+      ctx.clearRect(dirty.x, dirty.y, dirty.w, dirty.h);
+      if (this.shapeSnapshot) {
+          ctx.drawImage(this.shapeSnapshot, dirty.x, dirty.y, dirty.w, dirty.h,
+                        dirty.x, dirty.y, dirty.w, dirty.h);
+      }
       this.drawShape(ctx, this.currentTool, this.shapeStart, end, this.currentColor, this.currentSize);
+      this.shapeDirty = next;
+  }
+
+  // Bounding box (padded) of a shape preview, clamped to the canvas. Pure
+  // geometry so it can be unit-tested without a real canvas.
+  _shapePreviewRect(a, b, tool, size, canvas) {
+      if (!a || !b) return { x: 0, y: 0, w: 0, h: 0 };
+      const line = Math.max(1, size || 1);
+      // Arrows draw a head up to 4x the line width beyond the end point.
+      const pad = Math.ceil((tool === 'arrow' ? line * 4 : line) / 2) + 3;
+      const minX = Math.min(a.x, b.x) - pad;
+      const minY = Math.min(a.y, b.y) - pad;
+      const maxX = Math.max(a.x, b.x) + pad;
+      const maxY = Math.max(a.y, b.y) + pad;
+      const cw = canvas ? canvas.width : Infinity;
+      const ch = canvas ? canvas.height : Infinity;
+      const x = Math.max(0, Math.floor(minX));
+      const y = Math.max(0, Math.floor(minY));
+      const w = Math.min(cw, Math.ceil(maxX)) - x;
+      const h = Math.min(ch, Math.ceil(maxY)) - y;
+      return { x, y, w: Math.max(0, w), h: Math.max(0, h) };
+  }
+
+  // Minimal rect covering both inputs (either may be null).
+  _unionRect(a, b) {
+      if (!a) return b;
+      if (!b) return a;
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.max(a.x + a.w, b.x + b.w) - x;
+      const h = Math.max(a.y + a.h, b.y + b.h) - y;
+      return { x, y, w, h };
   }
 
   handleShapeEnd() {
@@ -1680,6 +1718,7 @@ class AnnotationManager {
       this.shapeStart = null;
       this.shapeEnd = null;
       this.shapeSnapshot = null;
+      this.shapeDirty = null;
       if (!a || !b) return;
       // Ignore an accidental click (no real shape drawn).
       if (Math.abs(b.x - a.x) < 3 && Math.abs(b.y - a.y) < 3) return;
@@ -1867,39 +1906,14 @@ class AnnotationManager {
   }
 
   snapshot() {
-      // Snapshot active pages
-      this.pages.forEach((page, id) => {
-          const tempCanvas = document.createElement('canvas');
-          tempCanvas.width = page.canvas.width;
-          tempCanvas.height = page.canvas.height;
-          tempCanvas.getContext('2d', { willReadFrequently: true }).drawImage(page.canvas, 0, 0);
-          this.savedContent.set(id, tempCanvas);
-      });
-      
-      // Snapshot active text
-      // We need to update savedText with current textWrappers
-      // Group by pageId
-      const textByPage = new Map();
-      this.textWrappers.forEach(w => {
-          const state = this.serializeTextWrapper(w);
-          if (state.pageId) {
-              if (!textByPage.has(state.pageId)) textByPage.set(state.pageId, []);
-              textByPage.get(state.pageId).push(state);
-          }
-      });
-      
-      // Merge with existing savedText (overwrite active pages)
-      textByPage.forEach((texts, id) => {
-          this.savedText.set(id, texts);
-      });
-      
-      // Return serializable state?
-      // For now just return true if we have data
+      // Kept for API compatibility. Saving a full-resolution copy of every page
+      // (a 5700x8000 page is ~182 MB) is never needed: the annotation history
+      // already holds the vector actions, so nothing is copied here.
       return true;
   }
 
   restore(state) {
-      // Not implemented for full persistence yet, relies on savedContent/savedText
+      // Not implemented for full persistence yet, relies on savedText
   }
 
   drawStroke(ctx, points, color, size, tool, scale = 1) {
@@ -2003,7 +2017,6 @@ class AnnotationManager {
           const ctx = p.canvas.getContext('2d');
           ctx.clearRect(0, 0, p.canvas.width, p.canvas.height);
       });
-      this.savedContent.clear();
       this.savedText.clear();
       this.history = [];
       this.historyStep = -1;
