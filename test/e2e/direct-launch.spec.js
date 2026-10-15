@@ -27,7 +27,7 @@ async function installLaunchQueue(page, base64) {
   }, base64);
 }
 
-// Simulate the real ChromiumOS timing: the app runs as an installed (windowed)
+// Simulate the real JemaOS timing: the app runs as an installed (windowed)
 // PWA and the File Handling API delivers the file only after a delay, well after
 // a microtask. The launch decision must wait for it instead of revealing the
 // home page.
@@ -128,7 +128,7 @@ test.describe('Direct file launch', () => {
     expect(await page.evaluate(() => window.__appEverVisible)).toBe(false);
   });
 
-  test('a launch reported late (real ChromiumOS timing) still avoids the home flash', async ({ page }) => {
+  test('a launch reported late (real JemaOS timing) still avoids the home flash', async ({ page }) => {
     // Flag if #app ever becomes visible, from the first paint until well after
     // the launch settles.
     await page.addInitScript(() => {

@@ -86,7 +86,7 @@ class JemaOSGallery {
       this.setupErrorHandling();
 
       // Wait for the File Handling API to report a launch before deciding whether
-      // the home page is shown. On ChromiumOS the launch params arrive
+      // the home page is shown. On JemaOS the launch params arrive
       // asynchronously, so deciding any earlier flashes the home page before the
       // file actually opens.
       await this.waitForLaunchDecision();

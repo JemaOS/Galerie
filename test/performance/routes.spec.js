@@ -1,8 +1,8 @@
 const { test, expect } = require('@playwright/test');
 
-// In Chromium `window.launchQueue` is a native accessor property, so a plain
-// `window.launchQueue = {...}` assignment is silently ignored and the app keeps
-// calling the native (no-op) setConsumer. Redefine the property instead via
+// In the test browser `window.launchQueue` is a native accessor property, so a
+// plain `window.launchQueue = {...}` assignment is silently ignored and the app
+// keeps calling the native (no-op) setConsumer. Redefine the property instead via
 // Object.defineProperty, and deliver the file like a real file launch.
 test.describe('Performance Route Tests', () => {
 
