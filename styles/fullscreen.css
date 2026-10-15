@@ -37,6 +37,12 @@
   visibility: visible;
 }
 
+/* Direct file launch: show the viewer at once, with no fade up from black, so
+   launching a file never produces a black flash before the file appears. */
+body.launching .fullscreen-viewer {
+  transition: none;
+}
+
 /* Viewer Toolbar */
 .viewer-toolbar {
   position: absolute;
@@ -178,20 +184,9 @@
   justify-content: center;
 }
 
-/* Content fade-in: applies to whatever opens in the viewer (image, video,
-   audio, PDF, ...). Runs once when the element is inserted by loadFile. */
-.viewer-media > * {
-  animation: viewerContentIn 0.35s ease both;
-}
-
-@keyframes viewerContentIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .viewer-media > * { animation: none; }
-}
+/* Viewer content appears immediately: no fade-in. A fade made a directly
+   launched file flash black (viewer fading up from opacity 0) before the file
+   showed, so the content is simply rendered at full opacity. */
 
 /* Image Viewer */
 .viewer-media img {

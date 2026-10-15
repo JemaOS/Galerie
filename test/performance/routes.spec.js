@@ -1,19 +1,25 @@
 const { test, expect } = require('@playwright/test');
 
+// In Chromium `window.launchQueue` is a native accessor property, so a plain
+// `window.launchQueue = {...}` assignment is silently ignored and the app keeps
+// calling the native (no-op) setConsumer. Redefine the property instead via
+// Object.defineProperty, and deliver the file like a real file launch.
 test.describe('Performance Route Tests', () => {
-  
-  test('should open image viewer directly without home flash', async ({ page }) => {
-    // Mock file handling by injecting a file immediately upon load
-    await page.addInitScript(() => {
-      // Mock launchQueue
-      window.launchQueue = {
+
+  async function mockLaunch(page, name, type) {
+    await page.addInitScript(({ name, type }) => {
+      const q = {
         setConsumer: (callback) => {
-          // Simulate immediate file launch
-          const mockFile = new File(['fake image'], 'test.jpg', { type: 'image/jpeg' });
-          callback({ files: [mockFile] });
-        }
+          const file = new File(['mock'], name, { type });
+          Promise.resolve().then(() => callback({ files: [file] }));
+        },
       };
-    });
+      Object.defineProperty(window, 'launchQueue', { value: q, configurable: true, writable: true });
+    }, { name, type });
+  }
+
+  test('should open image viewer directly without home flash', async ({ page }) => {
+    await mockLaunch(page, 'test.jpg', 'image/jpeg');
 
     const startTime = Date.now();
     await page.goto('/');
@@ -33,14 +39,7 @@ test.describe('Performance Route Tests', () => {
   });
 
   test('should open video player directly', async ({ page }) => {
-    await page.addInitScript(() => {
-      window.launchQueue = {
-        setConsumer: (callback) => {
-          const mockFile = new File(['fake video'], 'test.mp4', { type: 'video/mp4' });
-          callback({ files: [mockFile] });
-        }
-      };
-    });
+    await mockLaunch(page, 'test.mp4', 'video/mp4');
 
     const startTime = Date.now();
     await page.goto('/');
@@ -58,14 +57,7 @@ test.describe('Performance Route Tests', () => {
   });
 
   test('should open PDF viewer directly', async ({ page }) => {
-    await page.addInitScript(() => {
-      window.launchQueue = {
-        setConsumer: (callback) => {
-          const mockFile = new File(['fake pdf'], 'test.pdf', { type: 'application/pdf' });
-          callback({ files: [mockFile] });
-        }
-      };
-    });
+    await mockLaunch(page, 'test.pdf', 'application/pdf');
 
     const startTime = Date.now();
     await page.goto('/');
@@ -79,14 +71,7 @@ test.describe('Performance Route Tests', () => {
   });
 
   test('should open audio player directly', async ({ page }) => {
-    await page.addInitScript(() => {
-      window.launchQueue = {
-        setConsumer: (callback) => {
-          const mockFile = new File(['fake audio'], 'test.mp3', { type: 'audio/mpeg' });
-          callback({ files: [mockFile] });
-        }
-      };
-    });
+    await mockLaunch(page, 'test.mp3', 'audio/mpeg');
 
     const startTime = Date.now();
     await page.goto('/');

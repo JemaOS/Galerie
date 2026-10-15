@@ -60,6 +60,12 @@ describe('UIController', () => {
     expect(window.audioPlayer.init).toHaveBeenCalled();
   });
 
+  test('does not reveal #app on init (home page must not flash before a file launch)', async () => {
+    document.getElementById('app').classList.add('hidden');
+    await uiController.init();
+    expect(document.getElementById('app').classList.contains('hidden')).toBe(true);
+  });
+
   test('should trigger file input', () => {
     uiController.init();
     const input = document.getElementById('file-input');

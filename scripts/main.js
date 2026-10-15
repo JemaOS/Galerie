@@ -28,7 +28,8 @@ class JemaOSGallery {
   pdfViewer = null;
   isInitialized = false;
   // Set true when the app is opened straight into a file (File Handling API,
-  // share target). The home page is then never shown: the viewer fades in.
+  // share target). The home page is then never shown: the viewer is displayed
+  // directly.
   directLaunch = false;
   
   constructor() {
@@ -78,8 +79,8 @@ class JemaOSGallery {
       this.isInitialized = true;
 
       if (this.directLaunch) {
-        // Opening straight into a file: keep the home page hidden and let the
-        // fullscreen viewer fade in over a black backdrop.
+        // Opening straight into a file: keep the home page hidden and show the
+        // viewer directly (no fade, no black flash).
         document.body.classList.add('launching');
       } else {
         // Hide loading screen (reveals the home page)
@@ -226,7 +227,7 @@ class JemaOSGallery {
       globalThis.launchQueue.setConsumer(async (launchData) => {
         if (launchData.files && launchData.files.length > 0) {
           // Mark synchronously (before any await) so init() can skip the home
-          // page and fade straight into the viewer.
+          // page and show the viewer directly.
           this.directLaunch = true;
           document.body.classList.add('launching');
 
@@ -263,8 +264,8 @@ class JemaOSGallery {
     const sharedFiles = urlParams.get('shared-files');
     
     if (sharedFiles) {
-      // Mark synchronously so init() can skip the home page and fade straight
-      // into the viewer.
+      // Mark synchronously so init() can skip the home page and show the viewer
+      // directly.
       this.directLaunch = true;
       document.body.classList.add('launching');
       // Handle shared files

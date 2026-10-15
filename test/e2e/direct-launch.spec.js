@@ -46,16 +46,54 @@ test.describe('Direct file launch', () => {
     expect(appDisplayAfter).toBe('none');
   });
 
-  test('viewer content fades in (animation applied to file elements)', async ({ page }) => {
+  test('viewer content appears immediately: no fade-in and no fade-up from black', async ({ page }) => {
     await installLaunchQueue(page, jpegBase64);
     await page.goto('/', { waitUntil: 'load' });
     await page.waitForSelector('.viewer-media img.viewer-image', { timeout: 10000 });
-    const anim = await page.evaluate(() => {
-      const el = document.querySelector('.viewer-media > *');
-      const cs = getComputedStyle(el);
-      return cs.animationName;
+    const state = await page.evaluate(() => {
+      const media = document.querySelector('.viewer-media > *');
+      const viewer = document.getElementById('fullscreen-viewer');
+      return {
+        contentAnimation: getComputedStyle(media).animationName,
+        contentOpacity: getComputedStyle(media).opacity,
+        viewerTransitionDuration: getComputedStyle(viewer).transitionDuration,
+        viewerOpacity: getComputedStyle(viewer).opacity,
+      };
     });
-    expect(anim).toContain('viewerContentIn');
+    // No content fade-in...
+    expect(state.contentAnimation).toBe('none');
+    expect(Number(state.contentOpacity)).toBe(1);
+    // ...and the viewer is shown at once: its fade-up transition is disabled
+    // during a direct launch, so there is no black fade before the file.
+    expect(Number(state.viewerOpacity)).toBe(1);
+    expect(state.viewerTransitionDuration).toBe('0s');
+  });
+
+  test('the home page is never shown during a direct launch (no flash)', async ({ page }) => {
+    // Flag if #app ever becomes visible, from the first paint until well after
+    // the launch settles. A premature reveal (e.g. during component init) shows
+    // the home page for a frame before the viewer, which is what flashing is.
+    await page.addInitScript(() => {
+      window.__appEverVisible = false;
+      const check = () => {
+        const app = document.getElementById('app');
+        if (app && getComputedStyle(app).display !== 'none') window.__appEverVisible = true;
+      };
+      document.addEventListener('DOMContentLoaded', () => {
+        check();
+        const mo = new MutationObserver(check);
+        mo.observe(document.documentElement, { attributes: true, subtree: true, attributeFilter: ['class', 'style'] });
+      });
+      setInterval(check, 5);
+    });
+
+    await installLaunchQueue(page, jpegBase64);
+    await page.goto('/', { waitUntil: 'load' });
+    await page.waitForFunction(() => document.body.classList.contains('launching'), null, { timeout: 10000 });
+    await page.waitForSelector('.viewer-media img.viewer-image', { timeout: 10000 });
+    await page.waitForTimeout(500);
+
+    expect(await page.evaluate(() => window.__appEverVisible)).toBe(false);
   });
 
   test('a normal launch (no file) still shows the home page', async ({ page }) => {

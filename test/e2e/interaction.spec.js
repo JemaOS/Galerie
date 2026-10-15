@@ -1,4 +1,13 @@
 const { test, expect } = require('@playwright/test');
+const sharp = require('sharp');
+
+// A real image so the input-triggered load actually opens the viewer.
+let pngBuffer;
+test.beforeAll(async () => {
+  pngBuffer = await sharp({ create: { width: 64, height: 48, channels: 3, background: { r: 30, g: 120, b: 200 } } })
+    .png()
+    .toBuffer();
+});
 
 test.describe('App Interactions', () => {
   test.beforeEach(async ({ page }) => {
@@ -42,31 +51,15 @@ test.describe('App Interactions', () => {
   });
 
   test('can simulate supported file loading', async ({ page }) => {
-    // Simulate loading a supported file (e.g. image)
-    // We can't easily create a valid image Blob in evaluate without a lot of data, 
-    // but we can try to create a fake one and see if it tries to open the viewer.
-    
-    await page.evaluate(async () => {
-      // Create a fake image file
-      const file = new File(['fake image data'], 'test.jpg', { type: 'image/jpeg' });
-      
-      if (window.galleryFileHandler) {
-        await window.galleryFileHandler.loadFiles([file]);
-      }
+    // Drive the real user flow: choosing an image file loads it and opens the
+    // viewer. (Calling fileHandler.loadFiles directly only fills the grid; it
+    // never opens the viewer -- that is the UIController's job.)
+    await page.locator('#file-input').setInputFiles({
+      name: 'photo.png',
+      mimeType: 'image/png',
+      buffer: pngBuffer,
     });
-    
-    // It should try to open the viewer.
-    // The viewer might fail to load the image (since it's fake data), but the viewer container should become active/visible.
-    // Or it might show an error toast if validation passes but loading fails.
-    
-    // Check if viewer becomes visible OR error toast appears
-    const viewer = page.locator('#fullscreen-viewer');
-    const toast = page.locator('.toast');
-    
-    // Wait for either
-    await Promise.race([
-      expect(viewer).toHaveClass(/active/),
-      expect(toast).toBeVisible()
-    ]);
+
+    await expect(page.locator('#fullscreen-viewer')).toHaveClass(/active/, { timeout: 5000 });
   });
 });

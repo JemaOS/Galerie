@@ -54,7 +54,10 @@ class UIController {
     }
 
     this.updateUI();
-    this.showLoadingScreen(false);
+    // Do NOT reveal #app here. main.js owns that decision: #app must stay hidden
+    // until it knows whether this load is a direct file launch, otherwise the
+    // home page flashes for a frame before the viewer opens.
+    this.elements.loadingScreen?.classList.add('hidden');
 
   }
 
