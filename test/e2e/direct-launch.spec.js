@@ -27,6 +27,38 @@ async function installLaunchQueue(page, base64) {
   }, base64);
 }
 
+// Simulate the real ChromiumOS timing: the app runs as an installed (windowed)
+// PWA and the File Handling API delivers the file only after a delay, well after
+// a microtask. The launch decision must wait for it instead of revealing the
+// home page.
+async function installDelayedLaunchQueue(page, base64, delayMs) {
+  await page.addInitScript(({ b64, delay }) => {
+    const nativeMatchMedia = window.matchMedia.bind(window);
+    window.matchMedia = (query) => {
+      if (String(query).includes('display-mode: standalone')) {
+        return {
+          matches: true,
+          media: query,
+          addEventListener() {}, removeEventListener() {},
+          addListener() {}, removeListener() {},
+        };
+      }
+      return nativeMatchMedia(query);
+    };
+
+    const q = {
+      setConsumer: (cb) => {
+        const bin = atob(b64);
+        const u8 = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+        const file = new File([u8], 'photo.jpg', { type: 'image/jpeg' });
+        setTimeout(() => cb({ files: [file] }), delay);
+      },
+    };
+    Object.defineProperty(window, 'launchQueue', { value: q, configurable: true, writable: true });
+  }, { b64: base64, delay: delayMs });
+}
+
 test.describe('Direct file launch', () => {
   test('opening a file never shows the home page and fades in the viewer', async ({ page }) => {
     await installLaunchQueue(page, jpegBase64);
@@ -92,6 +124,33 @@ test.describe('Direct file launch', () => {
     await page.waitForFunction(() => document.body.classList.contains('launching'), null, { timeout: 10000 });
     await page.waitForSelector('.viewer-media img.viewer-image', { timeout: 10000 });
     await page.waitForTimeout(500);
+
+    expect(await page.evaluate(() => window.__appEverVisible)).toBe(false);
+  });
+
+  test('a launch reported late (real ChromiumOS timing) still avoids the home flash', async ({ page }) => {
+    // Flag if #app ever becomes visible, from the first paint until well after
+    // the launch settles.
+    await page.addInitScript(() => {
+      window.__appEverVisible = false;
+      const check = () => {
+        const app = document.getElementById('app');
+        if (app && getComputedStyle(app).display !== 'none') window.__appEverVisible = true;
+      };
+      document.addEventListener('DOMContentLoaded', () => {
+        check();
+        const mo = new MutationObserver(check);
+        mo.observe(document.documentElement, { attributes: true, subtree: true, attributeFilter: ['class', 'style'] });
+      });
+      setInterval(check, 5);
+    });
+
+    await installDelayedLaunchQueue(page, jpegBase64, 300);
+    await page.goto('/', { waitUntil: 'load' });
+
+    await page.waitForFunction(() => document.body.classList.contains('launching'), null, { timeout: 10000 });
+    await page.waitForSelector('.viewer-media img.viewer-image', { timeout: 10000 });
+    await page.waitForTimeout(400);
 
     expect(await page.evaluate(() => window.__appEverVisible)).toBe(false);
   });

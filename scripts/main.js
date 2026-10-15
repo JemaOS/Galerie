@@ -31,8 +31,18 @@ class JemaOSGallery {
   // share target). The home page is then never shown: the viewer is displayed
   // directly.
   directLaunch = false;
-  
+  // File Handling API state: whether the launch consumer has reported yet, the
+  // files it carried (opened once the components exist), and the promise used to
+  // wait for that report before revealing the home page.
+  _launchReported = false;
+  _pendingLaunchFiles = null;
+  _launchDecisionPromise = null;
+  _resolveLaunchDecision = null;
+
   constructor() {
+    this._launchDecisionPromise = new Promise(resolve => {
+      this._resolveLaunchDecision = resolve;
+    });
   }
 
   /**
@@ -54,6 +64,10 @@ class JemaOSGallery {
       
       // Apply translations (initial language comes from the system)
       applyI18n();
+
+      // Register the File Handling API consumer before anything slow, so launch
+      // params (a file opened from the OS) are delivered as early as possible.
+      this.setupFileHandlers();
       
       // Initialize components
       await this.initializeComponents();
@@ -71,9 +85,11 @@ class JemaOSGallery {
       // Setup global error handling
       this.setupErrorHandling();
 
-      // Let a pending direct launch (File Handling API / share target) report
-      // itself before deciding whether the home page is ever shown.
-      await new Promise(resolve => setTimeout(resolve, 0));
+      // Wait for the File Handling API to report a launch before deciding whether
+      // the home page is shown. On ChromiumOS the launch params arrive
+      // asynchronously, so deciding any earlier flashes the home page before the
+      // file actually opens.
+      await this.waitForLaunchDecision();
 
       // Mark as initialized
       this.isInitialized = true;
@@ -85,6 +101,13 @@ class JemaOSGallery {
       } else {
         // Hide loading screen (reveals the home page)
         this.showLoadingScreen(false);
+      }
+
+      // Open the file that launched the app, now that the components exist.
+      if (this._pendingLaunchFiles) {
+        const files = this._pendingLaunchFiles;
+        this._pendingLaunchFiles = null;
+        await this._consumeLaunchFiles(files);
       }
 
       // Re-apply translations after the first paint
@@ -183,9 +206,6 @@ class JemaOSGallery {
     // Setup install prompt
     this.setupInstallPrompt();
     
-    // Setup file handlers
-    this.setupFileHandlers();
-    
     // Setup share target
     this.setupShareTarget();
   }
@@ -220,28 +240,77 @@ class JemaOSGallery {
   }
 
   /**
-   * Setup file handlers
+   * Register the File Handling API consumer as early as possible.
+   *
+   * The callback is invoked once a launch is queued (a file opened from the OS,
+   * or a normal installed-app launch carrying no file). It only records the
+   * launch: the files are opened by init() once the components exist, or right
+   * away when the app is already running.
    */
   setupFileHandlers() {
-    if ('launchQueue' in globalThis) {
-      globalThis.launchQueue.setConsumer(async (launchData) => {
-        if (launchData.files && launchData.files.length > 0) {
-          // Mark synchronously (before any await) so init() can skip the home
-          // page and show the viewer directly.
-          this.directLaunch = true;
-          document.body.classList.add('launching');
+    if (!('launchQueue' in globalThis)) return;
 
-          const loadedFiles = await this.fileHandler.loadFiles(launchData.files);
+    globalThis.launchQueue.setConsumer((launchData) => {
+      const files = launchData?.files || [];
+      this._launchReported = true;
 
-          // Auto-open first file
-          if (loadedFiles.length > 0) {
-            // Directly open the viewer without rendering the grid first
-            this.uiController.openInFullscreen(loadedFiles[0]);
-          } else {
-            this.revealApp();
-          }
-        }
-      });
+      if (files.length > 0) {
+        // Mark synchronously (before any await) so init() skips the home page
+        // and shows the viewer directly.
+        this.directLaunch = true;
+        document.body.classList.add('launching');
+        this._pendingLaunchFiles = files;
+      }
+
+      // Let init() stop waiting and decide.
+      this._resolveLaunchDecision?.();
+
+      // A launch received while the app is already running (e.g. opening another
+      // file) is opened immediately; the first launch is opened by init().
+      if (this.isInitialized && files.length > 0) {
+        this._consumeLaunchFiles(files);
+      }
+    });
+  }
+
+  /**
+   * Wait for the launch consumer to report before revealing the home page.
+   *
+   * Only installed (windowed) launches enqueue launch params, so a plain browser
+   * tab is never delayed. A timeout guards against a browser that never reports.
+   */
+  async waitForLaunchDecision() {
+    if (this._launchReported) return;
+    if (!('launchQueue' in globalThis)) return;
+
+    const isWindowed = ['standalone', 'minimal-ui', 'window-controls-overlay']
+      .some(mode => globalThis.matchMedia?.(`(display-mode: ${mode})`)?.matches);
+    if (!isWindowed) return;
+
+    await Promise.race([
+      this._launchDecisionPromise,
+      new Promise(resolve => setTimeout(resolve, 1000))
+    ]);
+  }
+
+  /**
+   * Load and open the files carried by a launch, or fall back to the home page.
+   * @param {Array<FileSystemFileHandle>} files - Files carried by the launch
+   */
+  async _consumeLaunchFiles(files) {
+    if (!files || files.length === 0) {
+      this.revealApp();
+      return;
+    }
+
+    const loadedFiles = await this.fileHandler.loadFiles(files);
+
+    // Auto-open first file
+    if (loadedFiles.length > 0) {
+      // Directly open the viewer without rendering the grid first
+      this.uiController.openInFullscreen(loadedFiles[0]);
+    } else {
+      this.revealApp();
     }
   }
 
