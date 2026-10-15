@@ -16,7 +16,7 @@
  */
 
 // Service Worker for JemaOS Gallery PWA
-const CACHE_NAME = 'jemaos-gallery-v1.4.1';
+const CACHE_NAME = 'jemaos-gallery-v1.5.0';
 const urlsToCache = [
   './',
   './index.html',
@@ -102,44 +102,60 @@ self.addEventListener('fetch', event => {
       event.request.url.startsWith('jema-extension://')) {
     return;
   }
+  if (event.request.method !== 'GET') {
+    return;
+  }
 
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Return cached version or fetch from network
-        if (response) {
-          return response;
-        }
+  // Navigations and HTML: network-first, so a new deployment is picked up as
+  // soon as the user opens the app (cache is only a fallback when offline).
+  const isDocument = event.request.mode === 'navigate' ||
+    event.request.destination === 'document' ||
+    event.request.url.endsWith('/') ||
+    event.request.url.endsWith('index.html');
 
-        return fetch(event.request).then(response => {
-          // Don't cache non-successful responses
-          if (!response || response?.status !== 200 || response?.type !== 'basic') {
-            return response;
-          }
-
-          // Clone the response for caching
-          const responseToCache = response.clone();
-
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(event.request, responseToCache);
-            });
-
-          return response;
-        }).catch(error => {
-          console.error('[SW] Fetch failed:', error);
-          
-          // Return offline fallback for navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('./index.html');
-          }
-          
-          // Return a 503 Response instead of throwing to handle the error gracefully
-          return new Response('Service Unavailable', { status: 503, statusText: 'Service Unavailable' });
-        });
-      })
-  );
+  event.respondWith(isDocument ? networkFirst(event.request) : cacheFirst(event.request));
 });
+
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request);
+    if (response && response.status === 200 && response.type === 'basic') {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    const cached = await caches.match(request);
+    if (cached) {
+      return cached;
+    }
+    if (request.mode === 'navigate') {
+      return caches.match('./index.html');
+    }
+    return new Response('Service Unavailable', { status: 503, statusText: 'Service Unavailable' });
+  }
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) {
+    return cached;
+  }
+  try {
+    const response = await fetch(request);
+    if (response && response.status === 200 && response.type === 'basic') {
+      const cache = await caches.open(CACHE_NAME);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch (error) {
+    console.error('[SW] Fetch failed:', error);
+    if (request.mode === 'navigate') {
+      return caches.match('./index.html');
+    }
+    return new Response('Service Unavailable', { status: 503, statusText: 'Service Unavailable' });
+  }
+}
 
 // Handle file share target
 self.addEventListener('message', event => {

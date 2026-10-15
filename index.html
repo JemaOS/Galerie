@@ -479,20 +479,6 @@
     <script src="scripts/tiled-image-renderer.js" defer></script>
     <script src="scripts/fullscreen-viewer.js" defer></script>
     <script src="scripts/main.js" defer></script>
-    
-    <!-- Service Worker Registration -->
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function() {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(function(registration) {
-                        console.log('[App] Service Worker registered with scope:', registration.scope);
-                    })
-                    .catch(function(error) {
-                        console.error('[App] Service Worker registration failed:', error);
-                    });
-            });
-        }
-    </script>
+    <!-- The service worker is registered in scripts/main.js (with update handling). -->
 </body>
 </html>

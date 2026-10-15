@@ -120,22 +120,29 @@ class JemaOSGallery {
       try {
         const registration = await navigator.serviceWorker.register('./sw.js');
         console.log('📱 Service Worker registered:', registration.scope);
-        
-        // Handle service worker updates
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New update available
+
+        // A new worker is either already installing/waiting, or will appear via
+        // `updatefound`. Handle both so an update is never missed.
+        const watchForUpdate = worker => {
+          if (!worker) return;
+          worker.addEventListener('statechange', () => {
+            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
               this.showUpdateNotification(registration);
             }
           });
+        };
+        registration.addEventListener('updatefound', () => {
+          watchForUpdate(registration.installing);
         });
-
-        // Check for waiting worker immediately
+        watchForUpdate(registration.installing || registration.waiting);
         if (registration.waiting) {
           this.showUpdateNotification(registration);
         }
+
+        // Check for a new deployment on every launch (not only every 60 min).
+        registration.update().catch(err => {
+          console.warn('Startup update check failed:', err);
+        });
 
         // Check for updates when network comes back online
         globalThis.addEventListener('online', () => {
