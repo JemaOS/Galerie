@@ -7,3 +7,6 @@ Thumbs.db
 # Playwright
 playwright-report/
 test-results/
+
+# Large generated test fixtures (create with: node scripts/generate-test-jpeg.js)
+test/fixtures/large-*.jpg

@@ -57,8 +57,12 @@ class JemaOSGallery {
       // Setup PWA features
       await this.setupPWA();
       
-      // Handle shared files
-      await this.handleSharedFiles();
+      // Handle shared files without blocking startup: this awaits
+      // navigator.serviceWorker.ready, which on a cold first run only resolves
+      // after the whole precache installs. Do not gate the loading screen on it.
+      this.handleSharedFiles().catch(error => {
+        console.warn('[App] handleSharedFiles failed:', error);
+      });
       
       // Setup global error handling
       this.setupErrorHandling();

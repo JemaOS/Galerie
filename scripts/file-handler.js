@@ -567,22 +567,25 @@ class FileHandler {
   async getImageMetadata(file) {
     return new Promise((resolve) => {
       const img = new Image();
-      
+      const objectUrl = URL.createObjectURL(file);
+
       img.onload = () => {
         resolve({
           width: img.naturalWidth,
           height: img.naturalHeight,
           aspectRatio: img.naturalWidth / img.naturalHeight
         });
+        URL.revokeObjectURL(objectUrl);
         img.remove();
       };
 
       img.onerror = () => {
         resolve({ width: 0, height: 0, aspectRatio: 1 });
+        URL.revokeObjectURL(objectUrl);
         img.remove();
       };
 
-      img.src = URL.createObjectURL(file);
+      img.src = objectUrl;
     });
   }
 

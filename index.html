@@ -45,13 +45,17 @@
     <link rel="stylesheet" href="styles/annotation.css">
     <link rel="stylesheet" href="styles/responsive.css">
     
-    <!-- PDF.js (local) -->
-    <script src="libs/pdf.min.js"></script>
-    <script>
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'libs/pdf.worker.min.js';
+    <!-- PDF.js (local) — deferred so it never blocks the first image paint -->
+    <script src="libs/pdf.min.js" defer></script>
+    <script defer>
+        window.addEventListener('DOMContentLoaded', function () {
+            if (window.pdfjsLib) {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'libs/pdf.worker.min.js';
+            }
+        });
     </script>
-    <!-- PDF-Lib (local) -->
-    <script src="libs/pdf-lib.min.js"></script>
+    <!-- PDF-Lib (local) — deferred, loaded only when a PDF is opened -->
+    <script src="libs/pdf-lib.min.js" defer></script>
 </head>
 <body>
     <!-- Loading Screen -->

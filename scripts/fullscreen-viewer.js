@@ -1422,34 +1422,25 @@ class FullscreenViewer {
    * @param {Object} file - Image file
    */
   async loadImage(file) {
-    // Check if this image needs tiled rendering (without decoding full image)
+    // Read the header dimensions without decoding the full image.
     const blob = file.file || (file.url ? await fetch(file.url).then(r => r.blob()) : null);
-    if (window.TiledImageRenderer && blob instanceof Blob) {
+    let dimensions = null;
+    if (blob instanceof Blob) {
+      try {
+        dimensions = await this._getImageDimensionsFromHeader(blob);
+      } catch (e) {
+        console.warn('Could not check image dimensions:', e);
+      }
+      // Huge images go through the tiled renderer.
+      if (dimensions && window.TiledImageRenderer &&
+          TiledImageRenderer.needsTiling(dimensions.width, dimensions.height)) {
         try {
-            const dimensions = await this._getImageDimensionsFromHeader(blob);
-            if (dimensions && TiledImageRenderer.needsTiling(dimensions.width, dimensions.height)) {
-                await this._initTiledMode(blob, dimensions);
-                return;
-            }
+          await this._initTiledMode(blob, dimensions);
+          return;
         } catch (e) {
-            console.warn('Could not check image dimensions for tiling:', e);
-            // Try fallback: use resized createImageBitmap
-            try {
-                const smallBitmap = await createImageBitmap(blob, { resizeWidth: 2048, resizeQuality: 'low' });
-                // If we got here, the browser can decode it — show the resized version as fallback
-                const canvas = document.createElement('canvas');
-                canvas.width = smallBitmap.width;
-                canvas.height = smallBitmap.height;
-                canvas.getContext('2d').drawImage(smallBitmap, 0, 0);
-                smallBitmap.close();
-                const img = this.elements.media.querySelector('img') || document.createElement('img');
-                img.src = canvas.toDataURL();
-                if (!img.parentNode) this.elements.media.appendChild(img);
-                return;
-            } catch (e2) {
-                console.error('Image too large to display:', e2);
-            }
+          console.warn('Tiled mode failed, falling back to a plain image:', e);
         }
+      }
     }
 
     const img = GalleryUtils.createElement('img', {
@@ -1458,25 +1449,34 @@ class FullscreenViewer {
       className: 'viewer-image',
       draggable: 'false'
     });
-    
+    // Let the browser decode off the main thread where it can.
+    img.decoding = 'async';
+
     // Setup zoom functionality
     let isDragging = false;
     let dragStart = { x: 0, y: 0 };
     this.transform = { x: 0, y: 0, scale: 1 };
-    
-    img.addEventListener('load', async () => {
+
+    let handled = false;
+    const onImageLoaded = async () => {
+      if (handled) return;
+      handled = true;
       this.elements.media.appendChild(img);
       // Cache the img element reference for performance
       this._cachedImg = img;
-      
-      // Apply Windows Photos-like sizing logic
-      const dimensions = await this.getImageIntrinsicSize(img, file.url);
-      this.applyPhotosLayout(img, dimensions);
-      
+
+      // Apply Windows Photos-like sizing logic (handles SVG intrinsic size)
+      const size = await this.getImageIntrinsicSize(img, file.url);
+      this.applyPhotosLayout(img, size);
+
       this.resetZoom();
       // Reset adjustments on new load
       this.adjustments = { brightness: 0, exposure: 0, contrast: 0, highlights: 0, shadows: 0, vignette: 0, saturation: 0, warmth: 0, tint: 0, sharpness: 0 };
-    });
+    };
+    img.addEventListener('load', onImageLoaded, { once: true });
+    if (img.complete && img.naturalWidth > 0) {
+      onImageLoaded();
+    }
     
     // Mouse events for dragging
     // We attach to media container to capture events even if clicking on canvas

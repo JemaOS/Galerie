@@ -22,6 +22,7 @@ const urlsToCache = [
   './index.html',
   './manifest.json',
   './scripts/loader.js',
+  './scripts/i18n.js',
   './styles/fonts.css',
   './styles/main.css',
   './styles/grid.css',
