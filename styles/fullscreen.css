@@ -178,6 +178,21 @@
   justify-content: center;
 }
 
+/* Content fade-in: applies to whatever opens in the viewer (image, video,
+   audio, PDF, ...). Runs once when the element is inserted by loadFile. */
+.viewer-media > * {
+  animation: viewerContentIn 0.35s ease both;
+}
+
+@keyframes viewerContentIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewer-media > * { animation: none; }
+}
+
 /* Image Viewer */
 .viewer-media img {
   /* Default: shrink-to-fit (large images). JS may override for 1:1 display. */

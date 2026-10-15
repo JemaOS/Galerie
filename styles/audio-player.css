@@ -33,6 +33,20 @@
     display: none !important;
 }
 
+/* Fade the audio player in when it opens (matches the other viewers) */
+#audio-player:not(.hidden) {
+    animation: audioPlayerIn 0.35s ease both;
+}
+
+@keyframes audioPlayerIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #audio-player:not(.hidden) { animation: none; }
+}
+
 /* Sidebar (Playlist) */
 .audio-sidebar {
     width: 320px;

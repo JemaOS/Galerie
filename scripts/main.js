@@ -27,6 +27,9 @@ class JemaOSGallery {
   fullscreenViewer = null;
   pdfViewer = null;
   isInitialized = false;
+  // Set true when the app is opened straight into a file (File Handling API,
+  // share target). The home page is then never shown: the viewer fades in.
+  directLaunch = false;
   
   constructor() {
   }
@@ -66,14 +69,24 @@ class JemaOSGallery {
       
       // Setup global error handling
       this.setupErrorHandling();
-      
+
+      // Let a pending direct launch (File Handling API / share target) report
+      // itself before deciding whether the home page is ever shown.
+      await new Promise(resolve => setTimeout(resolve, 0));
+
       // Mark as initialized
       this.isInitialized = true;
-      
-      // Hide loading screen
-      this.showLoadingScreen(false);
-      
-      // Re-apply translations after the loading screen is hidden
+
+      if (this.directLaunch) {
+        // Opening straight into a file: keep the home page hidden and let the
+        // fullscreen viewer fade in over a black backdrop.
+        document.body.classList.add('launching');
+      } else {
+        // Hide loading screen (reveals the home page)
+        this.showLoadingScreen(false);
+      }
+
+      // Re-apply translations after the first paint
       applyI18n();
       updateLanguageSelectorVisibility();
       
@@ -212,17 +225,33 @@ class JemaOSGallery {
     if ('launchQueue' in globalThis) {
       globalThis.launchQueue.setConsumer(async (launchData) => {
         if (launchData.files && launchData.files.length > 0) {
+          // Mark synchronously (before any await) so init() can skip the home
+          // page and fade straight into the viewer.
+          this.directLaunch = true;
+          document.body.classList.add('launching');
+
           const loadedFiles = await this.fileHandler.loadFiles(launchData.files);
 
           // Auto-open first file
           if (loadedFiles.length > 0) {
             // Directly open the viewer without rendering the grid first
-            // This avoids the "flash" of the home page
             this.uiController.openInFullscreen(loadedFiles[0]);
+          } else {
+            this.revealApp();
           }
         }
       });
     }
+  }
+
+  /**
+   * Leave the "direct launch" state and reveal the home page (used when a launch
+   * turns out to carry no usable file, and when the viewer closes).
+   */
+  revealApp() {
+    document.body.classList.remove('launching');
+    this.directLaunch = false;
+    this.showLoadingScreen(false);
   }
 
   /**
@@ -234,6 +263,10 @@ class JemaOSGallery {
     const sharedFiles = urlParams.get('shared-files');
     
     if (sharedFiles) {
+      // Mark synchronously so init() can skip the home page and fade straight
+      // into the viewer.
+      this.directLaunch = true;
+      document.body.classList.add('launching');
       // Handle shared files
       await this.handleSharedFilesFromURL();
     }
