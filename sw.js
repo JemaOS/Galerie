@@ -29,7 +29,7 @@
 // activate. Bumping it is no longer required for content changes to land, but it
 // is still the way to force an immediate service-worker update (and thus the
 // in-app "update available" prompt) when the worker logic itself changes.
-const CACHE_NAME = 'jemaos-gallery-v1.6.11';
+const CACHE_NAME = 'jemaos-gallery-v1.6.12';
 const urlsToCache = [
   './',
   './index.html',
@@ -126,7 +126,18 @@ self.addEventListener('fetch', event => {
     event.request.url.endsWith('/') ||
     event.request.url.endsWith('index.html');
 
-  if (isDocument) {
+  // The dedicated file-handler route is served stale-while-revalidate so opening
+  // a file is instant: the cached app shell is used immediately and refreshed in
+  // the background. The '/' route stays network-first for update discovery.
+  let isFileRoute = false;
+  try {
+    const path = new URL(event.request.url).pathname;
+    isFileRoute = path === '/open' || path === '/open/';
+  } catch (error) {
+    isFileRoute = false;
+  }
+
+  if (isDocument && !isFileRoute) {
     event.respondWith(networkFirst(event.request));
     return;
   }

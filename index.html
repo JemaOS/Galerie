@@ -45,17 +45,9 @@
     <link rel="stylesheet" href="styles/annotation.css">
     <link rel="stylesheet" href="styles/responsive.css">
     
-    <!-- PDF.js (local) — deferred so it never blocks the first image paint -->
-    <script src="libs/pdf.min.js" defer></script>
-    <script defer>
-        window.addEventListener('DOMContentLoaded', function () {
-            if (window.pdfjsLib) {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = 'libs/pdf.worker.min.js';
-            }
-        });
-    </script>
-    <!-- PDF-Lib (local) — deferred, loaded only when a PDF is opened -->
-    <script src="libs/pdf-lib.min.js" defer></script>
+    <!-- PDF.js / PDF-Lib are loaded lazily by the UI controller only when a PDF
+         is opened: they are large and must not slow down image/audio/video
+         launches. See UIController._loadPdfViewer(). -->
 </head>
 <body>
     <!-- Loading Screen -->

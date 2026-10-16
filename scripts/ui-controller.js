@@ -671,6 +671,13 @@ class UIController {
   async _loadPdfViewer() {
     this.showLoading(true);
     try {
+      // Load PDF.js lazily: it is large and only needed for PDFs, so launching an
+      // image/audio/video never downloads it. PDF-Lib (editing) is loaded later,
+      // only when a PDF is actually saved or text-edited.
+      await globalThis.loadScript('libs/pdf.min.js');
+      if (globalThis.pdfjsLib) {
+        globalThis.pdfjsLib.GlobalWorkerOptions.workerSrc = 'libs/pdf.worker.min.js';
+      }
       await globalThis.loadScript('scripts/pdf-viewer.js');
       if (!globalThis.pdfViewer) {
         globalThis.pdfViewer = new PdfViewer(this.fileHandler, this);

@@ -97,50 +97,47 @@ class JemaOSGallery {
       // params (a file opened from the OS) are delivered as early as possible.
       this.setupFileHandlers();
       
-      // Initialize components
+      // Initialize components (needed to open a file).
       await this.initializeComponents();
-      
-      // Setup PWA features
+
+      // A direct file launch must not wait for the service worker registration or
+      // the rest of the PWA setup: open the file as soon as the components exist.
+      if (this.directLaunch) {
+        await this._openDirectLaunchFile();
+      }
+
+      // Setup PWA features (not needed to display the file).
       await this.setupPWA();
-      
+
       // Handle shared files without blocking startup: this awaits
       // navigator.serviceWorker.ready, which on a cold first run only resolves
       // after the whole precache installs. Do not gate the loading screen on it.
       this.handleSharedFiles().catch(error => {
         console.warn('[App] handleSharedFiles failed:', error);
       });
-      
+
       // Setup global error handling
       this.setupErrorHandling();
 
-      // Wait for the File Handling API to report a launch before deciding whether
-      // the home page is shown. On JemaOS the launch params arrive
-      // asynchronously, so deciding any earlier flashes the home page before the
-      // file actually opens.
-      await this.waitForLaunchDecision();
-
-      // Mark as initialized
-      this.isInitialized = true;
-
-      if (this.directLaunch) {
-        // Opening straight into a file: keep the home page hidden and show the
-        // viewer directly (no fade, no black flash).
-        document.body.classList.add('launching');
-      } else {
-        // Hide loading screen (reveals the home page)
-        this.showLoadingScreen(false);
+      if (!this.directLaunch) {
+        // Not (yet) a file launch: wait for the File Handling API to report -- it
+        // may yet deliver a file -- before revealing the home page.
+        await this.waitForLaunchDecision();
+        if (this.directLaunch) {
+          await this._openDirectLaunchFile();
+        } else {
+          // Hide loading screen (reveals the home page)
+          this.showLoadingScreen(false);
+        }
       }
 
-      // Open the file that launched the app, now that the components exist.
+      // The initial launch is handled; from now on the File Handling consumer
+      // opens launches itself. Consume a launch that slipped in meanwhile.
+      this.isInitialized = true;
       if (this._pendingLaunchFiles) {
         const files = this._pendingLaunchFiles;
         this._pendingLaunchFiles = null;
         await this._consumeLaunchFiles(files);
-      } else if (this._fileRoute) {
-        // We were opened on the file route but no file was delivered (e.g. the
-        // user navigated there directly): do not leave a blank window, fall back
-        // to the home page.
-        this.revealApp();
       }
 
       // Re-apply translations after the first paint
@@ -305,17 +302,19 @@ class JemaOSGallery {
         // and shows the viewer directly.
         this.directLaunch = true;
         document.body.classList.add('launching');
+        // While init() is still running, the initial launch is opened by init();
+        // once the app is running, a launch (e.g. opening another file) is opened
+        // right away. Never both, or the file would be opened twice.
+        if (this.isInitialized) {
+          this._resolveLaunchDecision?.();
+          this._consumeLaunchFiles(files);
+          return;
+        }
         this._pendingLaunchFiles = files;
       }
 
       // Let init() stop waiting and decide.
       this._resolveLaunchDecision?.();
-
-      // A launch received while the app is already running (e.g. opening another
-      // file) is opened immediately; the first launch is opened by init().
-      if (this.isInitialized && files.length > 0) {
-        this._consumeLaunchFiles(files);
-      }
     });
   }
 
@@ -359,6 +358,34 @@ class JemaOSGallery {
     ]);
     if (!this._launchReported) {
       console.warn(`[launch] no launch params after ${Date.now() - started}ms; showing the home page`);
+    }
+  }
+
+  /**
+   * Open the file that launched the app (File Handling API / file route) as soon
+   * as possible, keeping the home page hidden. Falls back to the home page when
+   * no file was delivered.
+   */
+  async _openDirectLaunchFile() {
+    document.body.classList.add('launching');
+
+    if (!this._pendingLaunchFiles && !this._launchReported) {
+      // The file route means a file is coming; it is normally reported within a
+      // millisecond, but can be late (e.g. right after a permission prompt).
+      const timeout = this._fileRoute ? 30000 : 1500;
+      await Promise.race([
+        this._launchDecisionPromise,
+        new Promise(resolve => setTimeout(resolve, timeout))
+      ]);
+    }
+
+    const files = this._pendingLaunchFiles;
+    this._pendingLaunchFiles = null;
+    if (files && files.length > 0) {
+      await this._consumeLaunchFiles(files);
+    } else {
+      // No file delivered (e.g. the file route was opened directly): show home.
+      this.revealApp();
     }
   }
 

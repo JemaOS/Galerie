@@ -11,7 +11,12 @@ describe('sw.js caching strategy', () => {
 
   test('documents are routed to networkFirst', () => {
     expect(sw).toMatch(/isDocument/);
-    expect(sw).toMatch(/if \(isDocument\)\s*\{\s*event\.respondWith\(networkFirst\(/);
+    expect(sw).toMatch(/if \(isDocument && !isFileRoute\)\s*\{\s*event\.respondWith\(networkFirst\(/);
+  });
+
+  test('the file-handler route is served stale-while-revalidate for instant opens', () => {
+    expect(sw).toMatch(/isFileRoute/);
+    expect(sw).toMatch(/isDocument && !isFileRoute/);
   });
 
   test('static assets use stale-while-revalidate, not cache-first', () => {

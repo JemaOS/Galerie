@@ -63,20 +63,38 @@ async function installDelayedLaunchQueue(page, base64, delayMs, { standalone = t
   }, { b64: base64, delay: delayMs, isStandalone: standalone });
 }
 
-// Records whether #app ever became visible, from the first paint onwards.
+// Records whether #app (or the language selector, which lives outside #app)
+// became visible, from the first paint onwards. Flagging only starts once the
+// stylesheet is applied (detected by #app being hidden by CSS), so the pre-CSS
+// default `display` is not a false positive.
 async function watchAppVisibility(page) {
   await page.addInitScript(() => {
     window.__appEverVisible = false;
+    window.__selectorEverVisible = false;
+    let cssReady = false;
     const check = () => {
       const app = document.getElementById('app');
-      if (app && getComputedStyle(app).display !== 'none') window.__appEverVisible = true;
+      if (!app) return;
+      const appDisplay = getComputedStyle(app).display;
+      if (!cssReady) {
+        if (appDisplay === 'none') cssReady = true;
+        return;
+      }
+      if (appDisplay !== 'none') window.__appEverVisible = true;
+      const sel = document.getElementById('language-selector');
+      if (sel && getComputedStyle(sel).display !== 'none') window.__selectorEverVisible = true;
     };
-    document.addEventListener('DOMContentLoaded', () => {
+    const start = () => {
       check();
       const mo = new MutationObserver(check);
       mo.observe(document.documentElement, { attributes: true, subtree: true, attributeFilter: ['class', 'style'] });
-    });
-    setInterval(check, 5);
+      setInterval(check, 5);
+    };
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', start);
+    } else {
+      start();
+    }
   });
 }
 
@@ -127,16 +145,6 @@ test.describe('Direct file launch', () => {
     // the launch settles. A premature reveal (e.g. during component init) shows
     // the home page for a frame before the viewer, which is what flashing is.
     await watchAppVisibility(page);
-    // The language selector is outside #app: flag it too, since it showing looks
-    // like the home page even when #app is hidden.
-    await page.addInitScript(() => {
-      window.__selectorEverVisible = false;
-      const check = () => {
-        const el = document.getElementById('language-selector');
-        if (el && getComputedStyle(el).display !== 'none') window.__selectorEverVisible = true;
-      };
-      document.addEventListener('DOMContentLoaded', () => { check(); setInterval(check, 5); });
-    });
 
     await installLaunchQueue(page, jpegBase64);
     await page.goto('/', { waitUntil: 'load' });
@@ -144,6 +152,8 @@ test.describe('Direct file launch', () => {
     await page.waitForSelector('.viewer-media img.viewer-image', { timeout: 10000 });
     await page.waitForTimeout(500);
 
+    // Neither the home page nor the language selector (which is outside #app)
+    // may ever have been visible.
     expect(await page.evaluate(() => window.__appEverVisible)).toBe(false);
     expect(await page.evaluate(() => window.__selectorEverVisible)).toBe(false);
   });

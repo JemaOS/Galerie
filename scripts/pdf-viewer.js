@@ -851,11 +851,22 @@ class PdfViewer {
   /**
    * Load text editor if needed
    */
+  /**
+   * Ensure PDF-Lib is loaded (needed to edit/save a PDF; not to view it).
+   * @private
+   */
+  async ensurePdfLib() {
+    if (!globalThis.PDFLib) {
+      await globalThis.loadScript('libs/pdf-lib.min.js');
+    }
+  }
+
   async loadTextEditor() {
       if (this.textEditor) return true;
 
       this.uiController.showLoading(true);
       try {
+          await this.ensurePdfLib();
           await globalThis.loadScript('scripts/pdf-text-editor.js');
           
           if (typeof PdfTextEditor === 'undefined') {
@@ -1133,6 +1144,7 @@ class PdfViewer {
    * Generate PDF Blob with changes
    */
   async generatePdfBlob() {
+      await this.ensurePdfLib();
       const arrayBuffer = await fetch(this.currentFile.url).then(res => res.arrayBuffer());
       const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer, { ignoreEncryption: true });
       
