@@ -804,6 +804,14 @@ input:checked + .slider:before {
   display: none !important;
 }
 
+/* The language selector lives outside #app (so it stays above the viewers), but
+   it must not show while the home page itself is hidden -- e.g. when the app
+   opens straight into a file. Pure CSS so it disappears from the very first
+   paint, with no flash before the file viewer appears. */
+#app.hidden ~ .language-selector {
+  display: none !important;
+}
+
 .language-selector .lang-icon {
   display: flex;
   align-items: center;

@@ -551,8 +551,12 @@ function closeLanguageDropdown() {
   if (container) container.classList.remove('open');
 }
 
-// Hide the selector while a fullscreen viewer / PDF viewer / audio player is open
+// Hide the selector while a fullscreen viewer / PDF viewer / audio player is
+// open, or while the home page itself is hidden (a direct file launch).
 function isGalleryHomeVisible() {
+  const app = document.getElementById('app');
+  if (app && app.classList.contains('hidden')) return false;
+
   const fullscreen = document.getElementById('fullscreen-viewer');
   const pdf = document.getElementById('pdf-viewer');
   const audio = document.getElementById('audio-player');
@@ -570,7 +574,9 @@ function updateLanguageSelectorVisibility() {
 }
 
 function setupLanguageSelectorVisibility() {
-  const ids = ['fullscreen-viewer', 'pdf-viewer', 'audio-player'];
+  // `app` matters too: the selector is outside #app and must follow its
+  // visibility so it never shows while the home page is hidden.
+  const ids = ['app', 'fullscreen-viewer', 'pdf-viewer', 'audio-player'];
   const observer = new MutationObserver(updateLanguageSelectorVisibility);
   ids.forEach(id => {
     const el = document.getElementById(id);

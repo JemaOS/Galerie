@@ -127,6 +127,16 @@ test.describe('Direct file launch', () => {
     // the launch settles. A premature reveal (e.g. during component init) shows
     // the home page for a frame before the viewer, which is what flashing is.
     await watchAppVisibility(page);
+    // The language selector is outside #app: flag it too, since it showing looks
+    // like the home page even when #app is hidden.
+    await page.addInitScript(() => {
+      window.__selectorEverVisible = false;
+      const check = () => {
+        const el = document.getElementById('language-selector');
+        if (el && getComputedStyle(el).display !== 'none') window.__selectorEverVisible = true;
+      };
+      document.addEventListener('DOMContentLoaded', () => { check(); setInterval(check, 5); });
+    });
 
     await installLaunchQueue(page, jpegBase64);
     await page.goto('/', { waitUntil: 'load' });
@@ -135,6 +145,7 @@ test.describe('Direct file launch', () => {
     await page.waitForTimeout(500);
 
     expect(await page.evaluate(() => window.__appEverVisible)).toBe(false);
+    expect(await page.evaluate(() => window.__selectorEverVisible)).toBe(false);
   });
 
   test('a launch reported late (real JemaOS timing) still avoids the home flash', async ({ page }) => {
