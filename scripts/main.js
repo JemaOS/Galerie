@@ -53,6 +53,11 @@ class JemaOSGallery {
   _launchDecisionPromise = null;
   _resolveLaunchDecision = null;
   swRegistration = null;
+  // Every File Handling API report (file count + ms since boot), for diagnostics.
+  _launchReports = [];
+  _bootTime = 0;
+  _diagEl = null;
+  _swVersion = null;
   // True when the app was opened on the dedicated file-handler route, i.e. the
   // OS is about to hand us a file: the home page must never be shown.
   _fileRoute = false;
@@ -72,6 +77,7 @@ class JemaOSGallery {
    */
   async init() {
     try {
+      this._bootTime = Date.now();
       console.log('🚀 Initializing JemaOS Gallery...');
       
       // Show loading screen
@@ -302,6 +308,8 @@ class JemaOSGallery {
     globalThis.launchQueue.setConsumer((launchData) => {
       const files = launchData?.files || [];
       this._launchReported = true;
+      this._launchReports.push({ n: files.length, t: Math.round(Date.now() - this._bootTime) });
+      this._refreshLaunchDiagnostic();
       console.log(`[launch] launchQueue reported ${files.length} file(s)`);
 
       if (files.length > 0) {
@@ -373,28 +381,21 @@ class JemaOSGallery {
   _showLaunchDiagnostic() {
     try {
       if (!document.body) return;
-      const mode = ['standalone', 'minimal-ui', 'fullscreen', 'window-controls-overlay', 'browser', 'tabbed']
-        .find(m => globalThis.matchMedia?.(`(display-mode: ${m})`)?.matches) || 'unknown';
       const el = document.createElement('div');
       el.setAttribute('data-launch-diagnostic', '');
       el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483647;background:rgba(0,0,0,.88);color:#8fd6ff;font:12px/1.45 monospace;padding:8px 10px;border-radius:6px;max-width:92vw;white-space:pre-wrap;pointer-events:none';
-      el.textContent = [
-        `Galerie v${this.getVersion()}`,
-        `path=${globalThis.location.pathname}`,
-        `display-mode=${mode}`,
-        `launchQueue=${'launchQueue' in globalThis}`,
-        `route=${this._fileRoute}`,
-        `launchReported=${this._launchReported}`,
-      ].join('\n');
+      this._diagEl = el;
+      this._refreshLaunchDiagnostic();
       document.body.appendChild(el);
-      setTimeout(() => el.remove(), 20000);
+      setTimeout(() => { el.remove(); if (this._diagEl === el) this._diagEl = null; }, 60000);
 
       // Running service worker version (the real deployed build).
       if (globalThis.navigator?.serviceWorker?.controller) {
         try {
           const channel = new MessageChannel();
           channel.port1.onmessage = (event) => {
-            el.textContent += `\nsw=${event.data?.version || '?'}`;
+            this._swVersion = event.data?.version || '?';
+            this._refreshLaunchDiagnostic();
           };
           globalThis.navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
         } catch (error) {
@@ -404,6 +405,24 @@ class JemaOSGallery {
     } catch (error) {
       // Diagnostic only: never break startup.
     }
+  }
+
+  _refreshLaunchDiagnostic() {
+    if (!this._diagEl) return;
+    const mode = ['standalone', 'minimal-ui', 'fullscreen', 'window-controls-overlay', 'browser', 'tabbed']
+      .find(m => globalThis.matchMedia?.(`(display-mode: ${m})`)?.matches) || 'unknown';
+    const lines = [
+      `Galerie v${this.getVersion()}`,
+      `path=${globalThis.location.pathname}`,
+      `display-mode=${mode}`,
+      `launchQueue=${'launchQueue' in globalThis}`,
+      `route=${this._fileRoute}`,
+      `launchReported=${this._launchReported}`,
+      `directLaunch=${this.directLaunch}`,
+      `reports=${this._launchReports.map(r => `${r.n}@${r.t}ms`).join(', ') || 'none'}`,
+    ];
+    if (this._swVersion) lines.push(`sw=${this._swVersion}`);
+    this._diagEl.textContent = lines.join('\n');
   }
 
   /**
