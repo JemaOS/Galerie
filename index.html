@@ -21,7 +21,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Galerie</title>
     <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#202124">
+    <!-- The window/theme colour follows the OS theme, so launching the app in
+         light mode never flashes a dark bar/background. -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#202124">
+    <meta name="theme-color" content="#ffffff">
+    <!-- Paint the page background before the stylesheets load, matching the
+         theme, so there is no flash of the wrong colour. -->
+    <style>
+        html { background-color: #ffffff; }
+        @media (prefers-color-scheme: dark) { html { background-color: #1f1f1f; } }
+    </style>
     <meta name="google" content="notranslate">
     <meta name="description" content="Une galerie de JemaOS pour visualiser des images, des vidéos et des fichiers audio">
     
