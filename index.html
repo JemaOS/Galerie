@@ -21,17 +21,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Galerie</title>
     <link rel="manifest" href="manifest.json">
-    <!-- The window/theme colour follows the OS theme, so launching the app in
-         light mode never flashes a dark bar/background. -->
+    <meta name="color-scheme" content="light dark">
+    <!-- The theme colour follows the OS theme. Order matters: the browser uses
+         the LAST applicable meta, so the plain fallback comes first. -->
+    <meta name="theme-color" content="#ffffff">
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#202124">
-    <meta name="theme-color" content="#ffffff">
     <!-- Paint the page background before the stylesheets load, matching the
          theme, so there is no flash of the wrong colour. -->
     <style>
         html { background-color: #ffffff; }
         @media (prefers-color-scheme: dark) { html { background-color: #1f1f1f; } }
     </style>
+    <!-- Keep the installed app's manifest (window/splash colour) in sync with the
+         theme: a manifest cannot follow prefers-color-scheme on its own. -->
+    <script>
+        (function () {
+            try {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    var link = document.querySelector('link[rel="manifest"]');
+                    if (link) link.href = 'manifest-dark.json';
+                }
+            } catch (error) { /* non-fatal */ }
+        })();
+    </script>
     <meta name="google" content="notranslate">
     <meta name="description" content="Une galerie de JemaOS pour visualiser des images, des vidéos et des fichiers audio">
     

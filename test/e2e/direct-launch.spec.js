@@ -117,7 +117,7 @@ test.describe('Direct file launch', () => {
     expect(appDisplayAfter).toBe('none');
   });
 
-  test('the viewer and the file fade in smoothly on a direct launch (no black backdrop)', async ({ page }) => {
+  test('viewer content appears immediately: no fade-in', async ({ page }) => {
     await installLaunchQueue(page, jpegBase64);
     await page.goto('/', { waitUntil: 'load' });
     await page.waitForSelector('.viewer-media img.viewer-image', { timeout: 10000 });
@@ -125,18 +125,17 @@ test.describe('Direct file launch', () => {
       const media = document.querySelector('.viewer-media > *');
       const viewer = document.getElementById('fullscreen-viewer');
       return {
-        mediaAnimation: getComputedStyle(media).animationName,
-        viewerTransitionProperty: getComputedStyle(viewer).transitionProperty,
+        contentAnimation: getComputedStyle(media).animationName,
+        contentOpacity: getComputedStyle(media).opacity,
         viewerTransitionDuration: getComputedStyle(viewer).transitionDuration,
-        bodyBackground: getComputedStyle(document.body).backgroundColor,
+        viewerOpacity: getComputedStyle(viewer).opacity,
       };
     });
-    // The file fades in and the viewer fades in smoothly...
-    expect(state.mediaAnimation).toBe('viewerMediaIn');
-    expect(state.viewerTransitionProperty).toContain('opacity');
-    expect(state.viewerTransitionDuration).not.toBe('0s');
-    // ...and no black backdrop is forced behind the transition.
-    expect(state.bodyBackground).not.toBe('rgb(0, 0, 0)');
+    // No content fade-in and the viewer is shown at once (no transition).
+    expect(state.contentAnimation).toBe('none');
+    expect(Number(state.contentOpacity)).toBe(1);
+    expect(Number(state.viewerOpacity)).toBe(1);
+    expect(state.viewerTransitionDuration).toBe('0s');
   });
 
   test('the home page is never shown during a direct launch (no flash)', async ({ page }) => {

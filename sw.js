@@ -29,11 +29,12 @@
 // activate. Bumping it is no longer required for content changes to land, but it
 // is still the way to force an immediate service-worker update (and thus the
 // in-app "update available" prompt) when the worker logic itself changes.
-const CACHE_NAME = 'jemaos-gallery-v1.6.14';
+const CACHE_NAME = 'jemaos-gallery-v1.6.15';
 const urlsToCache = [
   './',
   './index.html',
   './manifest.json',
+  './manifest-dark.json',
   './scripts/loader.js',
   './scripts/i18n.js',
   './styles/fonts.css',

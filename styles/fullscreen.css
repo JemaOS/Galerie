@@ -37,10 +37,9 @@
   visibility: visible;
 }
 
-/* Direct file launch: fade the viewer in smoothly over the black backdrop
-   instead of popping in. */
+/* Direct file launch: show the viewer at once, with no fade. */
 body.launching .fullscreen-viewer {
-  transition: opacity 300ms ease-in-out;
+  transition: none;
 }
 
 /* Viewer Toolbar */
@@ -184,20 +183,7 @@ body.launching .fullscreen-viewer {
   justify-content: center;
 }
 
-/* The media (image/video) fades in as it is inserted, so a launched file appears
-   smoothly even when it decodes after the viewer is already visible. */
-.viewer-media > * {
-  animation: viewerMediaIn 300ms ease-in-out both;
-}
-
-@keyframes viewerMediaIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .viewer-media > * { animation: none; }
-}
+/* Viewer content appears immediately: no fade-in. */
 
 /* Image Viewer */
 .viewer-media img {
