@@ -3,7 +3,8 @@
   "outputDirectory": ".",
   "devCommand": "npx serve .",
   "rewrites": [
-    { "source": "/open", "destination": "/index.html" }
+    { "source": "/open", "destination": "/index.html" },
+    { "source": "/open/", "destination": "/index.html" }
   ],
   "headers": [
     {
