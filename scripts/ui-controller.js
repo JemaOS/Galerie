@@ -283,17 +283,29 @@ class UIController {
     
     // If we have files but no viewer is open, open the first file immediately
     // This prevents showing a blank screen or the hidden home page
-    if (this.fileHandler.files.length > 0 &&
-        !globalThis.fullscreenViewer?.isViewerOpen() &&
-        !globalThis.pdfViewer?.isOpen &&
-        (!globalThis.audioPlayer?.elements?.container || globalThis.audioPlayer.elements.container.classList.contains('hidden'))) {
-        
+    if (this._shouldAutoOpenFirstFile()) {
         // Use requestAnimationFrame to ensure this runs after the current call stack
-        // but before the next repaint, making it feel instant
+        // but before the next repaint, making it feel instant. Re-check the
+        // condition when it runs: the explicit open in handleFileSelect/drop may
+        // have already opened a viewer by then.
         requestAnimationFrame(() => {
+            if (!this._shouldAutoOpenFirstFile()) return;
             this.openInFullscreen(this.fileHandler.files[0]);
         });
     }
+  }
+
+  /**
+   * Whether renderFiles should auto-open the first file: files exist, no open is
+   * in progress and no viewer is already open.
+   * @private
+   */
+  _shouldAutoOpenFirstFile() {
+    return this.fileHandler.files.length > 0 &&
+      !this._viewerOpenInProgress &&
+      !globalThis.fullscreenViewer?.isViewerOpen() &&
+      !globalThis.pdfViewer?.isOpen &&
+      (!globalThis.audioPlayer?.elements?.container || globalThis.audioPlayer.elements.container.classList.contains('hidden'));
   }
 
   /**
@@ -621,7 +633,7 @@ class UIController {
       globalThis.fullscreenViewer._skipFileRemoval = false;
     }
     if (globalThis.pdfViewer?.isOpen) {
-      globalThis.pdfViewer.close();
+      globalThis.pdfViewer.close(skipFileRemoval);
     }
     // Only close audio player if it's actually visible/open
     if (globalThis.audioPlayer?.elements?.container &&
@@ -736,24 +748,35 @@ class UIController {
    * @param {Object} file - File object
    */
   async openInFullscreen(file) {
-    // Close any existing viewers first to ensure only one is active
-    // Pass false to NOT remove files when switching between viewers
-    this.closeAllViewers(false);
+    if (!file) return;
 
-    switch (file.type) {
-      case 'audio':
-        await this._openAudioFile(file);
-        break;
-      case 'pdf':
-        await this._openPdfFile(file);
-        break;
-      case 'video':
-      case 'image':
-        this._openInFullscreenViewer(file);
-        break;
-      default:
-        this._openInFullscreenViewer(file);
-        break;
+    // Mark an open as in progress: the deferred auto-open in renderFiles() (via
+    // requestAnimationFrame) would otherwise fire a second, conflicting open
+    // that closes the viewer just opened and revokes the file's blob URL while
+    // it is still loading (the PDF then fails with UnexpectedResponseException).
+    this._viewerOpenInProgress = true;
+    try {
+      // Close any existing viewers first to ensure only one is active
+      // Pass false to NOT remove files when switching between viewers
+      this.closeAllViewers(false);
+
+      switch (file.type) {
+        case 'audio':
+          await this._openAudioFile(file);
+          break;
+        case 'pdf':
+          await this._openPdfFile(file);
+          break;
+        case 'video':
+        case 'image':
+          this._openInFullscreenViewer(file);
+          break;
+        default:
+          this._openInFullscreenViewer(file);
+          break;
+      }
+    } finally {
+      this._viewerOpenInProgress = false;
     }
   }
 

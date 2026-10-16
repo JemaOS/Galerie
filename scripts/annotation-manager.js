@@ -369,6 +369,15 @@ class AnnotationManager {
     // Reallocate the bitmap only when the intrinsic size actually changes, so a
     // relayout (window resize) never wipes the drawn annotations.
     if (canvas.width !== width || canvas.height !== height) {
+      // Reallocating clears the bitmap: if a shape preview is being drawn on
+      // this very canvas, drop it so it cannot leave artefacts behind.
+      if (this.isDrawing && this.activeCanvas === canvas) {
+        this.isDrawing = false;
+        this.shapeStart = null;
+        this.shapeEnd = null;
+        this.shapeSnapshot = null;
+        this.shapeDirty = null;
+      }
       canvas.width = width;
       canvas.height = height;
     }
@@ -801,11 +810,7 @@ class AnnotationManager {
         this.shapeStart = this._pointFromEvent(e);
         this.shapeEnd = this.shapeStart;
         // Snapshot the canvas so the live preview can be restored on each move.
-        this.shapeSnapshot = document.createElement('canvas');
-        this.shapeSnapshot.width = this.activeCanvas.width;
-        this.shapeSnapshot.height = this.activeCanvas.height;
-        this.shapeSnapshot.getContext('2d').drawImage(this.activeCanvas, 0, 0);
-        this.shapeDirty = null;
+        this._snapshotShapeCanvas();
         return;
     }
 
@@ -1663,10 +1668,34 @@ class AnnotationManager {
       ctx.restore();
   }
 
+  // Snapshot the current canvas (bitmap copy) used to erase the live shape
+  // preview between pointer moves.
+  _snapshotShapeCanvas() {
+      const canvas = this.activeCanvas;
+      if (!canvas) {
+          this.shapeSnapshot = null;
+          this.shapeDirty = null;
+          return;
+      }
+      const snap = document.createElement('canvas');
+      snap.width = canvas.width;
+      snap.height = canvas.height;
+      snap.getContext('2d').drawImage(canvas, 0, 0);
+      this.shapeSnapshot = snap;
+      this.shapeDirty = null;
+  }
+
   drawShapePreview(end) {
       const canvas = this.activeCanvas;
       const ctx = this.ctx;
       if (!canvas || !ctx || !this.shapeStart) return;
+      // The canvas can be reallocated mid-stroke (e.g. the PDF page re-renders
+      // at another resolution): a snapshot of a different size would restore the
+      // wrong region and leave artefacts, so re-sync it first.
+      if (this.shapeSnapshot &&
+          (this.shapeSnapshot.width !== canvas.width || this.shapeSnapshot.height !== canvas.height)) {
+          this._snapshotShapeCanvas();
+      }
       // Dirty-rect: only clear and restore the region touched by the previous
       // and current preview instead of the whole (possibly huge) canvas.
       const next = this._shapePreviewRect(this.shapeStart, end, this.currentTool, this.currentSize, canvas);

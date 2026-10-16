@@ -1035,8 +1035,9 @@ class PdfViewer {
 
   /**
    * Close viewer
+   * @param {boolean} skipFileRemoval - Keep the file (used when switching viewers)
    */
-  async close() {
+  async close(skipFileRemoval = false) {
     this.cancelAllRenders();
     await this.saveChangesIfNeeded();
 
@@ -1046,7 +1047,7 @@ class PdfViewer {
     this.cleanupObservers();
     await this.cleanupTextEditor();
     this.hideViewerUI();
-    this.cleanupSingleFile();
+    if (!skipFileRemoval) this.cleanupSingleFile();
   }
 
   /**
