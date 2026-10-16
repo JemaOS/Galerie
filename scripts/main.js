@@ -21,6 +21,20 @@
  * Main application entry point
  */
 
+// Dedicated route used by the manifest's file_handlers action. Opening a file
+// launches the PWA on this path, so a direct file launch is known synchronously
+// (before the first paint) and the home page is never shown, even if the file
+// handle is only delivered later (e.g. after the file access permission prompt).
+const FILE_LAUNCH_PATH = '/open';
+
+function isFileLaunchRoute() {
+  try {
+    return globalThis.location.pathname.replace(/\/+$/, '') === FILE_LAUNCH_PATH;
+  } catch (error) {
+    return false;
+  }
+}
+
 class JemaOSGallery {
   fileHandler = null;
   uiController = null;
@@ -39,11 +53,18 @@ class JemaOSGallery {
   _launchDecisionPromise = null;
   _resolveLaunchDecision = null;
   swRegistration = null;
+  // True when the app was opened on the dedicated file-handler route, i.e. the
+  // OS is about to hand us a file: the home page must never be shown.
+  _fileRoute = false;
 
   constructor() {
     this._launchDecisionPromise = new Promise(resolve => {
       this._resolveLaunchDecision = resolve;
     });
+    this._fileRoute = isFileLaunchRoute();
+    if (this._fileRoute) {
+      this.directLaunch = true;
+    }
   }
 
   /**
@@ -65,6 +86,12 @@ class JemaOSGallery {
       
       // Apply translations (initial language comes from the system)
       applyI18n();
+
+      // On the file-handler route the app was opened to show a file: hide the
+      // home page from the very first paint (no flash) while we wait for the file.
+      if (this._fileRoute && document.body) {
+        document.body.classList.add('launching');
+      }
 
       // Register the File Handling API consumer before anything slow, so launch
       // params (a file opened from the OS) are delivered as early as possible.
@@ -109,6 +136,11 @@ class JemaOSGallery {
         const files = this._pendingLaunchFiles;
         this._pendingLaunchFiles = null;
         await this._consumeLaunchFiles(files);
+      } else if (this._fileRoute) {
+        // We were opened on the file route but no file was delivered (e.g. the
+        // user navigated there directly): do not leave a blank window, fall back
+        // to the home page.
+        this.revealApp();
       }
 
       // Re-apply translations after the first paint
@@ -295,6 +327,22 @@ class JemaOSGallery {
    */
   async waitForLaunchDecision() {
     if (this._launchReported) return;
+
+    // Dedicated file route: a file is definitely coming from the OS, so wait for
+    // it (it can arrive late, e.g. right after the file access permission prompt)
+    // instead of ever revealing the home page.
+    if (this._fileRoute) {
+      const started = Date.now();
+      await Promise.race([
+        this._launchDecisionPromise,
+        new Promise(resolve => setTimeout(resolve, 30000))
+      ]);
+      if (!this._launchReported) {
+        console.warn(`[launch] no file delivered on ${FILE_LAUNCH_PATH} after ${Date.now() - started}ms`);
+      }
+      return;
+    }
+
     if (!('launchQueue' in globalThis)) return;
 
     // A plain browser tab never receives launch params, so it must not be

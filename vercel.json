@@ -2,6 +2,9 @@
   "buildCommand": null,
   "outputDirectory": ".",
   "devCommand": "npx serve .",
+  "rewrites": [
+    { "source": "/open", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/sw.js",

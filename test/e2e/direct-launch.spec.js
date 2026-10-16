@@ -203,4 +203,25 @@ test.describe('Direct file launch', () => {
     expect(visible.toastContainerInApp).toBe(false);
     expect(visible.toastVisible).toBe(true);
   });
+
+  test('opening on the file route (/open) never shows the home page, even when the file arrives late', async ({ page }) => {
+    await watchAppVisibility(page);
+    // The file handle is delivered well after the first paint (as after a
+    // permission prompt), beyond the non-route wait: the route alone must keep
+    // the home page hidden.
+    await installDelayedLaunchQueue(page, jpegBase64, 4000);
+
+    // `serve` has no SPA fallback: serve index.html for /open like Vercel's rewrite.
+    await page.route('**/open', route => route.fulfill({
+      path: path.join(__dirname, '..', '..', 'index.html'),
+      contentType: 'text/html',
+    }));
+
+    await page.goto('/open', { waitUntil: 'load' });
+    await page.waitForFunction(() => document.body.classList.contains('launching'), null, { timeout: 10000 });
+    await page.waitForSelector('.viewer-media img.viewer-image', { timeout: 10000 });
+    await page.waitForTimeout(400);
+
+    expect(await page.evaluate(() => window.__appEverVisible)).toBe(false);
+  });
 });

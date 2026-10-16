@@ -84,7 +84,7 @@
   ],
   "file_handlers": [
     {
-      "action": "./",
+      "action": "./open",
       "accept": {
         "image/jpeg": [".jpg", ".jpeg"],
         "image/png": [".png"],
@@ -128,7 +128,7 @@
       ]
     },
     {
-      "action": "./",
+      "action": "./open",
       "accept": {
         "video/mp4": [".mp4", ".m4v"],
         "video/webm": [".webm"],
@@ -170,7 +170,7 @@
       ]
     },
     {
-      "action": "./",
+      "action": "./open",
       "accept": {
         "audio/mpeg": [".mp3"],
         "audio/wav": [".wav"],
@@ -211,7 +211,7 @@
       ]
     },
     {
-      "action": "./",
+      "action": "./open",
       "accept": {
         "application/pdf": [".pdf"]
       },
