@@ -117,7 +117,7 @@ test.describe('Direct file launch', () => {
     expect(appDisplayAfter).toBe('none');
   });
 
-  test('viewer content appears immediately: no fade-in and no fade-up from black', async ({ page }) => {
+  test('the viewer and the file fade in smoothly on a direct launch (no black backdrop)', async ({ page }) => {
     await installLaunchQueue(page, jpegBase64);
     await page.goto('/', { waitUntil: 'load' });
     await page.waitForSelector('.viewer-media img.viewer-image', { timeout: 10000 });
@@ -125,19 +125,18 @@ test.describe('Direct file launch', () => {
       const media = document.querySelector('.viewer-media > *');
       const viewer = document.getElementById('fullscreen-viewer');
       return {
-        contentAnimation: getComputedStyle(media).animationName,
-        contentOpacity: getComputedStyle(media).opacity,
+        mediaAnimation: getComputedStyle(media).animationName,
+        viewerTransitionProperty: getComputedStyle(viewer).transitionProperty,
         viewerTransitionDuration: getComputedStyle(viewer).transitionDuration,
-        viewerOpacity: getComputedStyle(viewer).opacity,
+        bodyBackground: getComputedStyle(document.body).backgroundColor,
       };
     });
-    // No content fade-in...
-    expect(state.contentAnimation).toBe('none');
-    expect(Number(state.contentOpacity)).toBe(1);
-    // ...and the viewer is shown at once: its fade-up transition is disabled
-    // during a direct launch, so there is no black fade before the file.
-    expect(Number(state.viewerOpacity)).toBe(1);
-    expect(state.viewerTransitionDuration).toBe('0s');
+    // The file fades in and the viewer fades in smoothly...
+    expect(state.mediaAnimation).toBe('viewerMediaIn');
+    expect(state.viewerTransitionProperty).toContain('opacity');
+    expect(state.viewerTransitionDuration).not.toBe('0s');
+    // ...and no black backdrop is forced behind the transition.
+    expect(state.bodyBackground).not.toBe('rgb(0, 0, 0)');
   });
 
   test('the home page is never shown during a direct launch (no flash)', async ({ page }) => {

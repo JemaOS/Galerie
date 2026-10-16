@@ -37,10 +37,10 @@
   visibility: visible;
 }
 
-/* Direct file launch: show the viewer at once, with no fade up from black, so
-   launching a file never produces a black flash before the file appears. */
+/* Direct file launch: fade the viewer in smoothly over the black backdrop
+   instead of popping in. */
 body.launching .fullscreen-viewer {
-  transition: none;
+  transition: opacity 300ms ease-in-out;
 }
 
 /* Viewer Toolbar */
@@ -184,9 +184,20 @@ body.launching .fullscreen-viewer {
   justify-content: center;
 }
 
-/* Viewer content appears immediately: no fade-in. A fade made a directly
-   launched file flash black (viewer fading up from opacity 0) before the file
-   showed, so the content is simply rendered at full opacity. */
+/* The media (image/video) fades in as it is inserted, so a launched file appears
+   smoothly even when it decodes after the viewer is already visible. */
+.viewer-media > * {
+  animation: viewerMediaIn 300ms ease-in-out both;
+}
+
+@keyframes viewerMediaIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewer-media > * { animation: none; }
+}
 
 /* Image Viewer */
 .viewer-media img {

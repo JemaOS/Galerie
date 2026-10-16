@@ -152,11 +152,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Direct file launch: the home page is never shown; the fullscreen viewer fades
-   in over a black backdrop (image, video, audio, PDF ...). */
-body.launching {
-  background-color: #000;
-}
+/* Direct file launch: the home page is never shown. No black backdrop: the
+   viewer simply fades in smoothly over the app background. */
 body.launching #app {
   display: none !important;
 }
