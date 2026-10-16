@@ -29,7 +29,7 @@
 // activate. Bumping it is no longer required for content changes to land, but it
 // is still the way to force an immediate service-worker update (and thus the
 // in-app "update available" prompt) when the worker logic itself changes.
-const CACHE_NAME = 'jemaos-gallery-v1.6.15';
+const CACHE_NAME = 'jemaos-gallery-v1.6.16';
 const urlsToCache = [
   './',
   './index.html',
@@ -130,12 +130,20 @@ self.addEventListener('fetch', event => {
   // The dedicated file-handler route is served stale-while-revalidate so opening
   // a file is instant: the cached app shell is used immediately and refreshed in
   // the background. The '/' route stays network-first for update discovery.
-  let isFileRoute = false;
+  let pathname = '';
   try {
-    const path = new URL(event.request.url).pathname;
-    isFileRoute = path === '/open' || path === '/open/';
+    pathname = new URL(event.request.url).pathname;
   } catch (error) {
-    isFileRoute = false;
+    pathname = '';
+  }
+  const isFileRoute = pathname === '/open' || pathname === '/open/';
+
+  // The manifest drives the window/title-bar colour: always fetch it fresh so a
+  // theme change (light/dark manifest) is picked up, the cache being only an
+  // offline fallback. A stale manifest left the window bar in the old theme.
+  if (pathname === '/manifest.json' || pathname === '/manifest-dark.json') {
+    event.respondWith(networkFirst(event.request));
+    return;
   }
 
   if (isDocument && !isFileRoute) {
