@@ -122,6 +122,10 @@ class JemaOSGallery {
       // Mark as initialized
       this.isInitialized = true;
 
+      // Temporary on-screen diagnostic (auto-hides): lets a launch problem be
+      // reported without devtools. TODO: remove once launching is confirmed.
+      this._showLaunchDiagnostic();
+
       if (this.directLaunch) {
         // Opening straight into a file: keep the home page hidden and show the
         // viewer directly (no fade, no black flash).
@@ -359,6 +363,46 @@ class JemaOSGallery {
     ]);
     if (!this._launchReported) {
       console.warn(`[launch] no launch params after ${Date.now() - started}ms; showing the home page`);
+    }
+  }
+
+  /**
+   * Temporary on-screen diagnostic (auto-hides) so a launch problem can be
+   * reported without devtools. Remove once file launching is confirmed.
+   */
+  _showLaunchDiagnostic() {
+    try {
+      if (!document.body) return;
+      const mode = ['standalone', 'minimal-ui', 'fullscreen', 'window-controls-overlay', 'browser', 'tabbed']
+        .find(m => globalThis.matchMedia?.(`(display-mode: ${m})`)?.matches) || 'unknown';
+      const el = document.createElement('div');
+      el.setAttribute('data-launch-diagnostic', '');
+      el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:2147483647;background:rgba(0,0,0,.88);color:#8fd6ff;font:12px/1.45 monospace;padding:8px 10px;border-radius:6px;max-width:92vw;white-space:pre-wrap;pointer-events:none';
+      el.textContent = [
+        `Galerie v${this.getVersion()}`,
+        `path=${globalThis.location.pathname}`,
+        `display-mode=${mode}`,
+        `launchQueue=${'launchQueue' in globalThis}`,
+        `route=${this._fileRoute}`,
+        `launchReported=${this._launchReported}`,
+      ].join('\n');
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 20000);
+
+      // Running service worker version (the real deployed build).
+      if (globalThis.navigator?.serviceWorker?.controller) {
+        try {
+          const channel = new MessageChannel();
+          channel.port1.onmessage = (event) => {
+            el.textContent += `\nsw=${event.data?.version || '?'}`;
+          };
+          globalThis.navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' }, [channel.port2]);
+        } catch (error) {
+          // ignore
+        }
+      }
+    } catch (error) {
+      // Diagnostic only: never break startup.
     }
   }
 
