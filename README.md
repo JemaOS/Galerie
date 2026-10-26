@@ -1,100 +1,110 @@
-# JemaOS Gallery
+<div align="center">
 
-**JemaOS Gallery** is a versatile and lightweight media gallery application designed for JemaOS. It provides a seamless experience for viewing images, playing videos, listening to audio files, and reading PDFs, all within a modern web interface.
+<h1>JemaOS Gallery</h1>
 
-## Features
+### A fast, lightweight media gallery for images, video, audio and PDF
 
-- **Image Viewer**: Support for a wide range of image formats with smooth navigation.
-- **Video Player**: Integrated video player for playback of common video formats.
-- **Audio Player**: Listen to your favorite audio tracks directly in the gallery.
-- **PDF Viewer**: Built-in PDF viewer for easy document reading.
-- **Annotation Tools**: Add and manage annotations on your media files.
-- **Progressive Web App (PWA)**: Installable on supported devices for an app-like experience.
-- **File Handling**: robust file handling capabilities including drag-and-drop support.
+[![Made by Jema Technology](https://img.shields.io/badge/Made%20by-Jema%20Technology-8286ef)](https://www.jematechnology.fr)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+[![Vanilla JS](https://img.shields.io/badge/Vanilla-JS-f7df1e?logo=javascript&logoColor=black)](#)
+[![PWA](https://img.shields.io/badge/PWA-Installable-8286ef)](#)
+[![Windows MSIX](https://img.shields.io/badge/Windows-MSIX-0078d4?logo=windows&logoColor=white)](README.md#-windows-msix)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](#-contributing)
 
-## Installation & Usage
+**Image viewer · video & audio players · PDF viewer · annotations · fullscreen · offline**
 
-This project is a static web application that can be served using any static file server. It includes scripts for easy development and serving.
+[Features](#-features) · [Screenshots](#-screenshots) · [Getting started](#-getting-started) · [Tech stack](#-tech-stack) · [License](#-license)
 
-### Prerequisites
+</div>
 
-- [Node.js](https://nodejs.org/) (version 14 or higher recommended)
+![JemaOS Gallery — image viewer](screenshots/main.png)
 
-### Getting Started
+---
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/JemaTechnology/jemaos-gallery.git
-    cd jemaos-gallery
-    ```
+## ✨ Features
 
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+- 🖼️ **Image viewer** — zoom, rotate, pan, fullscreen
+- 🎬 **Video player** with playback controls
+- 🎵 **Audio player** for your tracks
+- 📄 **PDF viewer** built in
+- ✏️ **Annotation tools** — draw, highlight, add text on media
+- 🖱️ **Drag & drop** and folder support
+- 🌍 **English / French** UI
+- 📶 **PWA** — installable and offline-capable
+- 🪟 **Windows MSIX** packaging available
 
-3.  **Run the development server:**
-    ```bash
-    npm run dev
-    ```
-    This will start a live-reload server, typically accessible at `http://127.0.0.1:8080`.
+---
 
-4.  **Run in production mode:**
-    ```bash
-    npm start
-    ```
+## 📸 Screenshots
 
-5.  **Generate icons (including file type icons):**
-    ```bash
-    npm run generate-icons
-    ```
+| Light | Dark |
+| :---: | :---: |
+| <img src="screenshots/main.png" alt="Galerie — light" /> | <img src="screenshots/main-dark.png" alt="Galerie — dark" /> |
 
-## Windows MSIX Packaging
+---
 
-For custom file type icons in Windows Explorer, Galerie can be packaged as an MSIX application. This allows files associated with Galerie to display branded icons.
+## 🚀 Getting started
 
-### Why MSIX?
+This is a static web application — no bundler required.
 
-PWAs cannot control how Windows Explorer displays file icons. The `file_handlers` in the web manifest only affects the "Open With" dialog. MSIX packaging enables:
+```bash
+git clone https://github.com/JemaOS/Galerie.git
+cd Galerie
+npm install
+npm start          # serve the app (http://localhost:3000)
+npm run dev        # live-reload development server
+```
 
-- Custom icons for associated file types (images, videos, audio, PDFs)
-- Galerie branding visible in Windows Explorer
-- Microsoft Store distribution
+### Tests
 
-### Quick Start
+```bash
+npm test           # unit tests (Jest)
+npm run test:e2e   # end-to-end tests (Playwright)
+```
 
-1. Generate icons: `npm run generate-icons`
-2. Use [PWABuilder](https://pwabuilder.com) to create the MSIX package
-3. Upload the configuration from `msix/pwabuilder.json`
+### Windows MSIX
 
-See [`msix/README.md`](msix/README.md) for detailed packaging instructions.
+The repo ships an `msix/` folder and build scripts to package Gallery as a Windows app. See the MSIX section of the original docs for the full flow.
 
-## Technologies Used
+---
 
-- **HTML5**
-- **CSS3**
-- **JavaScript (Vanilla)**
-- **Service Workers** (for PWA functionality)
+## 🛠️ Tech stack
 
-## Deployment
+- **Vanilla HTML / CSS / JavaScript** (no framework)
+- **Service Worker** + Web App Manifest for PWA/offline
+- **PDF.js / libs** for document rendering
+- **Jest** + **Playwright** for tests
 
-The app is a static PWA (no build step). After deploying, confirm the load is
-cached-offline once in the browser.
+---
 
-Content changes reach users automatically: `index.html`/navigations are served
-network-first, and every other asset (`styles/`, `scripts/`, `libs/`, `fonts/`,
-`icons/`) is served stale-while-revalidate, so the next load picks up the new
-files even without touching the service worker.
+## 📁 Project structure
 
-**Bump `CACHE_NAME` in `sw.js` only when the service-worker logic itself changes.**
-That is what makes the browser install a new worker and show the in-app
-**"update available"** prompt (which reloads onto the fresh cache). It is no
-longer required for ordinary content deploys.
+```
+scripts/   # app, viewers, annotations, i18n
+styles/    # theming + responsive styles
+libs/      # bundled libraries (PDF, etc.)
+icons/     # app icons
+msix/      # Windows packaging
+```
 
-## License
+---
 
-This project is open source and available under the **GNU Affero General Public License v3.0 (AGPL-3.0)**. See the [LICENSE](LICENSE) file for more details.
+## 🤝 Contributing
 
-## Credits
+Contributions are welcome! Fork, branch, and open a pull request.
 
-Developed by **Jema Technology**.
+```bash
+git checkout -b feat/my-feature
+git commit -m "feat: my feature"
+git push origin feat/my-feature
+```
+
+---
+
+## 📄 License
+
+Released under the **GNU AGPL-3.0** — see [LICENSE](LICENSE).
+
+<div align="center">
+Made with ❤️ by <a href="https://www.jematechnology.fr">Jema Technology</a>
+</div>
