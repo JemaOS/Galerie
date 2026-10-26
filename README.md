@@ -15,6 +15,10 @@
 
 [Features](#-features) · [Screenshots](#-screenshots) · [Getting started](#-getting-started) · [Tech stack](#-tech-stack) · [License](#-license)
 
+<br>
+
+<sub>**Keywords:** photo gallery · image viewer · media gallery · video player · audio player · PDF viewer · annotation · draw on images · zoom · rotate · fullscreen · slideshow · drag and drop · offline gallery · local-first · installable PWA · Windows MSIX · vanilla JavaScript</sub>
+
 </div>
 
 ![JemaOS Gallery — image viewer](screenshots/main.png)
@@ -40,6 +44,10 @@
 | Light | Dark |
 | :---: | :---: |
 | <img src="screenshots/main.png" alt="Galerie — light" /> | <img src="screenshots/main-dark.png" alt="Galerie — dark" /> |
+
+<p align="center">
+  <img src="screenshots/annotation.png" width="880" alt="Galerie — annotation (edit mode) toolbar" />
+</p>
 
 ---
 

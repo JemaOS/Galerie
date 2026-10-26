@@ -1,7 +1,7 @@
 {
   "name": "galerie",
   "version": "1.0.0",
-  "description": "A JemaOS gallery for viewing images, videos, and audio files",
+  "description": "A fast, lightweight offline-first media gallery for images, video, audio and PDF with built-in viewers and annotation.",
   "main": "index.html",
   "scripts": {
     "start": "npx serve .",
@@ -18,7 +18,16 @@
     "images",
     "videos",
     "audio",
-    "media"
+    "media",
+    "photo-gallery",
+    "image-viewer",
+    "video-player",
+    "audio-player",
+    "pdf-viewer",
+    "annotation",
+    "offline",
+    "local-first",
+    "vanilla-javascript"
   ],
   "author": "Jema Technology",
   "license": "AGPL-3.0",
